@@ -1,9 +1,17 @@
+import gleam/http/response.{type Response}
+import gleam/http/request.{type Request}
 import gleam/option.{type Option, None}
-import app/oauth
+import mist
+import wisp
 
-pub type Config {
-  Config(
-    oura_oauth: oauth.Config,
+pub type Spec(config, user) {
+  Spec(
+    dot_env_relative_path: String,
+    secret_key_base_env_var_name: String,
+    init_config: fn() -> config,
+    authenticate: fn(Session, config) -> Option(user),
+    mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(mist.ResponseData),
+    wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> Response(wisp.Body),
   )
 }
 
@@ -12,16 +20,6 @@ pub type Context(config, user) {
     cfg: config,
     user_client_info: UserClientInfo,
     user: Option(user),
-  )
-}
-
-pub fn context_without_user_or_client_info(
-  cfg cfg: config,
-) -> Context(config, user) {
-  Context(
-    cfg:,
-    user_client_info: default_user_client_info(),
-    user: None,
   )
 }
 

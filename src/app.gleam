@@ -18,8 +18,8 @@ import app/oauth
 import app/oauth/oura
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import app/types.{type Context, type Config, type Session}
-import app/config
+import app/types.{type Context, type Session}
+import app/config.{type Config}
 import app/context
 import app/websockets
 import app/web/session
