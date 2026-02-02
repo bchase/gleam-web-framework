@@ -7,9 +7,7 @@ pub type Config {
   )
 }
 
-pub type Context = ContextWith(Nil)
-
-pub type ContextWith(user) {
+pub type Context(user) {
   Context(
     cfg: Config,
     user_client_info: UserClientInfo,
@@ -19,7 +17,7 @@ pub type ContextWith(user) {
 
 pub fn context_without_user_or_client_info(
   cfg cfg: Config,
-) -> ContextWith(user) {
+) -> Context(user) {
   Context(
     cfg:,
     user_client_info: default_user_client_info(),
@@ -40,5 +38,12 @@ pub fn default_user_client_info() -> UserClientInfo {
     time_zone: "Etc/UTC",
     locale: "en-US",
     default: True,
+  )
+}
+
+pub type Session {
+  Session(
+    user_token: Option(String),
+    user_client_info: Option(UserClientInfo),
   )
 }
