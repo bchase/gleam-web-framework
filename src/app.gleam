@@ -25,6 +25,18 @@ import app/web/session
 import app/router
 import wisp
 
+// TODO mv
+type User {
+  User
+}
+fn authenticate(
+  session session: Session,
+  cfg _cfg: Config,
+) -> Option(User) {
+  None
+}
+// TODO mv
+
 const web_req_handler_worker_shutdown_ms = 60_000
 
 pub fn main() -> Nil {
@@ -65,11 +77,8 @@ fn web_req_handler(
     websockets.handler
 
   let wisp_mist_handler =
-    fn(req, ctx) {
-      router.handler(req: _, ctx:)
-      |> wisp_mist.handler(secret_key_base)
-      |> fn(handle) { handle(req) }
-    }
+    router.handler
+    |> to_mist(secret_key_base:)
 
   build_web_req_handler(
     mist_req: _,
@@ -84,6 +93,21 @@ fn web_req_handler(
   |> mist.port(port())
   // |> mist.with_ipv6
   |> mist.start
+}
+
+fn to_mist(
+  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(user)) -> Response(wisp.Body),
+  // authenticate authenticate: fn(Session, Config) -> Option(user),
+  secret_key_base secret_key_base: String,
+) -> fn(Request(mist.Connection), Context(user)) -> Response(mist.ResponseData) {
+  fn(mist_req, ctx) {
+    fn(wisp_req) {
+      use wisp_req <- middleware(wisp_req, static_directory())
+      wisp_handler(wisp_req, ctx)
+    }
+    |> wisp_mist.handler(secret_key_base)
+    |> fn(handle_mist) { handle_mist(mist_req) }
+  }
 }
 
 fn build_web_req_handler(
@@ -104,32 +128,6 @@ let session = session.from_mist(req: mist_req, secret_key_base:)
     _ ->
       mist_req |> wisp_mist_handler(ctx)
   }
-}
-
-type User {
-  User
-}
-
-fn authenticate(
-  session session: Session,
-  cfg _cfg: Config,
-) -> Option(User) {
-  None
-}
-
-fn handle_request(
-  req req: Request(wisp.Connection),
-  cfg cfg: Config,
-  handler handle: fn(Request(wisp.Connection), Context(user)) -> Response(wisp.Body),
-  authenticate authenticate: fn(Session, Config) -> Option(user),
-) -> Response(wisp.Body) {
-  let session = session.from_wisp(req:)
-
-  use req <- middleware(req, static_directory())
-
-  let ctx = context.build(session:, cfg:, authenticate:)
-
-  handle(req, ctx)
 }
 
 fn middleware(
