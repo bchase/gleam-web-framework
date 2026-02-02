@@ -1,7 +1,7 @@
+import gleam/otp/actor
 import gleam/int
 import dot_env/env
 import gleam/result
-import wisp
 import gleam/uri
 import dot_env
 import gleam/erlang/process
@@ -13,26 +13,74 @@ import wisp/wisp_mist
 import app/handlers/oauth as oauth_handler
 import app/oauth
 import app/oauth/oura
+import gleam/otp/static_supervisor.{type Supervisor}
+import gleam/otp/supervision.{type ChildSpecification}
+import app/types.{type Config, type UserClientInfo}
+import app/config
+import app/websockets
+import app/router
+
+const web_req_handler_worker_shutdown_ms = 60_000
 
 pub fn main() -> Nil {
   load_dot_env()
 
-  let cfg = oura.build_config()
+  let cfg = config.init()
 
-  let wisp_handler = wisp_mist.handler(app_wisp(req: _, cfg:), secret_key_base())
-  let mist_handler = app_mist(req: _, cfg:)
-
-  let req_handler = req_handler(mist_req: _, mist_handler:, wisp_handler:)
-
-  let assert Ok(_) =
-    req_handler
-    |> mist.new()
-    |> mist.bind("0.0.0.0")
-    |> mist.port(port())
-    // |> mist.with_ipv6
-    |> mist.start
+  let assert Ok(_) = start_supervisor(cfg:)
 
   process.sleep_forever()
+}
+
+fn start_supervisor(
+  cfg cfg: Config,
+) -> Result(actor.Started(Supervisor), actor.StartError) {
+  static_supervisor.new(static_supervisor.OneForOne)
+  |> static_supervisor.add(web_req_handler_worker(cfg:))
+  |> static_supervisor.start
+}
+
+fn web_req_handler_worker(
+  cfg cfg: Config,
+) -> ChildSpecification(Supervisor) {
+  supervision.ChildSpecification(
+    start: fn() { web_req_handler(cfg:) },
+    restart: supervision.Permanent,
+    significant: False,
+    child_type: supervision.Worker(shutdown_ms: web_req_handler_worker_shutdown_ms),
+  )
+}
+
+fn web_req_handler(
+  cfg cfg: Config,
+) -> Result(actor.Started(Supervisor), actor.StartError) {
+  let wisp_mist_handler = wisp_mist.handler(router.handler(req: _, cfg:), secret_key_base())
+  let mist_websockets_handler = websockets.handler(req: _, cfg:)
+
+  build_web_req_handler(
+    mist_req: _,
+    mist_websockets_handler:,
+    wisp_mist_handler:,
+  )
+  |> mist.new()
+  |> mist.bind("0.0.0.0")
+  |> mist.port(port())
+  // |> mist.with_ipv6
+  |> mist.start
+}
+
+fn build_web_req_handler(
+  mist_req mist_req: Request(Connection),
+  mist_websockets_handler mist_websockets_handler: fn(Request(Connection)) -> Response(ResponseData),
+  wisp_mist_handler wisp_mist_handler: fn(Request(Connection)) -> Response(ResponseData),
+) -> Response(ResponseData) {
+  case mist_req |> request.path_segments {
+    ["/ws", ..] ->
+      mist_req |> mist_websockets_handler
+
+    _ ->
+      mist_req |> wisp_mist_handler
+  }
 }
 
 fn port() -> Int {
@@ -45,69 +93,6 @@ fn port() -> Int {
 fn secret_key_base() -> String {
   let assert Ok(str) = env.get_string("SECRET_KEY_BASE")
   str
-}
-
-fn req_handler(
-  mist_req mist_req: Request(Connection),
-  mist_handler mist_handler: fn(Request(Connection)) -> Response(ResponseData),
-  wisp_handler wisp_handler: fn(Request(Connection)) -> Response(ResponseData),
-) -> Response(ResponseData) {
-  case mist_req |> request.path_segments {
-    ["/ws", ..] ->
-      mist_req |> mist_handler
-
-    _ ->
-      mist_req |> wisp_handler
-  }
-}
-
-fn app_wisp(
-  req req: Request(wisp.Connection),
-  cfg cfg: oauth.Config,
-) -> Response(wisp.Body) {
-  case req |> wisp.path_segments {
-    _ ->
-      ""
-      |> wisp.html_response(200)
-  }
-}
-
-fn app_mist(
-  req req: Request(Connection),
-  cfg cfg: oauth.Config,
-) -> Response(ResponseData) {
-  case req |> request.path_segments {
-    [] ->
-      200
-      |> response.new
-      |> response.set_body({
-        "hi"
-        |> bytes_tree.from_string
-        |> mist.Bytes
-      })
-
-    ["auth", "oura"] -> {
-      // let url = uri.to_string(oauth.authorize_redirect_uri(cfg))
-      let url = todo
-
-      301
-      |> response.new
-      |> response.set_header("location", url)
-      |> response.set_body(
-        bytes_tree.new()
-        |> mist.Bytes
-      )
-    }
-
-    _ ->
-      404
-      |> response.new
-      |> response.set_body({
-        "not found"
-        |> bytes_tree.from_string
-        |> mist.Bytes
-      })
-  }
 }
 
 fn load_dot_env() -> Nil {
