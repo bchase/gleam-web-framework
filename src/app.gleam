@@ -18,7 +18,7 @@ import app/oauth
 import app/oauth/oura
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import app/types.{type Context, type Config, type UserClientInfo, type Session}
+import app/types.{type Context, type Config, type Session}
 import app/config
 import app/context
 import app/websockets
@@ -40,18 +40,17 @@ fn authenticate(
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
+const spec =
+  Spec(
+    dot_env_relative_path: ".env",
+    secret_key_base_env_var_name: "SECRET_KEY_BASE",
+    init_config: config.init,
+    authenticate:,
+    mist_websockets_handler: websockets.handler,
+    wisp_handler: router.handler,
+  )
+
 pub fn main() -> Nil {
-  load_dot_env()
-
-  let spec =
-    Spec(
-      secret_key_base_env_var_name: "SECRET_KEY_BASE",
-      init_config: config.init,
-      authenticate:,
-      mist_websockets_handler: websockets.handler,
-      wisp_handler: router.handler,
-    )
-
   let assert Ok(_) =
     start_supervisor(spec:, one_for_one_children: [])
 
@@ -60,6 +59,7 @@ pub fn main() -> Nil {
 
 type Spec(config, user) {
   Spec(
+    dot_env_relative_path: String,
     secret_key_base_env_var_name: String,
     init_config: fn() -> config,
     authenticate: fn(Session, config) -> Option(user),
@@ -68,28 +68,19 @@ type Spec(config, user) {
   )
 }
 
-fn start(
-  spec spec: Spec(config, user),
-) {
-  start_supervisor(
-    spec:,
-    one_for_one_children: [],
-  )
-}
-
 fn start_supervisor(
   spec spec: Spec(config, user),
-  one_for_one_children children: List(ChildSpecification(Supervisor)),
+  one_for_one_children children: List(fn(config) -> ChildSpecification(Supervisor)),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
-  let Spec(init_config:, authenticate:, ..) = spec
+  load_dot_env(spec.dot_env_relative_path)
 
-  let cfg = init_config()
+  let cfg = spec.init_config()
 
   static_supervisor.new(static_supervisor.OneForOne)
   |> static_supervisor.add(web_req_handler_worker(cfg:, spec:))
   |> list.fold(children, _, fn(supervisor, child) {
     supervisor
-    |> static_supervisor.add(child)
+    |> static_supervisor.add(child(cfg))
   })
   |> static_supervisor.start
 }
@@ -243,9 +234,11 @@ fn secret_key_base(
   str
 }
 
-fn load_dot_env() -> Nil {
+fn load_dot_env(
+  relative_path relative_path: String,
+) -> Nil {
   dot_env.new()
-  |> dot_env.set_path(".env")
+  |> dot_env.set_path(relative_path)
   |> dot_env.set_debug(False)
   |> dot_env.load
 }
