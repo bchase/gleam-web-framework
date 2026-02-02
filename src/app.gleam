@@ -8,7 +8,7 @@ import gleam/erlang/process
 import gleam/http/response.{type Response}
 import gleam/http/request.{type Request}
 import gleam/bytes_tree
-import mist.{type Connection, type ResponseData}
+import mist.{type ResponseData}
 import wisp/wisp_mist
 import app/handlers/oauth as oauth_handler
 import app/oauth
@@ -17,8 +17,10 @@ import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
 import app/types.{type Config, type UserClientInfo}
 import app/config
+import app/context
 import app/websockets
 import app/router
+import wisp
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
@@ -54,8 +56,12 @@ fn web_req_handler_worker(
 fn web_req_handler(
   cfg cfg: Config,
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
-  let wisp_mist_handler = wisp_mist.handler(router.handler(req: _, cfg:), secret_key_base())
-  let mist_websockets_handler = websockets.handler(req: _, cfg:)
+  let mist_websockets_handler =
+    websockets.handler(req: _, build_context: context.build_mist(req: _, cfg:))
+
+  let wisp_mist_handler =
+    router.handler(req: _, build_context: context.build_wisp(req: _, cfg:))
+    |> wisp_mist.handler(secret_key_base())
 
   build_web_req_handler(
     mist_req: _,
@@ -70,9 +76,9 @@ fn web_req_handler(
 }
 
 fn build_web_req_handler(
-  mist_req mist_req: Request(Connection),
-  mist_websockets_handler mist_websockets_handler: fn(Request(Connection)) -> Response(ResponseData),
-  wisp_mist_handler wisp_mist_handler: fn(Request(Connection)) -> Response(ResponseData),
+  mist_req mist_req: Request(mist.Connection),
+  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection)) -> Response(ResponseData),
+  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection)) -> Response(ResponseData),
 ) -> Response(ResponseData) {
   case mist_req |> request.path_segments {
     ["/ws", ..] ->
