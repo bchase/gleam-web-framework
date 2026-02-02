@@ -7,17 +7,17 @@ pub type Config {
   )
 }
 
-pub type Context(user) {
+pub type Context(config, user) {
   Context(
-    cfg: Config,
+    cfg: config,
     user_client_info: UserClientInfo,
     user: Option(user),
   )
 }
 
 pub fn context_without_user_or_client_info(
-  cfg cfg: Config,
-) -> Context(user) {
+  cfg cfg: config,
+) -> Context(config, user) {
   Context(
     cfg:,
     user_client_info: default_user_client_info(),

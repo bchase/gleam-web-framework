@@ -1,11 +1,11 @@
 import gleam/option.{type Option}
-import app/types.{type Config, type Context, type Session, Context}
+import app/types.{type Context, type Session, Context}
 
 pub fn build(
   session session: Session,
-  cfg cfg: Config,
-  authenticate authenticate: fn(Session, Config) -> Option(user),
-) -> Context(user) {
+  cfg cfg: config,
+  authenticate authenticate: fn(Session, config) -> Option(user),
+) -> Context(config, user) {
   let user = authenticate(session, cfg)
 
   let user_client_info =

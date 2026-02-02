@@ -6,7 +6,7 @@ import wisp
 
 pub fn handler(
   req req: Request(wisp.Connection),
-  ctx ctx: Context(user),
+  ctx ctx: Context(config, user),
 ) -> Response(wisp.Body) {
   case req |> wisp.path_segments {
     _ ->

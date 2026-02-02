@@ -49,6 +49,13 @@ pub fn main() -> Nil {
   process.sleep_forever()
 }
 
+fn start(
+  init_config init_config: fn() -> config,
+  // init_config init_config: fn() -> config,
+  authenticate authenticate: fn(Session, config) -> Option(user),
+) {
+}
+
 fn start_supervisor(
   cfg cfg: Config,
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
@@ -96,10 +103,10 @@ fn web_req_handler(
 }
 
 fn to_mist(
-  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(user)) -> Response(wisp.Body),
+  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> Response(wisp.Body),
   // authenticate authenticate: fn(Session, Config) -> Option(user),
   secret_key_base secret_key_base: String,
-) -> fn(Request(mist.Connection), Context(user)) -> Response(mist.ResponseData) {
+) -> fn(Request(mist.Connection), Context(config, user)) -> Response(mist.ResponseData) {
   fn(mist_req, ctx) {
     fn(wisp_req) {
       use wisp_req <- middleware(wisp_req, static_directory())
@@ -112,11 +119,11 @@ fn to_mist(
 
 fn build_web_req_handler(
   mist_req mist_req: Request(mist.Connection),
-  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(user)) -> Response(ResponseData),
-  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(user)) -> Response(ResponseData),
-  cfg cfg: Config,
+  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
+  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
+  cfg cfg: config,
   secret_key_base secret_key_base: String,
-  authenticate authenticate: fn(Session, Config) -> Option(user),
+  authenticate authenticate: fn(Session, config) -> Option(user),
 ) -> Response(ResponseData) {
 let session = session.from_mist(req: mist_req, secret_key_base:)
   let ctx = context.build(session:, cfg:, authenticate:)

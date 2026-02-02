@@ -6,7 +6,7 @@ import app/types.{type Context, type Session}
 
 pub fn handler(
   req req: Request(Connection),
-  ctx ctx: Context(user),
+  ctx ctx: Context(config, user),
 ) -> Response(ResponseData) {
   case req |> request.path_segments {
     _ ->
