@@ -59,17 +59,25 @@ fn web_req_handler_worker(
 fn web_req_handler(
   cfg cfg: Config,
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
+  let secret_key_base = secret_key_base()
+
   let mist_websockets_handler =
-    websockets.handler(req: _, build_context: context.build_mist(req: _, cfg:))
+    websockets.handler
 
   let wisp_mist_handler =
-    router.handler(req: _, build_context: context.build_wisp(req: _, cfg:))
-    |> wisp_mist.handler(secret_key_base())
+    fn(req, ctx) {
+      router.handler(req: _, ctx:)
+      |> wisp_mist.handler(secret_key_base)
+      |> fn(handle) { handle(req) }
+    }
 
   build_web_req_handler(
     mist_req: _,
     mist_websockets_handler:,
     wisp_mist_handler:,
+    cfg:,
+    secret_key_base:,
+    authenticate:,
   )
   |> mist.new()
   |> mist.bind("0.0.0.0")
@@ -80,15 +88,21 @@ fn web_req_handler(
 
 fn build_web_req_handler(
   mist_req mist_req: Request(mist.Connection),
-  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection)) -> Response(ResponseData),
-  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection)) -> Response(ResponseData),
+  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(user)) -> Response(ResponseData),
+  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(user)) -> Response(ResponseData),
+  cfg cfg: Config,
+  secret_key_base secret_key_base: String,
+  authenticate authenticate: fn(Session, Config) -> Option(user),
 ) -> Response(ResponseData) {
+let session = session.from_mist(req: mist_req, secret_key_base:)
+  let ctx = context.build(session:, cfg:, authenticate:)
+
   case mist_req |> request.path_segments {
     ["/ws", ..] ->
-      mist_req |> mist_websockets_handler
+      mist_req |> mist_websockets_handler(ctx)
 
     _ ->
-      mist_req |> wisp_mist_handler
+      mist_req |> wisp_mist_handler(ctx)
   }
 }
 
@@ -107,6 +121,7 @@ fn handle_request(
   req req: Request(wisp.Connection),
   cfg cfg: Config,
   handler handle: fn(Request(wisp.Connection), Context(user)) -> Response(wisp.Body),
+  authenticate authenticate: fn(Session, Config) -> Option(user),
 ) -> Response(wisp.Body) {
   let session = session.from_wisp(req:)
 
@@ -114,17 +129,7 @@ fn handle_request(
 
   let ctx = context.build(session:, cfg:, authenticate:)
 
-  todo
-
-  // let user = option.from_result(common.current_user(session, cfg))
-  // let ctx = Context(cfg:, user:, user_client_info: session.user_client_info)
-
-  // let layout = layout.layout(_, user, ctx.user_client_info, req)
-
-  // case user {
-  //   Some(_user) -> route_authenticated(req, layout, ctx, session)
-  //   _no_user -> route_unauthenticated(req, layout, cfg)
-  // }
+  handle(req, ctx)
 }
 
 fn middleware(
