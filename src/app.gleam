@@ -1,3 +1,4 @@
+import gleam/list
 import gleam/option.{type Option, Some, None}
 import gleam/bool
 import gleam/otp/actor
@@ -42,33 +43,63 @@ const web_req_handler_worker_shutdown_ms = 60_000
 pub fn main() -> Nil {
   load_dot_env()
 
-  let cfg = config.init()
+  let spec =
+    Spec(
+      secret_key_base_env_var_name: "SECRET_KEY_BASE",
+      init_config: config.init,
+      authenticate:,
+      mist_websockets_handler: websockets.handler,
+      wisp_handler: router.handler,
+    )
 
-  let assert Ok(_) = start_supervisor(cfg:)
+  let assert Ok(_) =
+    start_supervisor(spec:, one_for_one_children: [])
 
   process.sleep_forever()
 }
 
+type Spec(config, user) {
+  Spec(
+    secret_key_base_env_var_name: String,
+    init_config: fn() -> config,
+    authenticate: fn(Session, config) -> Option(user),
+    mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(mist.ResponseData),
+    wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> Response(wisp.Body),
+  )
+}
+
 fn start(
-  init_config init_config: fn() -> config,
-  // init_config init_config: fn() -> config,
-  authenticate authenticate: fn(Session, config) -> Option(user),
+  spec spec: Spec(config, user),
 ) {
+  start_supervisor(
+    spec:,
+    one_for_one_children: [],
+  )
 }
 
 fn start_supervisor(
-  cfg cfg: Config,
+  spec spec: Spec(config, user),
+  one_for_one_children children: List(ChildSpecification(Supervisor)),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
+  let Spec(init_config:, authenticate:, ..) = spec
+
+  let cfg = init_config()
+
   static_supervisor.new(static_supervisor.OneForOne)
-  |> static_supervisor.add(web_req_handler_worker(cfg:))
+  |> static_supervisor.add(web_req_handler_worker(cfg:, spec:))
+  |> list.fold(children, _, fn(supervisor, child) {
+    supervisor
+    |> static_supervisor.add(child)
+  })
   |> static_supervisor.start
 }
 
 fn web_req_handler_worker(
-  cfg cfg: Config,
+  cfg cfg: config,
+  spec spec: Spec(config, user),
 ) -> ChildSpecification(Supervisor) {
   supervision.ChildSpecification(
-    start: fn() { web_req_handler(cfg:) },
+    start: fn() { web_req_handler(cfg:, spec:) },
     restart: supervision.Permanent,
     significant: False,
     child_type: supervision.Worker(shutdown_ms: web_req_handler_worker_shutdown_ms),
@@ -76,15 +107,23 @@ fn web_req_handler_worker(
 }
 
 fn web_req_handler(
-  cfg cfg: Config,
+  cfg cfg: config,
+  spec spec: Spec(config, user),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
-  let secret_key_base = secret_key_base()
+  let Spec(
+    secret_key_base_env_var_name:,
+    authenticate:,
+    mist_websockets_handler:,
+    wisp_handler:,
+    ..
+  ) = spec
 
-  let mist_websockets_handler =
-    websockets.handler
+  let secret_key_base =
+    secret_key_base_env_var_name
+    |> secret_key_base(env_var_name: _)
 
   let wisp_mist_handler =
-    router.handler
+    wisp_handler
     |> to_mist(secret_key_base:)
 
   build_web_req_handler(
@@ -104,7 +143,6 @@ fn web_req_handler(
 
 fn to_mist(
   wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> Response(wisp.Body),
-  // authenticate authenticate: fn(Session, Config) -> Option(user),
   secret_key_base secret_key_base: String,
 ) -> fn(Request(mist.Connection), Context(config, user)) -> Response(mist.ResponseData) {
   fn(mist_req, ctx) {
@@ -119,13 +157,13 @@ fn to_mist(
 
 fn build_web_req_handler(
   mist_req mist_req: Request(mist.Connection),
-  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
-  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
   cfg cfg: config,
   secret_key_base secret_key_base: String,
   authenticate authenticate: fn(Session, config) -> Option(user),
+  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
+  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
 ) -> Response(ResponseData) {
-let session = session.from_mist(req: mist_req, secret_key_base:)
+  let session = session.from_mist(req: mist_req, secret_key_base:)
   let ctx = context.build(session:, cfg:, authenticate:)
 
   case mist_req |> request.path_segments {
@@ -198,8 +236,10 @@ fn port() -> Int {
   |> result.unwrap(5000)
 }
 
-fn secret_key_base() -> String {
-  let assert Ok(str) = env.get_string("SECRET_KEY_BASE")
+fn secret_key_base(
+  env_var_name env_var_name: String,
+) -> String {
+  let assert Ok(str) = env.get_string(env_var_name)
   str
 }
 

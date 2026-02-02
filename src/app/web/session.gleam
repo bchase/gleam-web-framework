@@ -63,12 +63,12 @@ pub fn from_mist(
   }
 }
 
-// based on: https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1839-L1854
-pub fn from_wisp(
-  req req: Request(wisp.Connection),
-) -> Session {
-  from_mist(req, req.body.secret_key_base)
-}
+// // based on: https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1839-L1854
+// pub fn from_wisp(
+//   req req: Request(wisp.Connection),
+// ) -> Session {
+//   from_mist(req, req.body.secret_key_base)
+// }
 
 fn build_user_client_info(
   cookies cookies: Dict(String, String),
