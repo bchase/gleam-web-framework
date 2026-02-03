@@ -10,6 +10,7 @@ import app/monad/app.{type App}
 
 pub type Spec(config, user) {
   Spec(
+    app_module_name: String,
     dot_env_relative_path: String,
     secret_key_base_env_var_name: String,
     //

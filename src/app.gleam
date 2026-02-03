@@ -21,6 +21,7 @@ fn authenticate(
 
 const spec =
   Spec(
+    app_module_name: "app",
     dot_env_relative_path: ".env",
     secret_key_base_env_var_name: "SECRET_KEY_BASE",
     init_config: config.init,

@@ -1,9 +1,7 @@
-import gleam/string
 import lustre/element/html
 import gleam/string_tree
 import gleam/dict.{type Dict}
 import gleam/list
-import gleam/option.{type Option}
 import gleam/bool
 import gleam/otp/actor
 import gleam/int
@@ -17,12 +15,12 @@ import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import app/types.{type Context, type Session}
+import app/types.{type Context}
 import app/context
 import app/web/session
 import app/monad/app.{type App}
 import app/types/err.{type Err}
-import app/types/spec.{type Spec, type Handler, Spec, WispHandler, AppWispHandler, AppLustreHandler, LustreResponse}
+import app/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppLustreHandler, LustreResponse}
 import wisp
 import lustre/element.{type Element}
 
@@ -226,6 +224,8 @@ fn web_req_handler(
   cfg cfg: config,
   spec spec: Spec(config, user),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
+  let app_module_name = spec.app_module_name
+
   let secret_key_base =
     spec.secret_key_base_env_var_name
     |> secret_key_base(env_var_name: _)
@@ -249,7 +249,7 @@ fn web_req_handler(
         }
       }
     }
-    |> to_mist(secret_key_base:)
+    |> to_mist(secret_key_base:, app_module_name:)
 
   let handle_mist_websockets =
     fn(mist_req: Request(mist.Connection), ctx: Context(config, user)) -> resp.Response(mist.ResponseData) {
@@ -281,10 +281,11 @@ fn web_req_handler(
 fn to_mist(
   wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body),
   secret_key_base secret_key_base: String,
+  app_module_name app_module_name: String,
 ) -> fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData) {
   fn(mist_req, ctx) {
     fn(wisp_req) {
-      use wisp_req <- middleware(wisp_req, static_directory())
+      use wisp_req <- middleware(wisp_req, static_directory(app_module_name:))
       wisp_handler(wisp_req, ctx)
     }
     |> wisp_mist.handler(secret_key_base)
@@ -413,7 +414,9 @@ fn load_dot_env(
   |> dot_env.load
 }
 
-fn static_directory() {
-  let assert Ok(priv_directory) = wisp.priv_directory("kohort")
+fn static_directory(
+  app_module_name app_module_name: String,
+) {
+  let assert Ok(priv_directory) = wisp.priv_directory(app_module_name)
   priv_directory <> "/static"
 }
