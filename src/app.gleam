@@ -25,7 +25,7 @@ const spec =
     init_config: config.init,
     authenticate:,
     websockets_path_prefix: "ws",
-    websockets_router: websockets.router,
+    websockets_router: websockets.lustre_server_component_router,
     router: router.handler,
   )
 

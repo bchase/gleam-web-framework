@@ -1,3 +1,5 @@
+import lustre/attribute as attr
+import lustre/server_component
 import lustre/element/html
 import gleam/dict
 import gleam/option.{type Option, Some, None}
@@ -19,6 +21,23 @@ pub fn handler(
           status: 200,
           headers: dict.new(),
           element: html.text("routed with `App` + lustre"),
+        ))
+      }))
+
+    ["counter"] ->
+      Ok(spec.AppLustreHandler(handle: fn(_req) {
+        pure(spec.LustreResponse(
+          status: 200,
+          headers: dict.new(),
+          element: html.div([], [
+            server_component.element([
+              server_component.route("/ws/counter")
+            ], []),
+            html.script([
+              attr.type_("module"),
+              attr.src("/static/js/lustre-server-component.min.mjs"),
+            ], ""),
+          ])
         ))
       }))
 
