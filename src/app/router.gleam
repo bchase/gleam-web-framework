@@ -3,6 +3,7 @@ import gleam/http/response.{type Response}
 import gleam/http/request.{type Request}
 import app/types.{type Context}
 import wisp
+import app/types/spec
 
 pub fn handler(
   req req: Request(wisp.Connection),

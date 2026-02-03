@@ -17,31 +17,16 @@ import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import app/types.{type Spec, type Context, type Session, Spec}
+import app/types.{type Context, type Session}
 import app/context
 import app/web/session
 import app/monad/app.{type App}
 import app/types/err.{type Err}
+import app/types/spec.{type Spec, type Handler, Spec, MistHandler, WispHandler, AppWispHandler, AppMistHandler, AppLustreHandler, LustreResponse}
 import wisp
 import lustre/element.{type Element}
 
 const web_req_handler_worker_shutdown_ms = 60_000
-
-pub type Handler(config, user) {
-  MistHandler(handle: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData))
-  WispHandler(handle: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body))
-  AppWispHandler(handle: fn(Request(wisp.Connection)) -> App(resp.Response(wisp.Body), config, user))
-  AppMistHandler(handle: fn(Request(mist.Connection)) -> App(resp.Response(mist.ResponseData), config, user))
-  AppLustreHandler(handle: fn(Request(wisp.Connection)) -> App(LustreResponse, config, user))
-}
-
-pub type LustreResponse {
-  LustreResponse(
-    status: Int,
-    headers: Dict(String, String),
-    element: Element(Nil),
-  )
-}
 
 pub fn run(
   req req: Request(mist.Connection),

@@ -3,17 +3,7 @@ import gleam/http/request.{type Request}
 import gleam/option.{type Option, None}
 import mist
 import wisp
-
-pub type Spec(config, user) {
-  Spec(
-    dot_env_relative_path: String,
-    secret_key_base_env_var_name: String,
-    init_config: fn() -> config,
-    authenticate: fn(Session, config) -> Option(user),
-    mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(mist.ResponseData),
-    wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> Response(wisp.Body),
-  )
-}
+// import app/monad/app.{type App, type Handler}
 
 pub type Context(config, user) {
   Context(

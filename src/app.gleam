@@ -1,7 +1,8 @@
 import gleam/option.{type Option, None}
 import gleam/erlang/process
-import app/types.{type Session, Spec}
 import app/config.{type Config}
+import app/types.{type Session}
+import app/types/spec.{Spec}
 import app/websockets
 import app/router
 import app/web
