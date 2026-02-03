@@ -26,7 +26,109 @@ import lustre/element.{type Element}
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
-pub fn run_handler(
+pub fn start_supervisor(
+  spec spec: Spec(config, user),
+  one_for_one_children children: List(fn(config) -> ChildSpecification(Supervisor)),
+) -> Result(actor.Started(Supervisor), actor.StartError) {
+  load_dot_env(spec.dot_env_relative_path)
+
+  let cfg = spec.init_config()
+
+  static_supervisor.new(static_supervisor.OneForOne)
+  |> static_supervisor.add(web_req_handler_worker(cfg:, spec:))
+  |> list.fold(children, _, fn(supervisor, child) {
+    supervisor
+    |> static_supervisor.add(child(cfg))
+  })
+  |> static_supervisor.start
+}
+
+fn web_req_handler_worker(
+  cfg cfg: config,
+  spec spec: Spec(config, user),
+) -> ChildSpecification(Supervisor) {
+  supervision.ChildSpecification(
+    start: fn() { web_req_handler(cfg:, spec:) },
+    restart: supervision.Permanent,
+    significant: False,
+    child_type: supervision.Worker(shutdown_ms: web_req_handler_worker_shutdown_ms),
+  )
+}
+
+fn web_req_handler(
+  cfg cfg: config,
+  spec spec: Spec(config, user),
+) -> Result(actor.Started(Supervisor), actor.StartError) {
+  let app_module_name = spec.app_module_name
+
+  let secret_key_base =
+    spec.secret_key_base_env_var_name
+    |> secret_key_base(env_var_name: _)
+
+  let handle_wisp_mist =
+    fn(req: Request(wisp.Connection), ctx: Context(config, user)) -> resp.Response(wisp.Body) {
+      case spec.router(req, ctx) {
+        Error(Nil) ->
+          Error(Nil)
+
+        Ok(handler) ->
+          Ok(run_handler(req:, handler:, ctx:))
+      }
+      |> fn(result) {
+        case result {
+          Error(Nil) ->
+            req |> default_wisp_response
+
+          Ok(resp) ->
+            resp
+        }
+      }
+    }
+    |> to_mist(secret_key_base:, app_module_name:)
+
+  let handle_mist_websockets =
+    fn(mist_req: Request(mist.Connection), ctx: Context(config, user)) -> resp.Response(mist.ResponseData) {
+      mist_req
+      |> spec.websockets_router(ctx)
+      |> fn(result) {
+        case result {
+          Ok(resp) -> resp
+          Error(Nil) -> mist_req |> default_mist_websockets_response
+        }
+      }
+    }
+
+  build_web_req_handler(
+    mist_req: _,
+    cfg:,
+    secret_key_base:,
+    spec:,
+    handle_wisp_mist:,
+    handle_mist_websockets:,
+  )
+  |> mist.new()
+  |> mist.bind("0.0.0.0")
+  |> mist.port(port())
+  // |> mist.with_ipv6
+  |> mist.start
+}
+
+fn to_mist(
+  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body),
+  secret_key_base secret_key_base: String,
+  app_module_name app_module_name: String,
+) -> fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData) {
+  fn(mist_req, ctx) {
+    fn(wisp_req) {
+      use wisp_req <- middleware(wisp_req, static_directory(app_module_name:))
+      wisp_handler(wisp_req, ctx)
+    }
+    |> wisp_mist.handler(secret_key_base)
+    |> fn(handle_mist) { handle_mist(mist_req) }
+  }
+}
+
+fn run_handler(
   req req: Request(wisp.Connection),
   handler handler: Handler(config, user),
   ctx ctx: Context(config, user),
@@ -189,108 +291,6 @@ fn wisp_html_resp(
     resp
     |> wisp.set_header(key, val)
   })
-}
-
-pub fn start_supervisor(
-  spec spec: Spec(config, user),
-  one_for_one_children children: List(fn(config) -> ChildSpecification(Supervisor)),
-) -> Result(actor.Started(Supervisor), actor.StartError) {
-  load_dot_env(spec.dot_env_relative_path)
-
-  let cfg = spec.init_config()
-
-  static_supervisor.new(static_supervisor.OneForOne)
-  |> static_supervisor.add(web_req_handler_worker(cfg:, spec:))
-  |> list.fold(children, _, fn(supervisor, child) {
-    supervisor
-    |> static_supervisor.add(child(cfg))
-  })
-  |> static_supervisor.start
-}
-
-fn web_req_handler_worker(
-  cfg cfg: config,
-  spec spec: Spec(config, user),
-) -> ChildSpecification(Supervisor) {
-  supervision.ChildSpecification(
-    start: fn() { web_req_handler(cfg:, spec:) },
-    restart: supervision.Permanent,
-    significant: False,
-    child_type: supervision.Worker(shutdown_ms: web_req_handler_worker_shutdown_ms),
-  )
-}
-
-fn web_req_handler(
-  cfg cfg: config,
-  spec spec: Spec(config, user),
-) -> Result(actor.Started(Supervisor), actor.StartError) {
-  let app_module_name = spec.app_module_name
-
-  let secret_key_base =
-    spec.secret_key_base_env_var_name
-    |> secret_key_base(env_var_name: _)
-
-  let handle_wisp_mist =
-    fn(req: Request(wisp.Connection), ctx: Context(config, user)) -> resp.Response(wisp.Body) {
-      case spec.router(req, ctx) {
-        Error(Nil) ->
-          Error(Nil)
-
-        Ok(handler) ->
-          Ok(run_handler(req:, handler:, ctx:))
-      }
-      |> fn(result) {
-        case result {
-          Error(Nil) ->
-            req |> default_wisp_response
-
-          Ok(resp) ->
-            resp
-        }
-      }
-    }
-    |> to_mist(secret_key_base:, app_module_name:)
-
-  let handle_mist_websockets =
-    fn(mist_req: Request(mist.Connection), ctx: Context(config, user)) -> resp.Response(mist.ResponseData) {
-      mist_req
-      |> spec.websockets_router(ctx)
-      |> fn(result) {
-        case result {
-          Ok(resp) -> resp
-          Error(Nil) -> mist_req |> default_mist_websockets_response
-        }
-      }
-    }
-
-  build_web_req_handler(
-    mist_req: _,
-    cfg:,
-    secret_key_base:,
-    spec:,
-    handle_wisp_mist:,
-    handle_mist_websockets:,
-  )
-  |> mist.new()
-  |> mist.bind("0.0.0.0")
-  |> mist.port(port())
-  // |> mist.with_ipv6
-  |> mist.start
-}
-
-fn to_mist(
-  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body),
-  secret_key_base secret_key_base: String,
-  app_module_name app_module_name: String,
-) -> fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData) {
-  fn(mist_req, ctx) {
-    fn(wisp_req) {
-      use wisp_req <- middleware(wisp_req, static_directory(app_module_name:))
-      wisp_handler(wisp_req, ctx)
-    }
-    |> wisp_mist.handler(secret_key_base)
-    |> fn(handle_mist) { handle_mist(mist_req) }
-  }
 }
 
 fn build_web_req_handler(

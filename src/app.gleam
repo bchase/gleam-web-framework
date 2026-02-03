@@ -7,17 +7,15 @@ import app/websockets
 import app/router
 import app/web
 
-// TODO mv
 type User {
   User
 }
 fn authenticate(
-  session session: Session,
+  session _session: Session,
   cfg _cfg: Config,
 ) -> Option(User) {
   None
 }
-// TODO mv
 
 const spec =
   Spec(
