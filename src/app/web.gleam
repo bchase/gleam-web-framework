@@ -1,3 +1,7 @@
+import gleam/string
+import lustre/element/html
+import gleam/string_tree
+import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
 import gleam/bool
@@ -6,19 +10,178 @@ import gleam/int
 import dot_env/env
 import gleam/result
 import dot_env
-import gleam/http/response.{type Response}
+import gleam/http/response as resp
 import gleam/http/request.{type Request}
 import gleam/bytes_tree
-import mist.{type ResponseData}
+import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
 import app/types.{type Spec, type Context, type Session, Spec}
 import app/context
 import app/web/session
+import app/monad/app.{type App}
+import app/types/err.{type Err}
 import wisp
+import lustre/element.{type Element}
 
 const web_req_handler_worker_shutdown_ms = 60_000
+
+pub type Handler(config, user) {
+  MistHandler(handle: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData))
+  WispHandler(handle: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body))
+  AppWispHandler(handle: fn(Request(wisp.Connection)) -> App(resp.Response(wisp.Body), config, user))
+  AppMistHandler(handle: fn(Request(mist.Connection)) -> App(resp.Response(mist.ResponseData), config, user))
+  AppLustreHandler(handle: fn(Request(wisp.Connection)) -> App(LustreResponse, config, user))
+}
+
+pub type LustreResponse {
+  LustreResponse(
+    status: Int,
+    headers: Dict(String, String),
+    element: Element(Nil),
+  )
+}
+
+pub fn run(
+  req req: Request(mist.Connection),
+  handler handler: Handler(config, user),
+  ctx ctx: Context(config, user),
+  secret_key_base secret_key_base: String,
+) -> resp.Response(mist.ResponseData) {
+  case handler {
+    MistHandler(handle:) ->
+      req
+      |> handle(ctx)
+
+    WispHandler(handle:) ->
+      req
+      |> wisp_mist.handler(handle(_, ctx), secret_key_base)
+
+    AppMistHandler(handle:) ->
+      req
+      |> handle
+      |> app.run(ctx)
+      |> fn(result) {
+        case result {
+          Error(err) -> err |> to_err_resp
+          Ok(resp) -> resp
+        }
+      }
+
+    AppWispHandler(handle:) ->
+      req
+      |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
+        resp
+      })
+
+    AppLustreHandler(handle:) ->
+      req
+      |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
+        let LustreResponse(status:, headers:, element:) = resp
+        wisp_html_resp(status:, headers:, element:)
+      })
+  }
+}
+
+fn run_app_handle(
+  req req: Request(mist.Connection),
+  handle handle: fn(Request(wisp.Connection)) -> App(t, config, user),
+  map_ok f: fn(t) -> resp.Response(wisp.Body),
+  ctx ctx: Context(config, user),
+  secret_key_base secret_key_base: String,
+) -> resp.Response(mist.ResponseData) {
+  req
+  |> wisp_mist.handler(fn(req) {
+    req
+    |> handle
+    |> app.run(ctx)
+    |> fn(result) {
+      case result {
+        Ok(x) -> f(x)
+        Error(err) -> err |> to_wisp_err_resp
+      }
+    }
+  }, secret_key_base)
+}
+
+fn to_wisp_err_resp(
+  err err: Err,
+) -> resp.Response(wisp.Body) {
+  case err {
+    err.NotFound(..) ->
+      wisp_html_resp(
+        status: 404,
+        element: html.text("Not Found"),
+        headers: dict.new(),
+      )
+
+    err.Err(..) ->
+      wisp_html_resp(
+        status: 500,
+        element: html.text("Internal Server Error"),
+        headers: dict.new(),
+      )
+  }
+}
+
+fn to_err_resp(
+  err err: Err,
+) -> resp.Response(mist.ResponseData) {
+  case err {
+    err.NotFound(..) ->
+      mist_html_resp(
+        status: 404,
+        element: html.text("Not Found"),
+        headers: dict.new(),
+      )
+
+    err.Err(..) ->
+      mist_html_resp(
+        status: 500,
+        element: html.text("Internal Server Error"),
+        headers: dict.new(),
+      )
+  }
+}
+
+fn mist_html_resp(
+  status status: Int,
+  element element: Element(msg),
+  headers headers: Dict(String, String),
+) -> resp.Response(mist.ResponseData) {
+  let body =
+    element
+    |> element.to_string_tree
+    |> bytes_tree.from_string_tree
+    |> mist.Bytes
+
+   status
+  |> resp.new
+  |> resp.set_body(body)
+  |> list.fold(headers |> dict.to_list, _, fn(resp, t) {
+    let #(key, val) = t
+    resp
+    |> wisp.set_header(key, val)
+  })
+  |> wisp.set_header("content-type", "text/html")
+}
+
+fn wisp_html_resp(
+  status status: Int,
+  element element: Element(msg),
+  headers headers: Dict(String, String),
+) -> resp.Response(wisp.Body) {
+  element
+  |> element.to_string_tree
+  |> string_tree.to_string
+  |> wisp.html_response(status)
+  |> list.fold(headers |> dict.to_list, _, fn(resp, t) {
+    let #(key, val) = t
+    resp
+    |> wisp.set_header(key, val)
+  })
+}
 
 pub fn start_supervisor(
   spec spec: Spec(config, user),
@@ -85,9 +248,9 @@ fn web_req_handler(
 }
 
 fn to_mist(
-  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> Response(wisp.Body),
+  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body),
   secret_key_base secret_key_base: String,
-) -> fn(Request(mist.Connection), Context(config, user)) -> Response(mist.ResponseData) {
+) -> fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData) {
   fn(mist_req, ctx) {
     fn(wisp_req) {
       use wisp_req <- middleware(wisp_req, static_directory())
@@ -103,9 +266,9 @@ fn build_web_req_handler(
   cfg cfg: config,
   secret_key_base secret_key_base: String,
   authenticate authenticate: fn(Session, config) -> Option(user),
-  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
-  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(config, user)) -> Response(ResponseData),
-) -> Response(ResponseData) {
+  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
+  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
+) -> resp.Response(mist.ResponseData) {
   let session = session.from_mist(req: mist_req, secret_key_base:)
   let ctx = context.build(session:, cfg:, authenticate:)
 

@@ -33,6 +33,8 @@ pub fn oura_callback(
 
       //   _ -> wisp.redirect("/?error=bad_oauth_code")
       // }
+
+      todo
     }
 
     Error(_) -> wisp.redirect("/?error=no_oauth_code")
