@@ -1,21 +1,15 @@
-import gleam/http/response.{type Response}
+import app/types.{type Context}
+import app/types/spec.{type Handler}
 import gleam/http/request.{type Request}
-import gleam/bytes_tree
-import mist.{type Connection, type ResponseData}
-import app/types.{type Context, type Session}
+import gleam/http/response as resp
+import mist
 
-pub fn handler(
-  req req: Request(Connection),
-  ctx ctx: Context(config, user),
-) -> Response(ResponseData) {
+pub fn router(
+  req req: Request(mist.Connection),
+  ctx _ctx: Context(config, user),
+) -> Result(resp.Response(mist.ResponseData), Nil) {
   case req |> request.path_segments {
     _ ->
-      404
-      |> response.new
-      |> response.set_body({
-        "not found"
-        |> bytes_tree.from_string
-        |> mist.Bytes
-      })
+      Error(Nil)
   }
 }

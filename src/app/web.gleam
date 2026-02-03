@@ -22,73 +22,98 @@ import app/context
 import app/web/session
 import app/monad/app.{type App}
 import app/types/err.{type Err}
-import app/types/spec.{type Spec, type Handler, Spec, MistHandler, WispHandler, AppWispHandler, AppMistHandler, AppLustreHandler, LustreResponse}
+import app/types/spec.{type Spec, type Handler, Spec, WispHandler, AppWispHandler, AppLustreHandler, LustreResponse}
 import wisp
 import lustre/element.{type Element}
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
-pub fn run(
-  req req: Request(mist.Connection),
+pub fn run_handler(
+  req req: Request(wisp.Connection),
   handler handler: Handler(config, user),
   ctx ctx: Context(config, user),
-  secret_key_base secret_key_base: String,
-) -> resp.Response(mist.ResponseData) {
+) -> resp.Response(wisp.Body) {
   case handler {
-    MistHandler(handle:) ->
+    WispHandler(handle:) ->
+      // req
+      // |> wisp_mist.handler(handle(_, ctx), secret_key_base)
       req
       |> handle(ctx)
 
-    WispHandler(handle:) ->
-      req
-      |> wisp_mist.handler(handle(_, ctx), secret_key_base)
-
-    AppMistHandler(handle:) ->
-      req
-      |> handle
-      |> app.run(ctx)
-      |> fn(result) {
-        case result {
-          Error(err) -> err |> to_err_resp
-          Ok(resp) -> resp
-        }
-      }
-
     AppWispHandler(handle:) ->
+      // req
+      // |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
+      //   resp
+      // })
       req
-      |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
-        resp
-      })
+      |> run_app_handle_wisp(handle:, ctx:, map_ok: fn(x) { x })
 
     AppLustreHandler(handle:) ->
+      // req
+      // |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
+      //   let LustreResponse(status:, headers:, element:) = resp
+      //   wisp_html_resp(status:, headers:, element:)
+      // })
       req
-      |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
+      |> run_app_handle_wisp(handle:, ctx:, map_ok: fn(resp) {
         let LustreResponse(status:, headers:, element:) = resp
         wisp_html_resp(status:, headers:, element:)
       })
+
+//     MistHandler(handle:) ->
+//       req
+//       |> handle(ctx)
+
+//     AppMistHandler(handle:) ->
+//       req
+//       |> handle
+//       |> app.run(ctx)
+//       |> fn(result) {
+//         case result {
+//           Error(err) -> err |> to_err_resp
+//           Ok(resp) -> resp
+//         }
+//       }
   }
 }
 
-fn run_app_handle(
-  req req: Request(mist.Connection),
+fn run_app_handle_wisp(
+  req req: Request(wisp.Connection),
   handle handle: fn(Request(wisp.Connection)) -> App(t, config, user),
-  map_ok f: fn(t) -> resp.Response(wisp.Body),
   ctx ctx: Context(config, user),
-  secret_key_base secret_key_base: String,
-) -> resp.Response(mist.ResponseData) {
+  map_ok f: fn(t) -> resp.Response(wisp.Body),
+) -> resp.Response(wisp.Body) {
   req
-  |> wisp_mist.handler(fn(req) {
-    req
-    |> handle
-    |> app.run(ctx)
-    |> fn(result) {
-      case result {
-        Ok(x) -> f(x)
-        Error(err) -> err |> to_wisp_err_resp
-      }
+  |> handle
+  |> app.run(ctx)
+  |> fn(result) {
+    case result {
+      Ok(x) -> f(x)
+      Error(err) -> err |> to_wisp_err_resp
     }
-  }, secret_key_base)
+  }
 }
+
+// fn run_app_handle_mist(
+//   req req: Request(mist.Connection),
+//   handle handle: fn(Request(wisp.Connection)) -> App(t, config, user),
+//   map_ok f: fn(t) -> resp.Response(wisp.Body),
+//   ctx ctx: Context(config, user),
+//   secret_key_base secret_key_base: String,
+// ) -> resp.Response(mist.ResponseData) {
+//   req
+//   |> wisp_mist.handler(fn(req) {
+//     req
+//     |> handle
+//     |> app.run(ctx)
+//     |> fn(result) {
+//       case result {
+//         Ok(x) -> f(x)
+//         Error(err) -> err |> to_wisp_err_resp
+//       }
+//     }
+//   }, secret_key_base)
+// }
 
 fn to_wisp_err_resp(
   err err: Err,
@@ -110,7 +135,7 @@ fn to_wisp_err_resp(
   }
 }
 
-fn to_err_resp(
+pub fn to_err_resp(
   err err: Err,
 ) -> resp.Response(mist.ResponseData) {
   case err {
@@ -201,29 +226,50 @@ fn web_req_handler(
   cfg cfg: config,
   spec spec: Spec(config, user),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
-  let Spec(
-    secret_key_base_env_var_name:,
-    authenticate:,
-    mist_websockets_handler:,
-    wisp_handler:,
-    ..
-  ) = spec
-
   let secret_key_base =
-    secret_key_base_env_var_name
+    spec.secret_key_base_env_var_name
     |> secret_key_base(env_var_name: _)
 
-  let wisp_mist_handler =
-    wisp_handler
+  let handle_wisp_mist =
+    fn(req: Request(wisp.Connection), ctx: Context(config, user)) -> resp.Response(wisp.Body) {
+      case spec.router(req, ctx) {
+        Error(Nil) ->
+          Error(Nil)
+
+        Ok(handler) ->
+          Ok(run_handler(req:, handler:, ctx:))
+      }
+      |> fn(result) {
+        case result {
+          Error(Nil) ->
+            req |> default_wisp_response
+
+          Ok(resp) ->
+            resp
+        }
+      }
+    }
     |> to_mist(secret_key_base:)
+
+  let handle_mist_websockets =
+    fn(mist_req: Request(mist.Connection), ctx: Context(config, user)) -> resp.Response(mist.ResponseData) {
+      mist_req
+      |> spec.websockets_router(ctx)
+      |> fn(result) {
+        case result {
+          Ok(resp) -> resp
+          Error(Nil) -> mist_req |> default_mist_websockets_response
+        }
+      }
+    }
 
   build_web_req_handler(
     mist_req: _,
-    mist_websockets_handler:,
-    wisp_mist_handler:,
     cfg:,
     secret_key_base:,
-    authenticate:,
+    spec:,
+    handle_wisp_mist:,
+    handle_mist_websockets:,
   )
   |> mist.new()
   |> mist.bind("0.0.0.0")
@@ -250,19 +296,19 @@ fn build_web_req_handler(
   mist_req mist_req: Request(mist.Connection),
   cfg cfg: config,
   secret_key_base secret_key_base: String,
-  authenticate authenticate: fn(Session, config) -> Option(user),
-  mist_websockets_handler mist_websockets_handler: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
-  wisp_mist_handler wisp_mist_handler: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
+  spec spec: Spec(config, user),
+  handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
+  handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
 ) -> resp.Response(mist.ResponseData) {
   let session = session.from_mist(req: mist_req, secret_key_base:)
-  let ctx = context.build(session:, cfg:, authenticate:)
+  let ctx = context.build(session:, cfg:, authenticate: spec.authenticate)
 
   case mist_req |> request.path_segments {
-    ["/ws", ..] ->
-      mist_req |> mist_websockets_handler(ctx)
+    [prefix, ..] if prefix == spec.websockets_path_prefix ->
+      mist_req |> handle_mist_websockets(ctx)
 
     _ ->
-      mist_req |> wisp_mist_handler(ctx)
+      mist_req |> handle_wisp_mist(ctx)
   }
 }
 
@@ -280,6 +326,30 @@ fn middleware(
   use <- default_responses
 
   handle(req)
+}
+
+fn default_wisp_response(
+  req req: Request(wisp.Connection),
+) -> resp.Response(wisp.Body) {
+  case req |> wisp.path_segments {
+    ["internal-server-error"] -> wisp.internal_server_error()
+    ["unprocessable_entity"] -> wisp.unprocessable_content()
+    ["method-not-allowed"] -> wisp.method_not_allowed([])
+    ["entity-too-large"] -> wisp.content_too_large()
+    ["bad-request"] -> wisp.bad_request("") // TODO
+    _ -> wisp.not_found()
+  }
+}
+
+fn default_mist_websockets_response(
+  req _req: Request(mist.Connection),
+) -> resp.Response(mist.ResponseData) {
+  404
+  |> resp.new
+  |> resp.set_body(
+    bytes_tree.new()
+    |> mist.Bytes
+  )
 }
 
 fn default_responses(

@@ -25,8 +25,9 @@ const spec =
     secret_key_base_env_var_name: "SECRET_KEY_BASE",
     init_config: config.init,
     authenticate:,
-    mist_websockets_handler: websockets.handler,
-    wisp_handler: router.handler,
+    websockets_path_prefix: "ws",
+    websockets_router: websockets.router,
+    router: router.handler,
   )
 
 pub fn main() -> Nil {
