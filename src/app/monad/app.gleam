@@ -1,3 +1,4 @@
+import gleam/list
 import gleam/option.{type Option}
 import app/types.{type Context}
 import app/types/err.{type Err}
@@ -23,6 +24,10 @@ pub fn fail(
   err err: Err,
 ) -> App(t, config, user) {
   App(run: fn(_read) { Error(err) })
+}
+
+pub fn ctx() -> App(Context(config, user), config, user) {
+  App(run: fn(read) { Ok(read) })
 }
 
 pub fn map(
@@ -77,6 +82,71 @@ pub fn some(
   })
 }
 
-//
+pub fn sequence(
+  apps apps: List(App(a, config, user)),
+) -> App(List(a), config, user) {
+  App(fn(r) {
+    apps
+    |> list.fold_until(Ok([]), fn(acc, app) {
+      case acc {
+        Error(err) ->
+          list.Stop(Error(err))
 
+        Ok(acc) ->
+          case run(app, r) {
+            Error(err) -> Error(err)
 
+            Ok(x) -> Ok(list.append(acc, [x]))
+          }
+          |> list.Continue
+      }
+    })
+  })
+}
+
+pub fn sequence_(
+  apps apps: List(App(Nil, config, user)),
+) -> App(Nil, config, user) {
+  App(fn(r) {
+    apps
+    |> list.fold_until(Ok(Nil), fn(acc, app) {
+      case acc {
+        Error(err) ->
+          list.Stop(Error(err))
+
+        Ok(_) ->
+          case run(app, r) {
+            Error(err) ->
+              list.Stop(Error(err))
+
+            Ok(_) ->
+              list.Continue(Ok(Nil))
+          }
+
+      }
+    })
+  })
+}
+
+pub fn replace(
+  app app: App(a, config, user),
+  val val: b,
+) -> App(b, config, user) {
+  App(fn(r) {
+    case app.run(r) {
+      Ok(_) -> Ok(val)
+      Error(e) -> Error(e)
+    }
+  })
+}
+
+pub fn to_result(
+  app app: App(a, config, user),
+  cont cont: fn(Result(a, Err)) -> App(b, config, user)
+) -> App(b, config, user) {
+  use ctx <- do(ctx())
+
+  app
+  |> run(ctx)
+  |> cont
+}

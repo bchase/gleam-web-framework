@@ -6,6 +6,15 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import lustre/server_component
+
+const route = "/ws/counter"
+
+pub fn element() -> Element(msg) {
+  server_component.element([
+    server_component.route(route)
+  ], [])
+}
 
 pub fn component() -> lustre.App(t, Model, Msg) {
   lustre.application(init, update, view)
@@ -50,6 +59,8 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
 fn view(model: Model) -> Element(Msg) {
   html.div([], [
+    html.h1([], [html.text("Simple Counter")]),
+
     html.button([
       event.on_click(Dec),
     ], [

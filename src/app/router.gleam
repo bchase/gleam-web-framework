@@ -1,5 +1,6 @@
 import lustre/attribute as attr
 import lustre/server_component
+import lustre/element.{type Element}
 import lustre/element/html
 import gleam/dict
 import gleam/option.{type Option, Some, None}
@@ -7,6 +8,8 @@ import gleam/http/response.{type Response}
 import gleam/http/request.{type Request}
 import app/types.{type Context}
 import wisp
+import app/examples/counter
+import app/examples/counter_app
 import app/types/spec.{type Handler}
 import app/monad/app.{pure, do}
 
@@ -30,13 +33,20 @@ pub fn handler(
           status: 200,
           headers: dict.new(),
           element: html.div([], [
-            server_component.element([
-              server_component.route("/ws/counter")
-            ], []),
-            html.script([
-              attr.type_("module"),
-              attr.src("/static/js/lustre-server-component.min.mjs"),
-            ], ""),
+            counter.element(),
+            lustre_server_component_client_script(),
+          ])
+        ))
+      }))
+
+    ["counter_app"] ->
+      Ok(spec.AppLustreHandler(handle: fn(_req) {
+        pure(spec.LustreResponse(
+          status: 200,
+          headers: dict.new(),
+          element: html.div([], [
+            counter_app.element(),
+            lustre_server_component_client_script(),
           ])
         ))
       }))
@@ -44,4 +54,11 @@ pub fn handler(
     _ ->
       Error(Nil)
   }
+}
+
+fn lustre_server_component_client_script() -> Element(msg) {
+  html.script([
+    attr.type_("module"),
+    attr.src("/static/js/lustre-server-component.min.mjs"),
+  ], "")
 }
