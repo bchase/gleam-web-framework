@@ -1,4 +1,4 @@
--module('erl_ffi').
+-module('app_erl_ffi').
 -export([
   unsafe_cast/1
 ]).

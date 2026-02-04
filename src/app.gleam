@@ -1,4 +1,3 @@
-import gleam/string
 import gleam/option.{type Option, None}
 import gleam/erlang/process
 import gleam/otp/static_supervisor
@@ -8,6 +7,7 @@ import app/types/spec.{Spec}
 import app/websockets
 import app/router
 import app/web
+import app/pubsub2 as pubsub
 
 type User {
   User
@@ -19,8 +19,10 @@ fn authenticate(
   None
 }
 
+//
+
 pub fn main() -> Nil {
-  let assert Ok(_) =
+  let spec =
     Spec(
       app_module_name: "app",
       dot_env_relative_path: ".env",
@@ -31,7 +33,23 @@ pub fn main() -> Nil {
       websockets_router: websockets.lustre_server_component_router,
       router: router.handler,
     )
-    |> web.supervised
+
+  let supervisor =
+    web.supervised(spec:)
+
+  let #(supervisor, text) =
+    supervisor
+    |> pubsub.add_cluster_worker(
+      name: "text",
+      app_module_name: spec.app_module_name,
+      transcoders: pubsub.Transcoders(
+        encode: config.encode_text_msg,
+        decoder: config.decoder_text_msg,
+      )
+    )
+
+  let assert Ok(_) =
+    supervisor
     |> static_supervisor.start
 
   process.sleep_forever()

@@ -37,7 +37,10 @@ pub fn supervised(
 
   static_supervisor.new(static_supervisor.OneForOne)
   |> static_supervisor.add(web_req_handler_worker(cfg:, spec:))
-  |> pubsub.supervised(pubsub.spec)
+  |> pubsub.supervised(
+    spec: pubsub.spec,
+    app_module_name: spec.app_module_name,
+  )
   // |> list.fold(children, _, fn(supervisor, child) {
   //   supervisor
   //   |> static_supervisor.add(child(cfg))

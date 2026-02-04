@@ -1,8 +1,9 @@
+import app/erl
 import gleam/bool
-import gleam/erlang/node
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/atom.{type Atom}
+import gleam/erlang/node
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/json.{type Json}
 import gleam/list
@@ -10,8 +11,8 @@ import gleam/otp/actor
 import gleam/otp/static_supervisor
 import gleam/otp/supervision
 import gleam/result
+import gleam/string
 import group_registry as gr
-import app/erl
 
 pub type Spec(msg) {
   Spec(
@@ -66,8 +67,8 @@ pub fn add_workers(
 
 //
 
-const cluster_process_name =
-  "app_cluster_pubsub_static_name"
+const cluster_process_name_suffix =
+  "cluster_pubsub_static_name"
 
 pub opaque type State {
   State
@@ -134,12 +135,16 @@ fn decode_cluster_msg(
 pub fn supervised(
   supervisor supervisor: static_supervisor.Builder,
   spec spec: Spec(msg),
+  app_module_name app_module_name: String
 ) -> static_supervisor.Builder {
   supervisor
   |> spec.add_workers(spec.init())
   |> static_supervisor.add(
     supervision.worker(fn() {
-      cluster_listener(decode_msg: spec.decode_msg())
+      cluster_listener(
+        app_module_name:,
+        decode_msg: spec.decode_msg(),
+      )
       |> actor.start
     })
   )
@@ -147,6 +152,7 @@ pub fn supervised(
 
 fn cluster_listener(
   decode_msg decode_msg: Decoder(msg),
+  app_module_name app_module_name: String,
 ) -> actor.Builder(State, ClusterMsg(msg), Nil) {
   actor.new_with_initialiser(100, fn(self) {
     actor.initialised(State)
@@ -162,7 +168,7 @@ fn cluster_listener(
     |> Ok
   })
   |> actor.on_message(receive_for_cluster)
-  |> actor.named(unsafe_static_name())
+  |> actor.named(unsafe_static_name(app_module_name:))
 }
 fn receive_for_cluster(
   state state: state,
@@ -180,13 +186,20 @@ fn get_listeners(
   |> gr.members(channel)
 }
 
-fn unsafe_static_name() -> process.Name(msg) {
-  cluster_process_name
+fn unsafe_static_name(
+  app_module_name app_module_name: String,
+) -> process.Name(msg) {
+  { app_module_name <> "_" <> cluster_process_name_suffix }
   |> atom.create
+  |> echo
+  |> echo
+  |> echo
+  |> echo
+  |> echo
   |> unsafe_atom_to_name
 }
 
-@external(erlang, "app/erl_ffi", "unsafe_cast")
+@external(erlang, "app_erl_ffi", "unsafe_cast")
 fn unsafe_atom_to_name(
   atom atom: Atom,
 ) -> process.Name(msg)
@@ -200,39 +213,6 @@ fn unsafe_atom_to_name(
 //   |> string.append(to: prefix, suffix: _)
 //   |> process.new_name
 // }
-
-// DERIVED
-
-pub fn encode_simple_msg(value: SimpleMsg) -> Json {
-  case value {
-    SimpleMsg(..) as value -> json.object([#("text", json.string(value.text))])
-  }
-}
-
-pub fn decoder_simple_msg() -> Decoder(SimpleMsg) {
-  decode.one_of(decoder_simple_msg_simple_msg(), [])
-}
-
-pub fn decoder_simple_msg_simple_msg() -> Decoder(SimpleMsg) {
-  use text <- decode.field("text", decode.string)
-  decode.success(SimpleMsg(text:))
-}
-
-pub fn encode_unified_msg(value: UnifiedMsg) -> Json {
-  case value {
-    WrappedSimpleMsg(..) as value ->
-      json.object([#("msg", encode_simple_msg(value.msg))])
-  }
-}
-
-pub fn decoder_unified_msg() -> Decoder(UnifiedMsg) {
-  decode.one_of(decoder_unified_msg_wrapped_simple_msg(), [])
-}
-
-pub fn decoder_unified_msg_wrapped_simple_msg() -> Decoder(UnifiedMsg) {
-  use msg <- decode.field("msg", decoder_simple_msg())
-  decode.success(WrappedSimpleMsg(msg:))
-}
 
 //
 
@@ -293,4 +273,37 @@ fn broadcast_to_cluster(
 
     erl.node_send(node, listener, json)
   })
+}
+
+// DERIVED
+
+pub fn encode_simple_msg(value: SimpleMsg) -> Json {
+  case value {
+    SimpleMsg(..) as value -> json.object([#("text", json.string(value.text))])
+  }
+}
+
+pub fn decoder_simple_msg() -> Decoder(SimpleMsg) {
+  decode.one_of(decoder_simple_msg_simple_msg(), [])
+}
+
+pub fn decoder_simple_msg_simple_msg() -> Decoder(SimpleMsg) {
+  use text <- decode.field("text", decode.string)
+  decode.success(SimpleMsg(text:))
+}
+
+pub fn encode_unified_msg(value: UnifiedMsg) -> Json {
+  case value {
+    WrappedSimpleMsg(..) as value ->
+      json.object([#("msg", encode_simple_msg(value.msg))])
+  }
+}
+
+pub fn decoder_unified_msg() -> Decoder(UnifiedMsg) {
+  decode.one_of(decoder_unified_msg_wrapped_simple_msg(), [])
+}
+
+pub fn decoder_unified_msg_wrapped_simple_msg() -> Decoder(UnifiedMsg) {
+  use msg <- decode.field("msg", decoder_simple_msg())
+  decode.success(WrappedSimpleMsg(msg:))
 }
