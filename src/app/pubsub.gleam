@@ -1,3 +1,5 @@
+import gleam/bool
+import gleam/erlang/node
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/atom.{type Atom}
@@ -6,9 +8,10 @@ import gleam/json.{type Json}
 import gleam/list
 import gleam/otp/actor
 import gleam/otp/static_supervisor
-import gleam/otp/supervision.{type ChildSpecification}
+import gleam/otp/supervision
 import gleam/result
 import group_registry as gr
+import app/erl
 
 pub type Spec(msg) {
   Spec(
@@ -93,6 +96,17 @@ pub opaque type ClusterMsg(msg) {
   )
 }
 
+fn encode_cluster_msg(
+  msg msg: msg,
+  channel channel: String,
+  encode_msg encode_msg: fn(msg) -> Json,
+) -> Json {
+  json.object([
+    #("channel", channel |> json.string),
+    #("msg", msg |> encode_msg),
+  ])
+}
+
 fn decode_cluster_msg(
   dyn dyn: Dynamic,
   decode_msg decode_msg: Decoder(msg),
@@ -134,13 +148,11 @@ pub fn supervised(
 fn cluster_listener(
   decode_msg decode_msg: Decoder(msg),
 ) -> actor.Builder(State, ClusterMsg(msg), Nil) {
-  actor.new_with_initialiser(100, fn(_) {
+  actor.new_with_initialiser(100, fn(self) {
     actor.initialised(State)
     |> actor.selecting({
-      // let self = process.self()
-      // let subject = gr.join(todo, todo, self)
-
       process.new_selector()
+      |> process.select(self) // TODO
       |> process.select_other(decode_cluster_msg(
         dyn: _,
         decode_msg:,
@@ -149,54 +161,23 @@ fn cluster_listener(
     |> actor.returning(Nil)
     |> Ok
   })
-  |> actor.on_message(listener_loop)
+  |> actor.on_message(receive_for_cluster)
   |> actor.named(unsafe_static_name())
 }
-fn listener_loop(
+fn receive_for_cluster(
   state state: state,
   msg msg: msg,
 ) -> actor.Next(state, msg) {
-  actor.continue(state)
-}
-
-pub fn subscribe(
-  to to: channel,
-  in in: pubsub,
-) -> Selector(msg) {
-  todo
-}
-
-pub fn broadcast(
-  to channel: String,
-  in pubsub: PubSub(msg, unified_msg),
-  msg msg: msg,
-) -> Nil {
-  pubsub
-  |> get_listeners(channel:)
-  |> list.each(fn(listener) {
-    process.send(listener, msg)
-  })
-}
-
-fn broadcast_to_cluster(
-  to channel: channel,
-  in pubsub: pubsub,
-  msg msg: msg,
-) -> Nil {
-}
-
-fn broadcast_locally(
-  to channel: channel,
-  in pubsub: pubsub,
-  msg msg: msg,
-) -> Nil {
+  actor.continue(state) // TODO
 }
 
 fn get_listeners(
   pubsub pubsub: PubSub(msg, unified_msg),
   channel channel: String,
 ) -> List(Subject(msg)) {
-  []
+  pubsub.name
+  |> gr.get_registry
+  |> gr.members(channel)
 }
 
 fn unsafe_static_name() -> process.Name(msg) {
@@ -205,7 +186,7 @@ fn unsafe_static_name() -> process.Name(msg) {
   |> unsafe_atom_to_name
 }
 
-@external(erlang, "app_erl_ffi", "unsafe_cast")
+@external(erlang, "app/erl_ffi", "unsafe_cast")
 fn unsafe_atom_to_name(
   atom atom: Atom,
 ) -> process.Name(msg)
@@ -251,4 +232,65 @@ pub fn decoder_unified_msg() -> Decoder(UnifiedMsg) {
 pub fn decoder_unified_msg_wrapped_simple_msg() -> Decoder(UnifiedMsg) {
   use msg <- decode.field("msg", decoder_simple_msg())
   decode.success(WrappedSimpleMsg(msg:))
+}
+
+//
+
+pub fn subscribe(
+  to channel: String,
+  in get_pubsub: fn(pubsubs) -> gr.GroupRegistry(msg),
+  pubsubs pubsubs: pubsubs,
+) -> Selector(msg) {
+  pubsubs
+  |> get_pubsub
+  |> gr.join(channel, process.self())
+  |> process.select(process.new_selector(), _)
+}
+
+pub fn broadcast(
+  to channel: String,
+  in get_pubsub: fn(pubsubs) -> PubSub(msg, unified_msg),
+  msg msg: msg,
+  pubsubs pubsubs: pubsubs,
+  //
+  encode_msg encode_msg: fn(msg) -> Json,
+  listener listener: process.Name(msg),
+) -> Nil {
+  broadcast_locally(to: channel, in: get_pubsub, msg:, pubsubs:)
+  broadcast_to_cluster(to: channel, msg:, encode_msg:, listener:)
+}
+
+fn broadcast_locally(
+  to channel: String,
+  in get_pubsub: fn(pubsubs) -> PubSub(msg, unified_msg),
+  msg msg: msg,
+  pubsubs pubsubs: pubsubs
+) -> Nil {
+  pubsubs
+  |> get_pubsub
+  |> get_listeners(channel:)
+  |> list.each(fn(listener) {
+    process.send(listener, msg)
+  })
+}
+
+fn broadcast_to_cluster(
+  to channel: String,
+  msg msg: msg,
+  encode_msg encode_msg: fn(msg) -> Json,
+  listener listener: process.Name(msg),
+) -> Nil {
+  let json =
+    msg
+    |> encode_cluster_msg(channel:, encode_msg:)
+    |> json.to_string
+
+  let self = node.self()
+
+  node.visible()
+  |> list.each(fn(node) {
+    use <- bool.guard(node == self, Nil)
+
+    erl.node_send(node, listener, json)
+  })
 }
