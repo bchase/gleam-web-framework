@@ -25,14 +25,14 @@ pub fn component(
   ctx ctx: Context(config, user),
 ) -> lustre.App(Context(config, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
+    module: "app/examples/counter_app",
     init:,
     post_init: None,
     selectors:,
     update:,
     view:,
-    module: "app/examples/counter_app",
     ctx:,
-)
+  )
 }
 
 fn selectors(

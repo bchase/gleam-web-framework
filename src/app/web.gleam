@@ -21,26 +21,27 @@ import app/web/session
 import app/monad/app.{type App}
 import app/types/err.{type Err}
 import app/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppLustreHandler, LustreResponse}
-import wisp
 import lustre/element.{type Element}
+import wisp
+import app/pubsub
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
-pub fn start_supervisor(
+pub fn supervised(
   spec spec: Spec(config, user),
-  one_for_one_children children: List(fn(config) -> ChildSpecification(Supervisor)),
-) -> Result(actor.Started(Supervisor), actor.StartError) {
+  // one_for_one_children children: List(fn(config) -> ChildSpecification(Supervisor)),
+) -> static_supervisor.Builder {
   load_dot_env(spec.dot_env_relative_path)
 
   let cfg = spec.init_config()
 
   static_supervisor.new(static_supervisor.OneForOne)
   |> static_supervisor.add(web_req_handler_worker(cfg:, spec:))
-  |> list.fold(children, _, fn(supervisor, child) {
-    supervisor
-    |> static_supervisor.add(child(cfg))
-  })
-  |> static_supervisor.start
+  |> pubsub.supervised(pubsub.spec)
+  // |> list.fold(children, _, fn(supervisor, child) {
+  //   supervisor
+  //   |> static_supervisor.add(child(cfg))
+  // })
 }
 
 fn web_req_handler_worker(
