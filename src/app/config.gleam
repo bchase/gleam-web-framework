@@ -9,6 +9,7 @@ import app/types.{type Session}
 import app/types/spec.{type Spec, Spec}
 import app/websockets
 import app/router
+// import app/generic/json.{type Transcoders, Transcoders} as _
 
 pub fn spec() -> Spec(Config, PubSub, User) {
   Spec(

@@ -14,6 +14,7 @@ import gleam/otp/supervision.{type ChildSpecification}
 import gleam/result
 import gleam/string
 import group_registry as gr
+import app/generic/json.{type Transcoders} as _
 //
 import gleam/otp/static_supervisor
 
@@ -92,14 +93,16 @@ pub fn subscribe(
   |> process.select(process.new_selector(), _)
 }
 
-pub fn unsubscribe(
-  pubsub pubsub: PubSub(msg),
-  channel channel: String,
-) -> Nil {
-  pubsub.name
-  |> gr.get_registry
-  |> gr.leave(channel, [process.self()])
-}
+// // TODO -- i think `subscribe`, `unsubscribe`, `subscribe` results
+// //      -- in double msgs because of double `Selector` usage...
+// pub fn unsubscribe(
+//   pubsub pubsub: PubSub(msg),
+//   channel channel: String,
+// ) -> Nil {
+//   pubsub.name
+//   |> gr.get_registry
+//   |> gr.leave(channel, [process.self()])
+// }
 
 pub fn broadcast(
   pubsub pubsub: PubSub(msg),
@@ -147,13 +150,6 @@ fn broadcast_to_cluster(
 
 //
 
-pub type Transcoders(t) {
-  Transcoders(
-    encode: fn(t) -> Json,
-    decoder: fn() -> Decoder(t),
-  )
-}
-
 fn encode_cluster_msg(
   msg msg: msg,
   pubsub pubsub: PubSub(msg),
@@ -187,15 +183,11 @@ fn decoder_cluster_msg(
         decode.success(Ok(#(pubsub, channel, msg)))
       }
     }
-    // let name = unsafe_name_from(name_str:)
-    // let pubsub = PubSub(name_str:, name:, transcoders: None)
-    // decode.success(Ok(#(pubsub, channel, msg)))
   }
 }
 
 fn unsafe_name_from(
   name_str str: String,
-// ) -> Result(process.Name(msg), Nil) {
 ) -> process.Name(msg) {
   str
   |> atom.create
@@ -227,7 +219,7 @@ fn unsafe_unique_name_from(
   }
 }
 
-pub fn supervised_cluster_listener(
+fn supervised_cluster_listener(
   // name name: process.Name(Result(msg, #(Dynamic, List(DecodeError)))),
   name name: process.Name(Dynamic),
   transcoders transcoders: Transcoders(msg),
