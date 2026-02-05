@@ -41,5 +41,5 @@ pub fn one_not_many_or(
 fn config_to_conn(
   config config: Config,
 ) -> sqlight.Connection {
-  todo
+  config.sqlite_conn
 }

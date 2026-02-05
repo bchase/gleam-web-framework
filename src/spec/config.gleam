@@ -1,3 +1,4 @@
+import gleam/string
 import app/oauth
 import app/oauth/oura
 import gleam/option.{type Option, None}
@@ -6,6 +7,9 @@ import app/pubsub
 import app/types.{type Session}
 import spec/pubsub.{type TextMsg} as _
 import spec/user.{type User}
+import sqlight
+
+const sqlite_db_path = "./app-sqlite3.db"
 
 pub fn authenticate(
   session _session: Session,
@@ -34,6 +38,7 @@ pub fn add_pubsub_workers(
 
 pub type Config {
   Config(
+    sqlite_conn: sqlight.Connection,
     oura_oauth: oauth.Config,
   )
 }
@@ -51,9 +56,24 @@ pub type PubSub {
 // }
 
 pub fn init_config() -> Config {
+  let sqlite_conn = connect_to_sqlite()
   let oura_oauth = oura.build_config()
 
   Config(
+    sqlite_conn:,
     oura_oauth:,
   )
+}
+
+fn connect_to_sqlite() -> sqlight.Connection {
+  case sqlight.open(sqlite_db_path) {
+    Ok(conn) ->
+      conn
+
+    Error(err) ->
+      panic as { [
+        "`connect_to_sqlite` failed:", string.inspect(err),
+        " Please check that a sqlite3 db exists at:", sqlite_db_path,
+      ] |> string.join(" ")}
+  }
 }
