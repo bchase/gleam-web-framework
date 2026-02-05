@@ -34,5 +34,6 @@ pub type Session {
   Session(
     user_token: Option(String),
     user_client_info: Option(UserClientInfo),
+    get_session_cookie: fn(String) -> Result(String, Nil)
   )
 }

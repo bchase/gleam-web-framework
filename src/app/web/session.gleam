@@ -1,7 +1,7 @@
 import gleam/dict.{type Dict}
 import gleam/bit_array
 import gleam/result.{try}
-import gleam/option.{type Option, Some, None}
+import gleam/option.{type Option, Some}
 import wisp
 import gleam/crypto
 import gleam/http
@@ -10,9 +10,9 @@ import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import app/types.{type Session, Session, type UserClientInfo, UserClientInfo}
 
-const session_cookie_name = "kohort"
-const time_zone_cookie_name = "kohort.tz"
-const locale_cookie_name = "kohort.locale"
+const session_cookie_name = "app"
+const time_zone_cookie_name = "app.tz"
+const locale_cookie_name = "app.locale"
 
 // https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1798-L1817
 pub fn write_session(
@@ -47,20 +47,18 @@ pub fn from_mist(
   req req: Request(t),
   secret_key_base secret_key_base: String,
 ) -> Session {
-  let cookies = cookies(req:)
+  let get_session_cookie =
+    get_session_cookie(cookies: cookies(req:), key: _, secret_key_base:)
 
   let user_client_info =
-    cookies
-    |> build_user_client_info(secret_key_base:)
+    build_user_client_info(get_session_cookie:)
     |> option.from_result
 
-  case get(cookies:, key: session_cookie_name, secret_key_base:) {
-    Ok(user_token) ->
-      Session(user_token: Some(user_token), user_client_info:)
+  let user_token =
+    get_session_cookie(session_cookie_name)
+    |> option.from_result
 
-    Error(Nil) ->
-      Session(user_token: None, user_client_info:)
-  }
+  Session(user_token:, user_client_info:, get_session_cookie:)
 }
 
 // // based on: https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1839-L1854
@@ -71,21 +69,15 @@ pub fn from_mist(
 // }
 
 fn build_user_client_info(
-  cookies cookies: Dict(String, String),
-  secret_key_base secret_key_base: String,
+  get_session_cookie get_session_cookie: fn(String) -> Result(String, Nil),
 ) -> Result(UserClientInfo, Nil) {
-  use time_zone <- try(
-    cookies |> get(key: time_zone_cookie_name, secret_key_base:)
-  )
-
-  use locale <- try(
-    cookies |> get(key: locale_cookie_name, secret_key_base:)
-  )
+  use time_zone <- try(get_session_cookie(time_zone_cookie_name))
+  use locale <- try(get_session_cookie(locale_cookie_name))
 
   Ok(UserClientInfo(time_zone:, locale:, default: False))
 }
 
-fn get(
+fn get_session_cookie(
   cookies cookies: Dict(String, String),
   key key: String,
   secret_key_base secret_key_base: String,
