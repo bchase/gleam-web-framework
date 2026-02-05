@@ -49,6 +49,18 @@ pub fn handler(
         ))
       }))
 
+    ["sqlite_demo"] ->
+      Ok(spec.AppLustreHandler(handle: fn(_req) {
+        pure(spec.LustreResponse(
+          status: 200,
+          headers: dict.new(),
+          element: html.div([], [
+            lscs.sqlite_demo() |> lscs.element([], []),
+            lustre_server_component_client_script(),
+          ])
+        ))
+      }))
+
     ["pubsub_demo"] ->
       Ok(spec.AppLustreHandler(handle: fn(_req) {
         pure(spec.LustreResponse(

@@ -8,6 +8,14 @@ pub fn pubsub_demo() -> ServerComponentElement {
   )
 }
 
+pub fn sqlite_demo() -> ServerComponentElement {
+  ServerComponentElement(
+    route: "/ws/sqlite_demo",
+  )
+}
+
+//
+
 pub opaque type ServerComponentElement {
   ServerComponentElement(
     route: String,

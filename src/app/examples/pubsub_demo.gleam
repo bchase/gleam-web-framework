@@ -15,8 +15,8 @@ import spec/pubsub.{type TextMsg, TextMsg} as _
 import spec/pubsub/helpers as pubsub
 
 pub fn component(
-  ctx ctx: Context(config, config.PubSub, user),
-) -> lustre.App(Context(config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
+  ctx ctx: Context(config.Config, config.PubSub, user),
+) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
     module: "app/examples/pubsub_demo",
     init:,
@@ -47,7 +47,7 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), config, pubsub, user) {
+fn init() -> App(#(Model, Effect(Msg)), config.Config, config.PubSub, user) {
   Model(
     nil: Nil,
     msgs: [],

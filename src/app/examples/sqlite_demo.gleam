@@ -17,10 +17,10 @@ import spec/config
 import spec/domain/msgs
 
 pub fn component(
-  ctx ctx: Context(config.Config, pubsub, user),
-) -> lustre.App(Context(config.Config, pubsub, user), Model, lsc.Wrapped(Msg)) {
+  ctx ctx: Context(config.Config, config.PubSub, user),
+) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
-    module: "app/examples/db_demo",
+    module: "app/examples/sqlite_demo",
     init:,
     post_init: None,
     selectors:,
@@ -43,12 +43,18 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), config, pubsub, user) {
+fn init() -> App(#(Model, Effect(Msg)), config.Config, config.PubSub, user) {
   Model(
     nil: Nil,
     msgs: [],
   )
-  |> continue([])
+  |> continue([
+    msgs.list_all()
+    |> eff(
+      to_msg: GotMsgs,
+      to_err: GotErr(err: _, origin: "sqlite_demo.init"),
+    )
+  ])
 }
 
 pub opaque type Msg {
@@ -64,7 +70,7 @@ pub opaque type Msg {
 
   GotErr(
     err: err.Err,
-    func: String,
+    origin: String,
   )
 }
 
@@ -86,7 +92,7 @@ fn update(
         }
         |> eff(
           to_msg: GotMsgs,
-          to_err: GotErr(err: _, func: "db_demo.update (Submit)"),
+          to_err: GotErr(err: _, origin: "sqlite_demo.update (Submit)"),
         )
       ])
     }
@@ -97,8 +103,8 @@ fn update(
       ])
     }
 
-    GotErr(err:, func:) -> {
-      { "`" <> func <> "` " <> string.inspect(err) }
+    GotErr(err:, origin:) -> {
+      { "`" <> origin <> "` " <> string.inspect(err) }
       |> io.println_error
 
       model

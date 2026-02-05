@@ -6,11 +6,12 @@ import app/lustre/server_component/socket
 import app/examples/counter
 import app/examples/counter_app
 import app/examples/pubsub_demo
+import app/examples/sqlite_demo
 import spec/config
 
 pub fn lustre_server_component_router(
   req req: Request(mist.Connection),
-  ctx ctx: Context(config, config.PubSub, user),
+  ctx ctx: Context(config.Config, config.PubSub, user),
 ) -> Result(resp.Response(mist.ResponseData), Nil) {
   case req |> request.path_segments {
     ["ws", "counter"] ->
@@ -21,6 +22,9 @@ pub fn lustre_server_component_router(
 
     ["ws", "pubsub_demo"] ->
       Ok(socket.start(req:, ctx:, app: pubsub_demo.component(ctx:)))
+
+    ["ws", "sqlite_demo"] ->
+      Ok(socket.start(req:, ctx:, app: sqlite_demo.component(ctx:)))
 
     _ ->
       Error(Nil)
