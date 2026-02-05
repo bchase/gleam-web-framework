@@ -1,7 +1,7 @@
 import app/monad/app.{type App}
 import gleam/list
 import spec/config.{type Config}
-import spec/db
+import spec/db/sqlite as db
 import spec/sql
 
 pub type Message {
