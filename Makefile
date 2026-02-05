@@ -8,16 +8,19 @@ watch-tests:
 	find src/ test/ deps/ -name '*.gleam' | entr -s 'clear; gleam test'
 
 parrot:
-	DATABASE_URL=postgres://webapp:webapp@127.0.0.1:5432/APP_gleam gleam run -m parrot
+	DATABASE_URL='sqlite://./app-sqlite3.db' gleam run -m parrot
 
-squirrel:
-	DATABASE_URL=postgres://webapp:webapp@127.0.0.1:5432/APP_gleam gleam run -m squirrel && gleam run -m squirrel_labelled
+# parrot:
+# 	DATABASE_URL=postgres://webapp:webapp@127.0.0.1:5432/APP_gleam gleam run -m parrot
 
-squirrel-only:
-	DATABASE_URL=postgres://webapp:webapp@127.0.0.1:5432/APP_gleam gleam run -m squirrel
+# squirrel:
+# 	DATABASE_URL=postgres://webapp:webapp@127.0.0.1:5432/APP_gleam gleam run -m squirrel && gleam run -m squirrel_labelled
 
-squirrel-labelled-only:
-	gleam run -m squirrel_labelled
+# squirrel-only:
+# 	DATABASE_URL=postgres://webapp:webapp@127.0.0.1:5432/APP_gleam gleam run -m squirrel
+
+# squirrel-labelled-only:
+# 	gleam run -m squirrel_labelled
 
 deriv:
 	gleam run -m deriv

@@ -1,3 +1,4 @@
+import gleam/dynamic/decode
 import gleam/string
 import app/oauth
 import app/oauth/oura
@@ -49,20 +50,29 @@ pub type PubSub {
   )
 }
 
-// fn empty_pubsub() -> PubSub {
-//   PubSub(
-//     text: pubsub.zero(),
-//   )
-// }
-
 pub fn init_config() -> Config {
-  let sqlite_conn = connect_to_sqlite()
+  let sqlite_conn = connect_to_sqlite_and_migrate()
   let oura_oauth = oura.build_config()
 
   Config(
     sqlite_conn:,
     oura_oauth:,
   )
+}
+
+fn connect_to_sqlite_and_migrate() -> sqlight.Connection {
+  let conn = connect_to_sqlite()
+
+  let result = "
+    create table if not exists msgs (
+      id integer not null primary key autoincrement,
+      msg text not null
+    );
+  " |> sqlight.query(conn, [], decode.success(Nil))
+
+  let assert Ok(_migrated) = result as "migrated database"
+
+  conn
 }
 
 fn connect_to_sqlite() -> sqlight.Connection {

@@ -1,6 +1,6 @@
-import gleam/json.{type Json}
-import gleam/dynamic/decode.{type Decoder}
 import app/generic/json.{type Transcoders, Transcoders} as _
+import gleam/dynamic/decode.{type Decoder}
+import gleam/json.{type Json}
 
 pub type TextMsg {
   //$ derive json encode decode

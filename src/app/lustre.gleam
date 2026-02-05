@@ -1,4 +1,6 @@
+import gleam/erlang/process
 import app/monad/app.{type App, pure, do}
+import app/types/err
 // import app/types.{type Context}
 import lustre/effect.{type Effect}
 
@@ -16,4 +18,24 @@ pub fn continue(
   use effs <- do(app.sequence(effs))
 
   pure(#(model, effect.batch(effs)))
+}
+
+pub fn eff(
+  app app: App(t, config, pubsub, user),
+  to_msg to_msg: fn(t) -> msg,
+  to_err to_err: fn(err.Err) -> msg,
+) -> App(Effect(msg), config, pubsub, user) {
+  use ctx <- do(app.ctx())
+
+  effect.from(fn(dispatch) {
+    process.spawn_unlinked(fn() {
+      case app.run(app, ctx) {
+        Error(err) -> dispatch(to_err(err))
+        Ok(x) -> dispatch(to_msg(x))
+      }
+    })
+
+    Nil
+  })
+  |> pure
 }
