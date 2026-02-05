@@ -1,4 +1,4 @@
-import app/monad/app.{type App, pure}
+import app/monad/app.{type App, pure, do}
 // import app/types.{type Context}
 import lustre/effect.{type Effect}
 
@@ -11,7 +11,9 @@ pub fn component(
 
 pub fn continue(
   model model: model,
-  effs effs: List(Effect(msg)),
+  effs effs: List(App(Effect(msg), config, pubsub, user)),
 ) -> App(#(model, Effect(msg)), config, pubsub, user) {
+  use effs <- do(app.sequence(effs))
+
   pure(#(model, effect.batch(effs)))
 }

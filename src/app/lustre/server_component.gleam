@@ -39,15 +39,13 @@ fn select(
 ) -> App(#(model, Effect(msg)), config, pubsub, user) {
   use #(model, eff) <- do(app)
 
-  use select_eff <- do(build_select_effect(selectors:, model:))
-
   model |> continue([
-    eff,
-    select_eff,
+    pure(eff),
+    select_eff(selectors:, model:),
   ])
 }
 
-fn build_select_effect(
+fn select_eff(
   selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
   model model: model,
 ) -> App(Effect(msg), config, pubsub, user) {
