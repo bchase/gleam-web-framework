@@ -9,6 +9,7 @@ import app/lustre.{continue, eff} as _
 import gleam/erlang/process.{type Selector}
 import gleam/option.{type Option, None}
 import lustre
+import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -64,6 +65,10 @@ pub opaque type Msg {
     text: String,
   )
 
+  Delete(
+    id: Int,
+  )
+
   GotMsgs(
     msgs: List(msgs.Message)
   )
@@ -93,6 +98,20 @@ fn update(
         |> eff(
           to_msg: GotMsgs,
           to_err: GotErr(err: _, origin: "sqlite_demo.update (Submit)"),
+        )
+      ])
+    }
+
+    Delete(id:) -> {
+      model
+      |> continue([
+        {
+          use _deleted <- do(msgs.delete(id:))
+          msgs.list_all()
+        }
+        |> eff(
+          to_msg: GotMsgs,
+          to_err: GotErr(err: _, origin: "sqlite_demo.update (Delete)"),
         )
       ])
     }
@@ -140,6 +159,13 @@ fn view(
         |> list.map(fn(msg) {
           html.li([], [
             html.text(msg.text),
+            html.text(" "),
+            html.span([
+              event.on_click(Delete(id: msg.id)),
+              attr.style("cursor", "pointer"),
+            ], [
+              html.text("x")
+            ]),
           ])
         })
       }),

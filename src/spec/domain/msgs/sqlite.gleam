@@ -1,3 +1,4 @@
+import app/db/parrot
 import app/monad/app.{type App}
 import gleam/list
 import spec/config.{type Config}
@@ -27,6 +28,15 @@ pub fn insert(
   sql.insert_msg(msg:)
   |> db.many
   |> app.map(list.map(_, from_insert_msg_to_message))
+}
+
+pub fn delete(
+  id id: Int,
+) -> App(Nil, Config, pubsub, user) {
+  sql.delete_msg(id:)
+  |> parrot.from_exec
+  |> db.many
+  |> app.replace(Nil)
 }
 
 // DERIVED

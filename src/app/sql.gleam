@@ -37,3 +37,10 @@ pub fn insert_msg_decoder() -> decode.Decoder(InsertMsg) {
   use msg <- decode.field(1, decode.string)
   decode.success(InsertMsg(id:, msg:))
 }
+
+pub fn delete_msg(id id: Int) {
+  let sql =
+    "delete from msgs
+where id = ?1"
+  #(sql, [dev.ParamInt(id)])
+}
