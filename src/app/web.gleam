@@ -237,6 +237,7 @@ fn to_wisp_err_resp(
         headers: dict.new(),
       )
 
+    err.DbErr(..) |
     err.Err(..) ->
       wisp_html_resp(
         status: 500,
@@ -257,6 +258,7 @@ pub fn to_err_resp(
         headers: dict.new(),
       )
 
+    err.DbErr(..) |
     err.Err(..) ->
       mist_html_resp(
         status: 500,
