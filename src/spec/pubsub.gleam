@@ -1,21 +1,24 @@
-import app/monad/app
-import gleam/erlang/process
-import app/pubsub
-import app/config
+import gleam/json.{type Json}
+import gleam/dynamic/decode.{type Decoder}
 
-fn text(pubsub: config.PubSub) -> pubsub.PubSub(config.TextMsg) { pubsub.text }
-
-pub fn subscribe_text(
-  to to: String,
-  wrap wrap: fn(config.TextMsg) -> msg
-) -> app.App(process.Selector(msg), config, config.PubSub, user) {
-  app.subscribe(wrap:, to:, in: text)
+pub type TextMsg {
+  //$ derive json encode decode
+  TextMsg(text: String)
 }
 
-pub fn broadcast_text(
-  to to: String,
-  msg msg: config.TextMsg,
-  cont cont: fn() -> app.App(t, config, config.PubSub, user)
-) -> app.App(t, config, config.PubSub, user) {
-  app.broadcast(to:, msg:, cont:, in: text)
+// DERIVED
+
+pub fn encode_text_msg(value: TextMsg) -> Json {
+  case value {
+    TextMsg(..) as value -> json.object([#("text", json.string(value.text))])
+  }
+}
+
+pub fn decoder_text_msg() -> Decoder(TextMsg) {
+  decode.one_of(decoder_text_msg_text_msg(), [])
+}
+
+pub fn decoder_text_msg_text_msg() -> Decoder(TextMsg) {
+  use text <- decode.field("text", decode.string)
+  decode.success(TextMsg(text:))
 }

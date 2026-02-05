@@ -39,6 +39,9 @@ pub fn add_cluster_worker(
   transcoders transcoders: Transcoders(msg),
   app_module_name app_module_name: String,
 ) -> #(static_supervisor.Builder, PubSub(msg)) {
+  panic as "not tested"
+  todo
+
   let #(registry_name_str, registry_name) = pubsub_name(name_str:, suffix: "registry", app_module_name: Some(app_module_name))
   let pubsub = PubSub(name_str: registry_name_str, name: registry_name, transcoders: Some(transcoders))
 
@@ -118,11 +121,6 @@ fn broadcast_local(
   channel channel: String,
   msg msg: msg,
 ) -> Nil {
-  echo "broadcast_local"
-  echo pubsub.name
-  echo channel
-  echo msg
-
   pubsub.name
   |> gr.get_registry
   |> gr.members(channel)

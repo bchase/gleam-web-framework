@@ -1,15 +1,8 @@
-import app/oauth
-import app/oauth/oura
-import gleam/option.{type Option, None}
-import gleam/json.{type Json}
-import gleam/dynamic/decode.{type Decoder}
-import gleam/otp/static_supervisor
-import app/pubsub
-import app/config.{type Config, type PubSub, type User, init_config, add_pubsub_workers, authenticate}
-import app/types.{type Session}
+import spec/config.{type Config, type PubSub, init_config, add_pubsub_workers, authenticate}
+import spec/user.{type User}
 import app/types/spec.{type Spec, Spec}
-import app/websockets
-import app/router
+import spec/websockets
+import spec/router
 
 pub fn spec() -> Spec(Config, PubSub, User) {
   Spec(

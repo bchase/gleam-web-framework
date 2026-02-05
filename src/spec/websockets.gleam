@@ -6,7 +6,7 @@ import app/lustre/server_component/socket
 import app/examples/counter
 import app/examples/counter_app
 import app/examples/pubsub_demo
-import app/config
+import spec/config
 
 pub fn lustre_server_component_router(
   req req: Request(mist.Connection),

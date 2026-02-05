@@ -6,13 +6,8 @@ import gleam/dynamic/decode.{type Decoder}
 import gleam/otp/static_supervisor
 import app/pubsub
 import app/types.{type Session}
-import app/types/spec.{type Spec, Spec}
-import app/router
-// import app/generic/json.{type Transcoders, Transcoders} as _
-
-pub type User {
-  User
-}
+import spec/pubsub.{type TextMsg} as _
+import spec/user.{type User}
 
 pub fn authenticate(
   session _session: Session,
@@ -66,49 +61,4 @@ pub fn init_config() -> Config {
   Config(
     oura_oauth:,
   )
-}
-
-//
-
-pub type TextMsg {
-  //$ derive json encode decode
-  TextMsg(text: String)
-}
-
-pub type NumberMsg {
-  //$ derive json encode decode
-  NumberMsg(number: Float)
-}
-
-// DERIVED
-
-pub fn encode_text_msg(value: TextMsg) -> Json {
-  case value {
-    TextMsg(..) as value -> json.object([#("text", json.string(value.text))])
-  }
-}
-
-pub fn decoder_text_msg() -> Decoder(TextMsg) {
-  decode.one_of(decoder_text_msg_text_msg(), [])
-}
-
-pub fn decoder_text_msg_text_msg() -> Decoder(TextMsg) {
-  use text <- decode.field("text", decode.string)
-  decode.success(TextMsg(text:))
-}
-
-pub fn encode_number_msg(value: NumberMsg) -> Json {
-  case value {
-    NumberMsg(..) as value ->
-      json.object([#("number", json.float(value.number))])
-  }
-}
-
-pub fn decoder_number_msg() -> Decoder(NumberMsg) {
-  decode.one_of(decoder_number_msg_number_msg(), [])
-}
-
-pub fn decoder_number_msg_number_msg() -> Decoder(NumberMsg) {
-  use number <- decode.field("number", decode.float)
-  decode.success(NumberMsg(number:))
 }

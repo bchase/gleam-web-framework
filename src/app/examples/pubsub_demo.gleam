@@ -10,8 +10,9 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import app/config
-// import spec/pubsub as app_domain
+import spec/config
+// import spec/pubsub/helpers as app_domain
+import spec/pubsub.{type TextMsg, TextMsg}
 
 pub fn component(
   ctx ctx: Context(config, config.PubSub, user),
@@ -62,7 +63,7 @@ fn init() -> App(#(Model, Effect(Msg)), config, pubsub, user) {
 pub opaque type Msg {
   NoOp
   Broadcast(text: String)
-  GotPubSubTextMsg(msg: config.TextMsg)
+  GotPubSubTextMsg(msg: TextMsg)
 }
 
 fn update(
@@ -78,12 +79,12 @@ fn update(
       use <- app.broadcast(
         to: "msgs",
         in: fn(pubsub: config.PubSub) { pubsub.text },
-        msg: config.TextMsg(text:),
+        msg: TextMsg(text:),
       )
       // // alternatively, define and use a helper...
       // use <- app_domain.broadcast_text(
       //   to: "msgs",
-      //   msg: config.TextMsg(text:),
+      //   msg: TextMsg(text:),
       // )
 
       model
