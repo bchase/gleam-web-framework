@@ -4,7 +4,7 @@ import gleam/option.{type Option, None}
 import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/otp/static_supervisor
-import app/pubsub2 as pubsub
+import app/pubsub
 import app/config.{type Config, type PubSub, type User, init_config, add_pubsub_workers, authenticate}
 import app/types.{type Session}
 import app/types/spec.{type Spec, Spec}

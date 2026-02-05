@@ -1,6 +1,6 @@
 import app/monad/app
 import gleam/erlang/process
-import app/pubsub2 as pubsub
+import app/pubsub
 import app/config
 
 fn text(pubsub: config.PubSub) -> pubsub.PubSub(config.TextMsg) { pubsub.text }

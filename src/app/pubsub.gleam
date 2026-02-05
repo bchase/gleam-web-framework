@@ -1,309 +1,303 @@
-//import app/erl
-//import gleam/bool
-//import gleam/dynamic.{type Dynamic}
-//import gleam/dynamic/decode.{type Decoder}
-//import gleam/erlang/atom.{type Atom}
-//import gleam/erlang/node
-//import gleam/erlang/process.{type Selector, type Subject}
-//import gleam/json.{type Json}
-//import gleam/list
-//import gleam/otp/actor
-//import gleam/otp/static_supervisor
-//import gleam/otp/supervision
-//import gleam/result
-//import gleam/string
-//import group_registry as gr
+import gleam/option.{type Option, Some, None}
+import app/erl
+import gleam/bool
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode.{type Decoder}
+import gleam/erlang/atom
+import gleam/erlang/node
+import gleam/erlang/process.{type Selector}
+import gleam/io
+import gleam/json.{type Json}
+import gleam/list
+import gleam/otp/actor
+import gleam/otp/supervision.{type ChildSpecification}
+import gleam/result
+import gleam/string
+import group_registry as gr
+import app/generic/json.{type Transcoders} as _
+//
+import gleam/otp/static_supervisor
 
-//pub type Spec(msg) {
-//  Spec(
-//    init: fn() -> PubSubs,
-//    add_workers: fn(static_supervisor.Builder, PubSubs) -> static_supervisor.Builder,
-//    decode_msg: fn() -> Decoder(msg),
-//  )
-//}
+pub fn add_local_node_only_worker(
+  supervisor supervisor: static_supervisor.Builder,
+  name name_str: String,
+) -> #(static_supervisor.Builder, PubSub(msg)) {
+  let #(name_str, name) = pubsub_name(name_str:, suffix: "registry", app_module_name: None)
 
-////
+  let pubsub = PubSub(name_str:, name:, transcoders: None)
 
-//pub const spec = Spec(init:, add_workers:, decode_msg: decoder_unified_msg)
+  let supervisor =
+    supervisor
+    |> static_supervisor.add(gr.supervised(name))
 
-//pub type PubSubs {
-//  PubSubs(
-//    simple: PubSub(SimpleMsg, UnifiedMsg),
-//  )
-//}
+  #(supervisor, pubsub)
+}
 
-//pub type SimpleMsg {
-//  //$ derive json encode decode
-//  SimpleMsg(text: String)
-//}
+pub fn add_cluster_worker(
+  supervisor supervisor: static_supervisor.Builder,
+  name name_str: String,
+  transcoders transcoders: Transcoders(msg),
+  app_module_name app_module_name: String,
+) -> #(static_supervisor.Builder, PubSub(msg)) {
+  let #(registry_name_str, registry_name) = pubsub_name(name_str:, suffix: "registry", app_module_name: Some(app_module_name))
+  let pubsub = PubSub(name_str: registry_name_str, name: registry_name, transcoders: Some(transcoders))
 
-//pub type UnifiedMsg {
-//  //$ derive json encode decode
-//  WrappedSimpleMsg(msg: SimpleMsg)
-//}
+  let #(_, listener_name) = pubsub_name(name_str:, suffix: "cluster_listener", app_module_name: Some(app_module_name))
 
-//pub fn init() -> PubSubs {
-//  PubSubs(
-//    simple: "simple-pubsub" |> process.new_name |> PubSub(WrappedSimpleMsg),
-//  )
-//}
+  let supervisor =
+    supervisor
+    |> static_supervisor.add(gr.supervised(registry_name))
+    |> static_supervisor.add(supervised_cluster_listener(name: listener_name, transcoders:))
 
-//pub fn add_workers(
-//  supervisor supervisor: static_supervisor.Builder,
-//  pubsubs pubsubs: PubSubs,
-//) -> static_supervisor.Builder {
-//  let _totality = fn(name) {
-//    // !!! INEXHAUSTIVE PATTERN MATCH ERROR ADD WORKER BELOW
-//    case name {
-//      SimpleMsg(..) -> Nil
-//    }
-//    // !!! INEXHAUSTIVE PATTERN MATCH ERROR ADD WORKER BELOW
-//  }
+  #(supervisor, pubsub)
+}
 
-//  supervisor
-//  |> static_supervisor.add(gr.supervised(pubsubs.simple.name))
-//}
+fn pubsub_name(
+  name_str name_str: String,
+  suffix suffix: String,
+  app_module_name app_module_name: Option(String),
+) -> #(String, process.Name(msg)) {
+  let name_str = name_str <> "_pubsub_" <> suffix
 
+  case app_module_name {
+    None -> {
+      let name = name_str |> process.new_name
+      #(name_str, name)
+    }
 
-////
+    Some(app_module_name) -> {
+      let name_str = app_module_name <> "_" <> name_str
+      let name = name_str |> unsafe_unique_name_from
+      #(name_str, name)
+    }
+  }
+}
 
-//const cluster_process_name_suffix =
-//  "cluster_pubsub_static_name"
+//
 
-//pub opaque type State {
-//  State
-//}
+pub opaque type PubSub(msg) {
+  PubSub(
+    name_str: String,
+    name: process.Name(gr.Message(msg)),
+    transcoders: Option(Transcoders(msg))
+  )
+}
 
-//pub opaque type PubSub(msg, unified_msg) {
-//  PubSub(
-//    name: process.Name(gr.Message(msg)),
-//    to_unified_msg: fn(msg) -> unified_msg,
-//  )
-//}
+pub fn subscribe(
+  pubsub pubsub: PubSub(msg),
+  channel channel: String,
+) -> Selector(msg) {
+  pubsub.name
+  |> gr.get_registry
+  |> gr.join(channel, process.self())
+  |> process.select(process.new_selector(), _)
+}
 
-//pub opaque type ClusterMsg(msg) {
-//  ClusterMsg(
-//    channel: String,
-//    msg: msg,
-//  )
+// // TODO -- i think `subscribe`, `unsubscribe`, `subscribe` results
+// //      -- in double msgs because of double `Selector` usage...
+// pub fn unsubscribe(
+//   pubsub pubsub: PubSub(msg),
+//   channel channel: String,
+// ) -> Nil {
+//   pubsub.name
+//   |> gr.get_registry
+//   |> gr.leave(channel, [process.self()])
+// }
 
-//  UnexpectedMsg(
-//    msg: Dynamic,
-//  )
+pub fn broadcast(
+  pubsub pubsub: PubSub(msg),
+  channel channel: String,
+  msg msg: msg,
+) -> Nil {
+  broadcast_local(pubsub:, channel:, msg:)
+  broadcast_to_cluster(pubsub:, channel:, msg:) |> option.unwrap(Nil)
+}
 
-//  ParseFailure(
-//    msg: Dynamic,
-//    err: json.DecodeError,
-//  )
-//}
+fn broadcast_local(
+  pubsub pubsub: PubSub(msg),
+  channel channel: String,
+  msg msg: msg,
+) -> Nil {
+  echo "broadcast_local"
+  echo pubsub.name
+  echo channel
+  echo msg
 
-//fn encode_cluster_msg(
-//  msg msg: msg,
-//  channel channel: String,
-//  encode_msg encode_msg: fn(msg) -> Json,
-//) -> Json {
-//  json.object([
-//    #("channel", channel |> json.string),
-//    #("msg", msg |> encode_msg),
-//  ])
-//}
+  pubsub.name
+  |> gr.get_registry
+  |> gr.members(channel)
+  |> list.each(fn(subscriber) {
+    subscriber
+    |> process.send(msg)
+  })
+}
 
-//fn decode_cluster_msg(
-//  dyn dyn: Dynamic,
-//  decode_msg decode_msg: Decoder(msg),
-//) -> ClusterMsg(msg) {
-//  decode.string
-//  |> decode.map(fn(json) {
-//    {
-//      use channel <- decode.field("channel", decode.string)
-//      use msg <- decode.field("msg", decode_msg)
+fn broadcast_to_cluster(
+  pubsub pubsub: PubSub(msg),
+  channel channel: String,
+  msg msg: msg,
+) -> Option(Nil) {
+  use transcoders <- option.then(pubsub.transcoders)
 
-//      decode.success(ClusterMsg(channel:, msg:))
-//    }
-//    |> json.parse(json, _)
-//    |> fn(result) {
-//      case result {
-//        Ok(msg) -> msg
-//        Error(err) -> ParseFailure(msg: dyn, err:)
-//      }
-//    }
-//  })
-//  |> decode.run(dyn, _)
-//  |> result.lazy_unwrap(fn() { UnexpectedMsg(msg: dyn) })
-//}
+  let self = node.self()
 
-//pub fn supervised(
-//  supervisor supervisor: static_supervisor.Builder,
-//  spec spec: Spec(msg),
-//  app_module_name app_module_name: String
-//) -> static_supervisor.Builder {
-//  supervisor
-//  |> spec.add_workers(spec.init())
-//  |> static_supervisor.add(
-//    supervision.worker(fn() {
-//      cluster_listener(
-//        app_module_name:,
-//        decode_msg: spec.decode_msg(),
-//      )
-//      |> actor.start
-//    })
-//  )
-//}
+  node.visible()
+  |> list.each(fn(node) {
+    use <- bool.guard(node == self, Nil)
 
-//fn cluster_listener(
-//  decode_msg decode_msg: Decoder(msg),
-//  app_module_name app_module_name: String,
-//) -> actor.Builder(State, ClusterMsg(msg), Nil) {
-//  actor.new_with_initialiser(100, fn(self) {
-//    actor.initialised(State)
-//    |> actor.selecting({
-//      process.new_selector()
-//      |> process.select(self) // TODO
-//      |> process.select_other(decode_cluster_msg(
-//        dyn: _,
-//        decode_msg:,
-//      ))
-//    })
-//    |> actor.returning(Nil)
-//    |> Ok
-//  })
-//  |> actor.on_message(receive_for_cluster)
-//  |> actor.named(unsafe_static_name(app_module_name:))
-//}
-//fn receive_for_cluster(
-//  state state: state,
-//  msg msg: msg,
-//) -> actor.Next(state, msg) {
-//  actor.continue(state) // TODO
-//}
+    msg
+    |> encode_cluster_msg(pubsub:, channel:, transcoders:)
+    |> erl.node_send(msg: _, node:, name: pubsub.name)
+  })
 
-//fn get_listeners(
-//  pubsub pubsub: PubSub(msg, unified_msg),
-//  channel channel: String,
-//) -> List(Subject(msg)) {
-//  pubsub.name
-//  |> gr.get_registry
-//  |> gr.members(channel)
-//}
+  None
+}
 
-//fn unsafe_static_name(
-//  app_module_name app_module_name: String,
-//) -> process.Name(msg) {
-//  { app_module_name <> "_" <> cluster_process_name_suffix }
-//  |> atom.create
-//  |> echo
-//  |> echo
-//  |> echo
-//  |> echo
-//  |> echo
-//  |> unsafe_atom_to_name
-//}
+//
 
-//@external(erlang, "app_erl_ffi", "unsafe_cast")
-//fn unsafe_atom_to_name(
-//  atom atom: Atom,
-//) -> process.Name(msg)
+fn encode_cluster_msg(
+  msg msg: msg,
+  pubsub pubsub: PubSub(msg),
+  channel channel: String,
+  transcoders transcoders: Transcoders(msg),
+) -> Json {
+  json.object([
+    #("pubsub", pubsub.name_str |> json.string),
+    #("channel", channel |> json.string),
+    #("msg", msg |> transcoders.encode),
+  ])
+}
 
-//// pub fn to_name(
-////   val: t,
-////   prefix prefix: String,
-//// ) -> process.Name(msg) {
-////   val
-////   |> string.inspect
-////   |> string.append(to: prefix, suffix: _)
-////   |> process.new_name
-//// }
+fn decoder_cluster_msg(
+  decoder decoder: Decoder(msg),
+) -> Decoder(Result(#(PubSub(msg), String, msg), String)) {
+  {
+    use name_str <- decode.field("name", decode.string)
+    use channel <- decode.field("channel", decode.string)
+    use msg <- decode.field("msg", decoder)
 
-////
+    case name_from(name_str:) {
+      Error(Nil) -> {
+        // decode.failure(#(pubsub, channel, msg))
+        decode.success(Error("`decoder_cluster_msg` no `Name` for: " <> name_str))
+      }
 
-//pub fn subscribe(
-//  to channel: String,
-//  in get_pubsub: fn(pubsubs) -> gr.GroupRegistry(msg),
-//  pubsubs pubsubs: pubsubs,
-//) -> Selector(msg) {
-//  pubsubs
-//  |> get_pubsub
-//  |> gr.join(channel, process.self())
-//  |> process.select(process.new_selector(), _)
-//}
+      Ok(name) -> {
+        let pubsub = PubSub(name_str:, name:, transcoders: None)
 
-//pub fn broadcast(
-//  to channel: String,
-//  in get_pubsub: fn(pubsubs) -> PubSub(msg, unified_msg),
-//  msg msg: msg,
-//  pubsubs pubsubs: pubsubs,
-//  //
-//  encode_msg encode_msg: fn(msg) -> Json,
-//  listener listener: process.Name(msg),
-//) -> Nil {
-//  broadcast_locally(to: channel, in: get_pubsub, msg:, pubsubs:)
-//  broadcast_to_cluster(to: channel, msg:, encode_msg:, listener:)
-//}
+        decode.success(Ok(#(pubsub, channel, msg)))
+      }
+    }
+  }
+}
 
-//fn broadcast_locally(
-//  to channel: String,
-//  in get_pubsub: fn(pubsubs) -> PubSub(msg, unified_msg),
-//  msg msg: msg,
-//  pubsubs pubsubs: pubsubs
-//) -> Nil {
-//  pubsubs
-//  |> get_pubsub
-//  |> get_listeners(channel:)
-//  |> list.each(fn(listener) {
-//    process.send(listener, msg)
-//  })
-//}
+fn unsafe_name_from(
+  name_str str: String,
+) -> process.Name(msg) {
+  str
+  |> atom.create
+  |> erl.unsafe_cast
+}
 
-//fn broadcast_to_cluster(
-//  to channel: String,
-//  msg msg: msg,
-//  encode_msg encode_msg: fn(msg) -> Json,
-//  listener listener: process.Name(msg),
-//) -> Nil {
-//  let json =
-//    msg
-//    |> encode_cluster_msg(channel:, encode_msg:)
-//    |> json.to_string
+fn name_from(
+  name_str str: String,
+) -> Result(process.Name(msg), Nil) {
+  let name = unsafe_name_from(str)
 
-//  let self = node.self()
+  name
+  |> process.named
+  |> result.replace(name)
+}
 
-//  node.visible()
-//  |> list.each(fn(node) {
-//    use <- bool.guard(node == self, Nil)
+fn unsafe_unique_name_from(
+  name_str name_str: String,
+) -> process.Name(msg) {
+  case atom.get(name_str) {
+    Ok(_atom) ->
+      panic as { "`unsafe_unique_name_from` atom already exists: " <> name_str }
 
-//    erl.node_send(node, listener, json)
-//  })
-//}
+    Error(Nil) -> {
+      // let assert Ok(name) = unsafe_name_from(name_str:)
+      // name
+      unsafe_name_from(name_str:)
+    }
+  }
+}
 
-//// DERIVED
+fn supervised_cluster_listener(
+  // name name: process.Name(Result(msg, #(Dynamic, List(DecodeError)))),
+  name name: process.Name(Dynamic),
+  transcoders transcoders: Transcoders(msg),
+  // broadcast broadcast:
+) -> ChildSpecification(Nil) {
+  let decoder = transcoders.decoder()
 
-//pub fn encode_simple_msg(value: SimpleMsg) -> Json {
-//  case value {
-//    SimpleMsg(..) as value -> json.object([#("text", json.string(value.text))])
-//  }
-//}
+  supervision.worker(fn() {
+    actor.new_with_initialiser(100, fn(subject) {
+      actor.initialised(Nil)
+      |> actor.selecting({
+        process.new_selector()
+        |> process.select(subject)
+        // |> process.select_other(fn(dyn) {
+        //   dyn
+        //   |> decode.run(transcoders.decoder)
+        //   |> result.map_error(pair.new(dyn, _))
+        // })
+      })
+      |> Ok
+    })
+    |> actor.on_message(fn(state, dyn_msg) {
+      let result =
+          dyn_msg
+          |> decode.run(decode.string)
+          |> result.map(json.parse(_, decoder_cluster_msg(decoder)))
 
-//pub fn decoder_simple_msg() -> Decoder(SimpleMsg) {
-//  decode.one_of(decoder_simple_msg_simple_msg(), [])
-//}
+      case result {
+        Ok(Ok(Ok(#(pubsub, channel, msg)))) -> {
+          broadcast_local(pubsub:, channel:, msg:)
 
-//pub fn decoder_simple_msg_simple_msg() -> Decoder(SimpleMsg) {
-//  use text <- decode.field("text", decode.string)
-//  decode.success(SimpleMsg(text:))
-//}
+          actor.continue(state)
+        }
 
-//pub fn encode_unified_msg(value: UnifiedMsg) -> Json {
-//  case value {
-//    WrappedSimpleMsg(..) as value ->
-//      json.object([#("msg", encode_simple_msg(value.msg))])
-//  }
-//}
+        Ok(Ok(Error(errs))) -> {
+          log_err(name:, dyn_msg:, errs:)
 
-//pub fn decoder_unified_msg() -> Decoder(UnifiedMsg) {
-//  decode.one_of(decoder_unified_msg_wrapped_simple_msg(), [])
-//}
+          actor.continue(state)
+        }
 
-//pub fn decoder_unified_msg_wrapped_simple_msg() -> Decoder(UnifiedMsg) {
-//  use msg <- decode.field("msg", decoder_simple_msg())
-//  decode.success(WrappedSimpleMsg(msg:))
-//}
+        Ok(Error(errs)) -> {
+          log_err(name:, dyn_msg:, errs:)
+
+          actor.continue(state)
+        }
+
+        Error(errs) -> {
+          log_err(name:, dyn_msg:, errs:)
+
+          actor.continue(state)
+        }
+      }
+    })
+    |> actor.named(name)
+    |> actor.start
+  })
+}
+
+fn log_err(
+  name name: process.Name(msg),
+  dyn_msg dyn_msg: Dynamic,
+  errs errs: a,
+) -> Nil {
+  [
+    "ERR `supervised_cluster_listener` " <> name |> string.inspect,
+    "  PAYLOAD: " <> dyn_msg |> string.inspect,
+    "  ERRS: " <> errs |> string.inspect,
+  ]
+  |> string.join("\n")
+  |> io.println_error
+}
+
+// fn static_name(
+//   name_str name_str: String,
+// ) -> process.Name(msg) {
+// }

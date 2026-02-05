@@ -3,7 +3,7 @@ import gleam/list
 import gleam/option.{type Option}
 import app/types.{type Context}
 import app/types/err.{type Err}
-import app/pubsub2 as pubsub
+import app/pubsub
 
 pub opaque type App(t, config, pubsub, user) {
   App(run: fn(Context(config, pubsub, user)) -> Result(t, Err))
