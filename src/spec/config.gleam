@@ -1,8 +1,6 @@
 import app/oauth
 import app/oauth/oura
 import gleam/option.{type Option, None}
-import gleam/json.{type Json}
-import gleam/dynamic/decode.{type Decoder}
 import gleam/otp/static_supervisor
 import app/pubsub
 import app/types.{type Session}
@@ -24,10 +22,7 @@ pub fn add_pubsub_workers(
   //   |> pubsub.add_cluster_worker(
   //     name: "text",
   //     app_module_name: spec.app_module_name,
-  //     transcoders: pubsub.Transcoders(
-  //       encode: config.encode_text_msg,
-  //       decoder: config.decoder_text_msg,
-  //     )
+  //     transcoders: spec_pubsub.text_transcoders,
   //   )
 
   let #(supervisor, text) = supervisor |> pubsub.add_local_node_only_worker(name: "text")

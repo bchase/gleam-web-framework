@@ -11,8 +11,8 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import spec/config
-// import spec/pubsub/helpers as app_domain
-import spec/pubsub.{type TextMsg, TextMsg}
+import spec/pubsub.{type TextMsg, TextMsg} as _
+import spec/pubsub/helpers as pubsub
 
 pub fn component(
   ctx ctx: Context(config, config.PubSub, user),
@@ -34,14 +34,9 @@ fn selectors(
   [
     app.subscribe(
       to: "msgs",
-      in: fn(pubsub: config.PubSub) { pubsub.text },
+      in: pubsub.text,
       wrap: GotPubSubTextMsg,
     ),
-    // // alternatively, define and use a helper...
-    // app_domain.subscribe_text(
-    //   to: "msgs",
-    //   wrap: GotPubSubTextMsg,
-    // )
   ]
 }
 
@@ -78,14 +73,9 @@ fn update(
     Broadcast(text:) -> {
       use <- app.broadcast(
         to: "msgs",
-        in: fn(pubsub: config.PubSub) { pubsub.text },
+        in: pubsub.text,
         msg: TextMsg(text:),
       )
-      // // alternatively, define and use a helper...
-      // use <- app_domain.broadcast_text(
-      //   to: "msgs",
-      //   msg: TextMsg(text:),
-      // )
 
       model
       |> continue([

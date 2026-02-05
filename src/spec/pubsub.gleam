@@ -1,10 +1,17 @@
 import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
+import app/generic/json.{type Transcoders, Transcoders} as _
 
 pub type TextMsg {
   //$ derive json encode decode
   TextMsg(text: String)
 }
+
+pub const text_transcoders: Transcoders(TextMsg) =
+  Transcoders(
+    encode: encode_text_msg,
+    decoder: decoder_text_msg,
+  )
 
 // DERIVED
 
