@@ -118,6 +118,11 @@ fn broadcast_local(
   channel channel: String,
   msg msg: msg,
 ) -> Nil {
+  echo "broadcast_local"
+  echo pubsub.name
+  echo channel
+  echo msg
+
   pubsub.name
   |> gr.get_registry
   |> gr.members(channel)

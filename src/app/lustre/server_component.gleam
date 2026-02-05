@@ -22,7 +22,7 @@ pub fn build_lustre_app(
   ctx ctx: Context(config, pubsub, user),
 ) -> lustre.App(Context(config, pubsub, user), model, Wrapped(msg)) {
   lustre.application(
-    init: wrap_init(init:, selectors:, module:),
+    init: wrap_init(init:, module:),
     update: wrap_update(update:, selectors:, post_init:, module:, ctx:),
     view: wrap_view(view:, ctx:),
   )
@@ -58,7 +58,7 @@ fn build_select_effect(
     |> app.map(list.fold(_, process.new_selector(), process.merge_selector))
   )
 
-  server_component.select(fn(_dispath, self) {
+  server_component.select(fn(_dispatch, self) {
     selector |> process.select(self)
   })
   |> pure
@@ -94,12 +94,10 @@ fn log_err(
 
 fn wrap_init(
   init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
   module module: String,
 ) -> fn(Context(config, pubsub, user)) -> #(model, Effect(Wrapped(msg))) {
   fn(ctx) {
     init()
-    |> select(selectors:)
     |> app.map(wrap_effect(model_and_effect: _, wrapper: InnerMsg))
     |> app.map(fn(t) {
       let #(model, eff) = t
@@ -133,13 +131,10 @@ fn wrap_update(
     case wrapped_msg {
       PostInit -> {
         case post_init {
-          None ->
-            pure(#(model, effect.none()))
-
-          Some(post_init) ->
-            post_init(model)
-            |> select(selectors:)
+          None -> pure(#(model, effect.none()))
+          Some(post_init) -> post_init(model)
         }
+        |> select(selectors:)
       }
 
       InnerMsg(msg:) -> {

@@ -7,27 +7,8 @@ import gleam/otp/static_supervisor
 import app/pubsub2 as pubsub
 import app/types.{type Session}
 import app/types/spec.{type Spec, Spec}
-import app/websockets
 import app/router
 // import app/generic/json.{type Transcoders, Transcoders} as _
-
-pub fn spec() -> Spec(Config, PubSub, User) {
-  Spec(
-    app_module_name: "app",
-    dot_env_relative_path: ".env",
-    secret_key_base_env_var_name: "SECRET_KEY_BASE",
-    //
-    init_config:,
-    add_pubsub_workers:,
-    //
-    authenticate:,
-    //
-    websockets_path_prefix: "ws",
-    websockets_router: websockets.lustre_server_component_router,
-    //
-    router: router.handler,
-  )
-}
 
 pub type User {
   User
@@ -69,7 +50,7 @@ pub type Config {
 
 pub type PubSub {
   PubSub(
-    text: pubsub.PubSub(TextMsg)
+    text: pubsub.PubSub(TextMsg),
   )
 }
 

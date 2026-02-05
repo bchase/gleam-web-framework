@@ -1,17 +1,15 @@
 import lustre/attribute as attr
-import lustre/server_component
 import lustre/element.{type Element}
 import lustre/element/html
 import gleam/dict
-import gleam/option.{type Option, Some, None}
-import gleam/http/response.{type Response}
 import gleam/http/request.{type Request}
 import app/types.{type Context}
 import wisp
 import app/examples/counter
 import app/examples/counter_app
+import app/examples/server_component_elements as lscs
 import app/types/spec.{type Handler}
-import app/monad/app.{pure, do}
+import app/monad/app.{pure}
 
 pub fn handler(
   req req: Request(wisp.Connection),
@@ -46,6 +44,18 @@ pub fn handler(
           headers: dict.new(),
           element: html.div([], [
             counter_app.element(),
+            lustre_server_component_client_script(),
+          ])
+        ))
+      }))
+
+    ["pubsub_demo"] ->
+      Ok(spec.AppLustreHandler(handle: fn(_req) {
+        pure(spec.LustreResponse(
+          status: 200,
+          headers: dict.new(),
+          element: html.div([], [
+            lscs.pubsub_demo() |> lscs.element([], []),
             lustre_server_component_client_script(),
           ])
         ))

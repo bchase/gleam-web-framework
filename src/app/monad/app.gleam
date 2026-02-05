@@ -1,7 +1,9 @@
+import gleam/erlang/process
 import gleam/list
 import gleam/option.{type Option}
 import app/types.{type Context}
 import app/types/err.{type Err}
+import app/pubsub2 as pubsub
 
 pub opaque type App(t, config, pubsub, user) {
   App(run: fn(Context(config, pubsub, user)) -> Result(t, Err))
@@ -149,4 +151,35 @@ pub fn to_result(
   app
   |> run(ctx)
   |> cont
+}
+
+// PUBSUB
+
+pub fn subscribe(
+  to channel: String,
+  in pubsub: fn(pubsub) -> pubsub.PubSub(pubsub_msg),
+  wrap to_msg: fn(pubsub_msg) -> msg
+) -> App(process.Selector(msg), config, pubsub, user) {
+  use ctx <- do(ctx())
+
+  ctx.pubsub
+  |> pubsub
+  |> pubsub.subscribe(channel:)
+  |> process.map_selector(to_msg)
+  |> pure
+}
+
+pub fn broadcast(
+  in pubsub: fn(pubsub) -> pubsub.PubSub(msg),
+  to channel: String,
+  msg msg: msg,
+  cont cont: fn() -> App(t, config, pubsub, user)
+) -> App(t, config, pubsub, user) {
+  use ctx <- do(ctx())
+
+  ctx.pubsub
+  |> pubsub
+  |> pubsub.broadcast(channel:, msg:)
+
+  cont()
 }

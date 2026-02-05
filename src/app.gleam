@@ -2,11 +2,11 @@ import gleam/erlang/process
 import gleam/otp/static_supervisor
 import app/web
 //
-import app/config
+import spec
 
 pub fn main() -> Nil {
   let assert Ok(_) =
-    config.spec()
+    spec.spec()
     |> web.supervised
     |> static_supervisor.start
 

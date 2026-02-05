@@ -12,7 +12,7 @@ const route = "/ws/counter"
 
 pub fn element() -> Element(msg) {
   server_component.element([
-    server_component.route(route)
+    server_component.route(route),
   ], [])
 }
 

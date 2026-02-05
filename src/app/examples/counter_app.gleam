@@ -17,7 +17,7 @@ const route = "/ws/counter_app"
 
 pub fn element() -> Element(msg) {
   server_component.element([
-    server_component.route(route)
+    server_component.route(route),
   ], [])
 }
 
