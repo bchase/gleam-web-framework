@@ -28,8 +28,14 @@ const web_req_handler_worker_shutdown_ms = 60_000
 
 pub fn supervised(
   spec spec: Spec(config, pubsub, user),
-  // one_for_one_children children: List(fn(config) -> ChildSpecification(Supervisor)),
 ) -> static_supervisor.Builder {
+  let #(supervisor, _, _) = init(spec:)
+  supervisor
+}
+
+pub fn init(
+  spec spec: Spec(config, pubsub, user),
+) -> #(static_supervisor.Builder, config, pubsub) {
   load_dot_env(spec.dot_env_relative_path)
 
   let cfg = spec.init_config()
@@ -38,12 +44,11 @@ pub fn supervised(
     static_supervisor.new(static_supervisor.OneForOne)
     |> spec.add_pubsub_workers
 
-  supervisor
-  |> static_supervisor.add(web_req_handler_worker(cfg:, spec:, pubsub:))
-  // |> list.fold(children, _, fn(supervisor, child) {
-  //   supervisor
-  //   |> static_supervisor.add(child(cfg))
-  // })
+  let supervisor =
+    supervisor
+    |> static_supervisor.add(web_req_handler_worker(cfg:, spec:, pubsub:))
+
+  #(supervisor, cfg, pubsub)
 }
 
 fn web_req_handler_worker(
