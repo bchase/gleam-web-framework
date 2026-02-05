@@ -7,6 +7,7 @@ import app/examples/counter
 import app/examples/counter_app
 import app/examples/pubsub_demo
 import app/examples/sqlite_demo
+import app/examples/postgres_demo
 import spec/config
 
 pub fn lustre_server_component_router(
@@ -25,6 +26,9 @@ pub fn lustre_server_component_router(
 
     ["ws", "sqlite_demo"] ->
       Ok(socket.start(req:, ctx:, app: sqlite_demo.component(ctx:)))
+
+    ["ws", "postgres_demo"] ->
+      Ok(socket.start(req:, ctx:, app: postgres_demo.component(ctx:)))
 
     _ ->
       Error(Nil)

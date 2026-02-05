@@ -14,13 +14,13 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import spec/config
-import spec/domain/msgs/sqlite as msgs
+import spec/domain/msgs/postgres as msgs
 
 pub fn component(
   ctx ctx: Context(config.Config, config.PubSub, user),
 ) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
-    module: "app/examples/sqlite_demo",
+    module: "app/examples/postgres_demo",
     init:,
     post_init: None,
     selectors:,
@@ -52,7 +52,7 @@ fn init() -> App(#(Model, Effect(Msg)), config.Config, config.PubSub, user) {
     msgs.list_all()
     |> eff(
       to_msg: GotMsgs,
-      to_err: GotErr(err: _, origin: "sqlite_demo.init"),
+      to_err: GotErr(err: _, origin: "postgres_demo.init"),
     )
   ])
 }
@@ -92,7 +92,7 @@ fn update(
         }
         |> eff(
           to_msg: GotMsgs,
-          to_err: GotErr(err: _, origin: "sqlite_demo.update (Submit)"),
+          to_err: GotErr(err: _, origin: "postgres_demo.update (Submit)"),
         )
       ])
     }

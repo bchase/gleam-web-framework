@@ -14,6 +14,12 @@ pub fn sqlite_demo() -> ServerComponentElement {
   )
 }
 
+pub fn postgres_demo() -> ServerComponentElement {
+  ServerComponentElement(
+    route: "/ws/postgres_demo",
+  )
+}
+
 //
 
 pub opaque type ServerComponentElement {

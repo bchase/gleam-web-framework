@@ -105,7 +105,7 @@ fn connect_to_postgres_and_migrate() -> pog.Connection {
 
   let result = "
     create table if not exists msgs (
-      id integer not null primary key,
+      id serial not null primary key,
       msg text not null
     );
   " |> pog.query
