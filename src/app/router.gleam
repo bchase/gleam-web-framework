@@ -15,8 +15,8 @@ import app/monad/app.{pure, do}
 
 pub fn handler(
   req req: Request(wisp.Connection),
-  ctx _ctx: Context(config, user),
-) -> Result(Handler(config, user), Nil) {
+  ctx _ctx: Context(config, pubsub, user),
+) -> Result(Handler(config, pubsub, user), Nil) {
   case req |> wisp.path_segments {
     [] ->
       Ok(spec.AppLustreHandler(handle: fn(_req) {

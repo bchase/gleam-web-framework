@@ -5,9 +5,10 @@ import mist
 import wisp
 // import app/monad/app.{type App, type Handler}
 
-pub type Context(config, user) {
+pub type Context(config, pubsub, user) {
   Context(
     cfg: config,
+    pubsub: pubsub,
     user_client_info: UserClientInfo,
     user: Option(user),
   )

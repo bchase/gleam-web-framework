@@ -5,13 +5,13 @@ import lustre/effect.{type Effect}
 pub fn component(
   model model: model,
   effs effs: List(Effect(msg)),
-) -> App(#(model, Effect(msg)), config, user) {
+) -> App(#(model, Effect(msg)), config, pubsub, user) {
   pure(#(model, effect.batch(effs)))
 }
 
 pub fn continue(
   model model: model,
   effs effs: List(Effect(msg)),
-) -> App(#(model, Effect(msg)), config, user) {
+) -> App(#(model, Effect(msg)), config, pubsub, user) {
   pure(#(model, effect.batch(effs)))
 }

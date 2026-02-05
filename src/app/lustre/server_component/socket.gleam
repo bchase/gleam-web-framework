@@ -11,8 +11,8 @@ import mist
 
 pub fn start(
   req req: Request(mist.Connection),
-  ctx ctx: Context(config, user),
-  app app: lustre.App(Context(config, user), model, msg),
+  ctx ctx: Context(config, pubsub, user),
+  app app: lustre.App(Context(config, pubsub, user), model, msg),
   // build_selectors build_selectors: Option(App(List(Selector(msg)), config, user)),
 ) -> Response(mist.ResponseData) {
   mist.websocket(
@@ -41,8 +41,8 @@ type SocketInit(msg) =
 
 fn init(
   ws_conn _ws_conn,
-  app app: lustre.App(Context(config, user), model, msg),
-  ctx ctx: Context(config, user),
+  app app: lustre.App(Context(config, pubsub, user), model, msg),
+  ctx ctx: Context(config, pubsub, user),
   // build_selectors: Option(App(List(Selector(msg)), config, user)),
 ) -> SocketInit(msg) {
   let assert Ok(component) = lustre.start_server_component(app, ctx)

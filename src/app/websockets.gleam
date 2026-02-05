@@ -8,7 +8,7 @@ import app/examples/counter_app
 
 pub fn lustre_server_component_router(
   req req: Request(mist.Connection),
-  ctx ctx: Context(config, user),
+  ctx ctx: Context(config, pubsub, user),
 ) -> Result(resp.Response(mist.ResponseData), Nil) {
   case req |> request.path_segments {
     ["ws", "counter"] ->

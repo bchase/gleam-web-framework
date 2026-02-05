@@ -23,24 +23,23 @@ import app/types/err.{type Err}
 import app/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppLustreHandler, LustreResponse}
 import lustre/element.{type Element}
 import wisp
-import app/pubsub
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
 pub fn supervised(
-  spec spec: Spec(config, user),
+  spec spec: Spec(config, pubsub, user),
   // one_for_one_children children: List(fn(config) -> ChildSpecification(Supervisor)),
 ) -> static_supervisor.Builder {
   load_dot_env(spec.dot_env_relative_path)
 
   let cfg = spec.init_config()
 
-  static_supervisor.new(static_supervisor.OneForOne)
-  |> static_supervisor.add(web_req_handler_worker(cfg:, spec:))
-  |> pubsub.supervised(
-    spec: pubsub.spec,
-    app_module_name: spec.app_module_name,
-  )
+  let #(supervisor, pubsub) =
+    static_supervisor.new(static_supervisor.OneForOne)
+    |> spec.add_pubsub_workers
+
+  supervisor
+  |> static_supervisor.add(web_req_handler_worker(cfg:, spec:, pubsub:))
   // |> list.fold(children, _, fn(supervisor, child) {
   //   supervisor
   //   |> static_supervisor.add(child(cfg))
@@ -49,10 +48,11 @@ pub fn supervised(
 
 fn web_req_handler_worker(
   cfg cfg: config,
-  spec spec: Spec(config, user),
+  pubsub pubsub: pubsub,
+  spec spec: Spec(config, pubsub, user),
 ) -> ChildSpecification(Supervisor) {
   supervision.ChildSpecification(
-    start: fn() { web_req_handler(cfg:, spec:) },
+    start: fn() { web_req_handler(cfg:, spec:, pubsub:) },
     restart: supervision.Permanent,
     significant: False,
     child_type: supervision.Worker(shutdown_ms: web_req_handler_worker_shutdown_ms),
@@ -61,7 +61,8 @@ fn web_req_handler_worker(
 
 fn web_req_handler(
   cfg cfg: config,
-  spec spec: Spec(config, user),
+  pubsub pubsub: pubsub,
+  spec spec: Spec(config, pubsub, user),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
   let app_module_name = spec.app_module_name
 
@@ -70,7 +71,7 @@ fn web_req_handler(
     |> secret_key_base(env_var_name: _)
 
   let handle_wisp_mist =
-    fn(req: Request(wisp.Connection), ctx: Context(config, user)) -> resp.Response(wisp.Body) {
+    fn(req: Request(wisp.Connection), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
       case spec.router(req, ctx) {
         Error(Nil) ->
           Error(Nil)
@@ -91,7 +92,7 @@ fn web_req_handler(
     |> to_mist(secret_key_base:, app_module_name:)
 
   let handle_mist_websockets =
-    fn(mist_req: Request(mist.Connection), ctx: Context(config, user)) -> resp.Response(mist.ResponseData) {
+    fn(mist_req: Request(mist.Connection), ctx: Context(config, pubsub, user)) -> resp.Response(mist.ResponseData) {
       mist_req
       |> spec.websockets_router(ctx)
       |> fn(result) {
@@ -105,6 +106,7 @@ fn web_req_handler(
   build_web_req_handler(
     mist_req: _,
     cfg:,
+    pubsub:,
     secret_key_base:,
     spec:,
     handle_wisp_mist:,
@@ -118,10 +120,10 @@ fn web_req_handler(
 }
 
 fn to_mist(
-  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body),
+  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, pubsub, user)) -> resp.Response(wisp.Body),
   secret_key_base secret_key_base: String,
   app_module_name app_module_name: String,
-) -> fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData) {
+) -> fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData) {
   fn(mist_req, ctx) {
     fn(wisp_req) {
       use wisp_req <- middleware(wisp_req, static_directory(app_module_name:))
@@ -134,8 +136,8 @@ fn to_mist(
 
 fn run_handler(
   req req: Request(wisp.Connection),
-  handler handler: Handler(config, user),
-  ctx ctx: Context(config, user),
+  handler handler: Handler(config, pubsub, user),
+  ctx ctx: Context(config, pubsub, user),
 ) -> resp.Response(wisp.Body) {
   case handler {
     WispHandler(handle:) ->
@@ -183,8 +185,8 @@ fn run_handler(
 
 fn run_app_handle_wisp(
   req req: Request(wisp.Connection),
-  handle handle: fn(Request(wisp.Connection)) -> App(t, config, user),
-  ctx ctx: Context(config, user),
+  handle handle: fn(Request(wisp.Connection)) -> App(t, config, pubsub, user),
+  ctx ctx: Context(config, pubsub, user),
   map_ok f: fn(t) -> resp.Response(wisp.Body),
 ) -> resp.Response(wisp.Body) {
   req
@@ -200,9 +202,9 @@ fn run_app_handle_wisp(
 
 // fn run_app_handle_mist(
 //   req req: Request(mist.Connection),
-//   handle handle: fn(Request(wisp.Connection)) -> App(t, config, user),
+//   handle handle: fn(Request(wisp.Connection)) -> App(t, config, pubsub, user),
 //   map_ok f: fn(t) -> resp.Response(wisp.Body),
-//   ctx ctx: Context(config, user),
+//   ctx ctx: Context(config, pubsub, user),
 //   secret_key_base secret_key_base: String,
 // ) -> resp.Response(mist.ResponseData) {
 //   req
@@ -300,13 +302,14 @@ fn wisp_html_resp(
 fn build_web_req_handler(
   mist_req mist_req: Request(mist.Connection),
   cfg cfg: config,
+  pubsub pubsub: pubsub,
   secret_key_base secret_key_base: String,
-  spec spec: Spec(config, user),
-  handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
-  handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData),
+  spec spec: Spec(config, pubsub, user),
+  handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
+  handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
 ) -> resp.Response(mist.ResponseData) {
   let session = session.from_mist(req: mist_req, secret_key_base:)
-  let ctx = context.build(session:, cfg:, authenticate: spec.authenticate)
+  let ctx = context.build(session:, cfg:, pubsub:, authenticate: spec.authenticate)
 
   case mist_req |> request.path_segments {
     [prefix, ..] if prefix == spec.websockets_path_prefix ->

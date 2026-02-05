@@ -19,8 +19,13 @@ import gleam/otp/static_supervisor
 
 pub fn add_local_node_only_worker(
   supervisor supervisor: static_supervisor.Builder,
-  name name: process.Name(gr.Message(msg)),
+  name name_str: String,
 ) -> #(static_supervisor.Builder, PubSub(msg)) {
+  let name =
+    name_str
+    |> registry_name(app_module_name: None)
+    |> process.new_name
+
   let pubsub = PubSub(name_str: "", name:, transcoders: None)
 
   let supervisor =
@@ -36,8 +41,9 @@ pub fn add_cluster_worker(
   transcoders transcoders: Transcoders(msg),
   app_module_name app_module_name: String,
 ) -> #(static_supervisor.Builder, PubSub(msg)) {
-  let registry_name = { app_module_name <> "_" <> name_str <> "_registry" } |> unsafe_unique_name_from
-  let listener_name = { app_module_name <> "_" <> name_str <> "_listener" } |> unsafe_unique_name_from
+  // TODO registry name ok to be `process.new_name()`?
+  let registry_name = registry_name(name_str:, app_module_name: Some(app_module_name)) |> unsafe_unique_name_from
+  let listener_name = { app_module_name <> "_" <> name_str <> "_pubsub_listener" } |> unsafe_unique_name_from
 
   let pubsub = PubSub(name_str:, name: registry_name, transcoders: Some(transcoders))
 
@@ -47,6 +53,13 @@ pub fn add_cluster_worker(
     |> static_supervisor.add(supervised_cluster_listener(name: listener_name, transcoders:))
 
   #(supervisor, pubsub)
+}
+
+fn registry_name(
+  name_str name_str: String,
+  app_module_name app_module_name: Option(String),
+) -> String {
+  option.unwrap(app_module_name, "") <> "_" <> name_str <> "_pubsub_registry"
 }
 
 //

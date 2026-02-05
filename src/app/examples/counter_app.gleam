@@ -22,8 +22,8 @@ pub fn element() -> Element(msg) {
 }
 
 pub fn component(
-  ctx ctx: Context(config, user),
-) -> lustre.App(Context(config, user), Model, lsc.Wrapped(Msg)) {
+  ctx ctx: Context(config, pubsub, user),
+) -> lustre.App(Context(config, pubsub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
     module: "app/examples/counter_app",
     init:,
@@ -37,7 +37,7 @@ pub fn component(
 
 fn selectors(
   model _model: Model,
-) -> List(App(Selector(Msg), config, user)) {
+) -> List(App(Selector(Msg), config, pubsub, user)) {
   []
 }
 
@@ -48,7 +48,7 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), config, user) {
+fn init() -> App(#(Model, Effect(Msg)), config, pubsub, user) {
   Model(
     nil: Nil,
     count: 0,
@@ -65,7 +65,7 @@ pub opaque type Msg {
 fn update(
   model: Model,
   msg: Msg,
-) -> App(#(Model, Effect(Msg)), config, user) {
+) -> App(#(Model, Effect(Msg)), config, pubsub, user) {
   case msg {
     NoOp ->
       model

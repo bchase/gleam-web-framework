@@ -1,3 +1,4 @@
+import gleam/otp/static_supervisor
 import gleam/dict.{type Dict}
 import gleam/http/response as resp
 import gleam/http/request.{type Request}
@@ -8,7 +9,7 @@ import wisp
 import app/types.{type Context, type Session}
 import app/monad/app.{type App}
 
-pub type Spec(config, user) {
+pub type Spec(config, pubsub, user) {
   Spec(
     app_module_name: String,
     dot_env_relative_path: String,
@@ -17,18 +18,20 @@ pub type Spec(config, user) {
     init_config: fn() -> config,
     authenticate: fn(Session, config) -> Option(user),
     //
-    websockets_path_prefix: String,
-    websockets_router: fn(Request(mist.Connection), Context(config, user)) -> Result(resp.Response(mist.ResponseData), Nil),
+    add_pubsub_workers: fn(static_supervisor.Builder) -> #(static_supervisor.Builder, pubsub),
     //
-    router: fn(Request(wisp.Connection), Context(config, user)) -> Result(Handler(config, user), Nil),
+    websockets_path_prefix: String,
+    websockets_router: fn(Request(mist.Connection), Context(config, pubsub, user)) -> Result(resp.Response(mist.ResponseData), Nil),
+    //
+    router: fn(Request(wisp.Connection), Context(config, pubsub, user)) -> Result(Handler(config, pubsub, user), Nil),
   )
 }
 
-pub type Handler(config, user) {
-  WispHandler(handle: fn(Request(wisp.Connection), Context(config, user)) -> resp.Response(wisp.Body))
-  AppWispHandler(handle: fn(Request(wisp.Connection)) -> App(resp.Response(wisp.Body), config, user))
-  AppLustreHandler(handle: fn(Request(wisp.Connection)) -> App(LustreResponse, config, user))
-  // MistHandler(handle: fn(Request(mist.Connection), Context(config, user)) -> resp.Response(mist.ResponseData))
+pub type Handler(config, pubsub, user) {
+  WispHandler(handle: fn(Request(wisp.Connection), Context(config, pubsub, user)) -> resp.Response(wisp.Body))
+  AppWispHandler(handle: fn(Request(wisp.Connection)) -> App(resp.Response(wisp.Body), config, pubsub, user))
+  AppLustreHandler(handle: fn(Request(wisp.Connection)) -> App(LustreResponse, config, pubsub, user))
+  // MistHandler(handle: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData))
   // AppMistHandler(handle: fn(Request(mist.Connection)) -> App(resp.Response(mist.ResponseData), config, user))
 }
 

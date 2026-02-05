@@ -13,14 +13,14 @@ import gleam/erlang/process.{type Selector}
 import lustre/element.{type Element}
 
 pub fn build_lustre_app(
-  init init: fn() -> App(#(model, Effect(msg)), config, user),
-  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, user)),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, user)),
-  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, user),
+  init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user),
+  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user)),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
+  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user),
   view view: fn(model, Option(user), UserClientInfo) -> Element(msg),
   module module: String,
-  ctx ctx: Context(config, user),
-) -> lustre.App(Context(config, user), model, Wrapped(msg)) {
+  ctx ctx: Context(config, pubsub, user),
+) -> lustre.App(Context(config, pubsub, user), model, Wrapped(msg)) {
   lustre.application(
     init: wrap_init(init:, selectors:, module:),
     update: wrap_update(update:, selectors:, post_init:, module:, ctx:),
@@ -34,9 +34,9 @@ pub type Wrapped(msg) {
 }
 
 fn select(
-  app app: App(#(model, Effect(msg)), config, user),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, user)),
-) -> App(#(model, Effect(msg)), config, user) {
+  app app: App(#(model, Effect(msg)), config, pubsub, user),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
+) -> App(#(model, Effect(msg)), config, pubsub, user) {
   use #(model, eff) <- do(app)
 
   use select_eff <- do(build_select_effect(selectors:, model:))
@@ -48,9 +48,9 @@ fn select(
 }
 
 fn build_select_effect(
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, user)),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
   model model: model,
-) -> App(Effect(msg), config, user) {
+) -> App(Effect(msg), config, pubsub, user) {
   use selector <- do(
     model
     |> selectors
@@ -65,10 +65,10 @@ fn build_select_effect(
 }
 
 fn log_err(
-  app app: App(#(model, Effect(msg)), config, user),
+  app app: App(#(model, Effect(msg)), config, pubsub, user),
   module module: String,
   func func: String,
-) -> App(#(model, Effect(msg)), config, user) {
+) -> App(#(model, Effect(msg)), config, pubsub, user) {
   use result <- app.to_result(app)
 
   use _log_err_if_any <- do(
@@ -93,10 +93,10 @@ fn log_err(
 }
 
 fn wrap_init(
-  init init: fn() -> App(#(model, Effect(msg)), config, user),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, user)),
+  init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
   module module: String,
-) -> fn(Context(config, user)) -> #(model, Effect(Wrapped(msg))) {
+) -> fn(Context(config, pubsub, user)) -> #(model, Effect(Wrapped(msg))) {
   fn(ctx) {
     init()
     |> select(selectors:)
@@ -123,11 +123,11 @@ fn wrap_effect(
 }
 
 fn wrap_update(
-  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, user),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, user)),
-  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, user)),
+  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
+  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user)),
   module module: String,
-  ctx ctx: Context(config, user),
+  ctx ctx: Context(config, pubsub, user),
 ) -> fn(model, Wrapped(msg)) -> #(model, Effect(Wrapped(msg))) {
   fn(model, wrapped_msg) {
     case wrapped_msg {
@@ -155,7 +155,7 @@ fn wrap_update(
 
 fn wrap_view(
   view view: fn(model, Option(user), UserClientInfo) -> Element(msg),
-  ctx ctx: Context(config, user),
+  ctx ctx: Context(config, pubsub, user),
 ) -> fn(model) -> Element(Wrapped(msg)) {
   fn(model) {
     view(model, ctx.user, ctx.user_client_info)
