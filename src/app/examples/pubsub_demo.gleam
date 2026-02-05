@@ -6,16 +6,12 @@ import app/lustre.{continue} as _
 import gleam/erlang/process.{type Selector}
 import gleam/option.{type Option, None}
 import lustre
-// import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import app/config
-
-const pubsub_channel = "msgs"
-
-//
+// import spec/pubsub as app_domain
 
 pub fn component(
   ctx ctx: Context(config, config.PubSub, user),
@@ -39,7 +35,12 @@ fn selectors(
       to: "msgs",
       in: fn(pubsub: config.PubSub) { pubsub.text },
       wrap: GotPubSubTextMsg,
-    )
+    ),
+    // // alternatively, define and use a helper...
+    // app_domain.subscribe_text(
+    //   to: "msgs",
+    //   wrap: GotPubSubTextMsg,
+    // )
   ]
 }
 
@@ -79,6 +80,11 @@ fn update(
         in: fn(pubsub: config.PubSub) { pubsub.text },
         msg: config.TextMsg(text:),
       )
+      // // alternatively, define and use a helper...
+      // use <- app_domain.broadcast_text(
+      //   to: "msgs",
+      //   msg: config.TextMsg(text:),
+      // )
 
       model
       |> continue([
