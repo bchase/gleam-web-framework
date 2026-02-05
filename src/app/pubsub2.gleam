@@ -107,17 +107,10 @@ pub fn broadcast(
   msg msg: msg,
 ) -> Nil {
   broadcast_local(pubsub:, channel:, msg:)
-  {
-    use transcoders <- option.then(pubsub.transcoders)
-
-    broadcast_to_cluster(pubsub:, channel:, msg:, transcoders:)
-
-    None
-  }
-  |> option.unwrap(Nil)
+  broadcast_to_cluster(pubsub:, channel:, msg:) |> option.unwrap(Nil)
 }
 
-pub fn broadcast_local(
+fn broadcast_local(
   pubsub pubsub: PubSub(msg),
   channel channel: String,
   msg msg: msg,
@@ -131,12 +124,13 @@ pub fn broadcast_local(
   })
 }
 
-pub fn broadcast_to_cluster(
+fn broadcast_to_cluster(
   pubsub pubsub: PubSub(msg),
   channel channel: String,
   msg msg: msg,
-  transcoders transcoders: Transcoders(msg),
-) -> Nil {
+) -> Option(Nil) {
+  use transcoders <- option.then(pubsub.transcoders)
+
   let self = node.self()
 
   node.visible()
@@ -147,6 +141,8 @@ pub fn broadcast_to_cluster(
     |> encode_cluster_msg(pubsub:, channel:, transcoders:)
     |> erl.node_send(msg: _, node:, name: pubsub.name)
   })
+
+  None
 }
 
 //
