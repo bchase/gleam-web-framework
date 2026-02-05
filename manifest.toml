@@ -3,6 +3,7 @@
 
 packages = [
   { name = "argv", version = "1.0.2", build_tools = ["gleam"], requirements = [], otp_app = "argv", source = "hex", outer_checksum = "BA1FF0929525DEBA1CE67256E5ADF77A7CDDFE729E3E3F57A5BDCAA031DED09D" },
+  { name = "backoff", version = "1.1.6", build_tools = ["rebar3"], requirements = [], otp_app = "backoff", source = "hex", outer_checksum = "CF0CFFF8995FB20562F822E5CC47D8CCF664C5ECDC26A684CBE85C225F9D7C39" },
   { name = "birl", version = "1.8.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "2AC7BA26F998E3DFADDB657148BD5DDFE966958AD4D6D6957DD0D22E5B56C400" },
   { name = "certifi", version = "2.15.0", build_tools = ["rebar3"], requirements = [], otp_app = "certifi", source = "hex", outer_checksum = "B147ED22CE71D72EAFDAD94F055165C1C182F61A2FF49DF28BCC71D1D5B94A60" },
   { name = "deriv", version = "2.0.0", build_tools = ["gleam"], requirements = ["argv", "birl", "formal", "glance", "glance_printer", "gleam_json", "gleam_regexp", "gleam_stdlib", "gleam_time", "glint", "lustre", "shellout", "simplifile", "tom", "youid"], source = "git", repo = "https://github.com/bchase/deriv", commit = "567452a43793b85aaac591a9ebcadf8e6161818e" },
@@ -49,9 +50,13 @@ packages = [
   { name = "mist", version = "5.0.4", build_tools = ["gleam"], requirements = ["exception", "gleam_erlang", "gleam_http", "gleam_otp", "gleam_stdlib", "gleam_yielder", "glisten", "gramps", "hpack_erl", "logging"], otp_app = "mist", source = "hex", outer_checksum = "7CED4B2D81FD547ADB093D97B9928B9419A7F58B8562A30A6CC17A252B31AD05" },
   { name = "nessie", version = "0.1.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], source = "git", repo = "git@github.com:bchase/nessie.git", commit = "5ed7bf1f011f3c012419305bb5ef29ce74a73635" },
   { name = "nessie_cluster", version = "0.3.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_otp", "gleam_stdlib", "nessie"], source = "git", repo = "https://github.com/bchase/nessie_cluster", commit = "830850878b70775a4ce246b3e8dec20f657b3b47" },
+  { name = "opentelemetry_api", version = "1.5.0", build_tools = ["rebar3", "mix"], requirements = [], otp_app = "opentelemetry_api", source = "hex", outer_checksum = "F53EC8A1337AE4A487D43AC89DA4BD3A3C99DDF576655D071DEED8B56A2D5DDA" },
   { name = "parrot", version = "2.2.1", build_tools = ["gleam"], requirements = ["argv", "envoy", "filepath", "gleam_crypto", "gleam_httpc", "gleam_json", "gleam_stdlib", "gleam_time", "glearray", "repeatedly", "simplifile", "tom"], otp_app = "parrot", source = "hex", outer_checksum = "BD114893BFA9564D8F3109AB388EC4BA162E8429A4DE689AF7C5624FF010CBEF" },
   { name = "parse_trans", version = "3.4.1", build_tools = ["rebar3"], requirements = [], otp_app = "parse_trans", source = "hex", outer_checksum = "620A406CE75DADA827B82E453C19CF06776BE266F5A67CFF34E1EF2CBB60E49A" },
+  { name = "pg_types", version = "0.6.0", build_tools = ["rebar3"], requirements = [], otp_app = "pg_types", source = "hex", outer_checksum = "9949A4849DD13408FA249AB7B745E0D2DFDB9532AEE2B9722326E33CD082A778" },
+  { name = "pgo", version = "0.20.0", build_tools = ["rebar3"], requirements = ["backoff", "opentelemetry_api", "pg_types"], otp_app = "pgo", source = "hex", outer_checksum = "2F11E6649CEB38E569EF56B16BE1D04874AE5B11A02867080A2817CE423C683B" },
   { name = "platform", version = "1.0.0", build_tools = ["gleam"], requirements = [], otp_app = "platform", source = "hex", outer_checksum = "8339420A95AD89AAC0F82F4C3DB8DD401041742D6C3F46132A8739F6AEB75391" },
+  { name = "pog", version = "4.1.0", build_tools = ["gleam"], requirements = ["exception", "gleam_erlang", "gleam_otp", "gleam_stdlib", "gleam_time", "pgo"], otp_app = "pog", source = "hex", outer_checksum = "E4AFBA39A5FAA2E77291836C9683ADE882E65A06AB28CA7D61AE7A3AD61EBBD5" },
   { name = "ranger", version = "1.4.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_yielder"], otp_app = "ranger", source = "hex", outer_checksum = "C8988E8F8CDBD3E7F4D8F2E663EF76490390899C2B2885A6432E942495B3E854" },
   { name = "repeatedly", version = "2.1.2", build_tools = ["gleam"], requirements = [], otp_app = "repeatedly", source = "hex", outer_checksum = "93AE1938DDE0DC0F7034F32C1BF0D4E89ACEBA82198A1FE21F604E849DA5F589" },
   { name = "shellout", version = "1.7.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "shellout", source = "hex", outer_checksum = "1BDC03438FEB97A6AF3E396F4ABEB32BECF20DF2452EC9A8C0ACEB7BDDF70B14" },
@@ -85,5 +90,6 @@ lustre = { version = ">= 5.5.2 and < 6.0.0" }
 mist = { version = ">= 5.0.4 and < 6.0.0" }
 nessie_cluster = { git = "https://github.com/bchase/nessie_cluster", ref = "upgrade-stdlib-dynamic-decode" }
 parrot = { version = ">= 2.2.1 and < 3.0.0" }
+pog = { version = ">= 4.1.0 and < 5.0.0" }
 sqlight = { version = ">= 1.0.3 and < 2.0.0" }
 wisp = { version = ">= 2.2.0 and < 3.0.0" }
