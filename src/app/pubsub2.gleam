@@ -21,12 +21,9 @@ pub fn add_local_node_only_worker(
   supervisor supervisor: static_supervisor.Builder,
   name name_str: String,
 ) -> #(static_supervisor.Builder, PubSub(msg)) {
-  let name =
-    name_str
-    |> registry_name(app_module_name: None)
-    |> process.new_name
+  let #(name_str, name) = pubsub_name(name_str:, suffix: "registry", app_module_name: None)
 
-  let pubsub = PubSub(name_str: "", name:, transcoders: None)
+  let pubsub = PubSub(name_str:, name:, transcoders: None)
 
   let supervisor =
     supervisor
@@ -41,11 +38,10 @@ pub fn add_cluster_worker(
   transcoders transcoders: Transcoders(msg),
   app_module_name app_module_name: String,
 ) -> #(static_supervisor.Builder, PubSub(msg)) {
-  // TODO registry name ok to be `process.new_name()`?
-  let registry_name = registry_name(name_str:, app_module_name: Some(app_module_name)) |> unsafe_unique_name_from
-  let listener_name = { app_module_name <> "_" <> name_str <> "_pubsub_listener" } |> unsafe_unique_name_from
+  let #(registry_name_str, registry_name) = pubsub_name(name_str:, suffix: "registry", app_module_name: Some(app_module_name))
+  let pubsub = PubSub(name_str: registry_name_str, name: registry_name, transcoders: Some(transcoders))
 
-  let pubsub = PubSub(name_str:, name: registry_name, transcoders: Some(transcoders))
+  let #(_, listener_name) = pubsub_name(name_str:, suffix: "cluster_listener", app_module_name: Some(app_module_name))
 
   let supervisor =
     supervisor
@@ -55,11 +51,25 @@ pub fn add_cluster_worker(
   #(supervisor, pubsub)
 }
 
-fn registry_name(
+fn pubsub_name(
   name_str name_str: String,
+  suffix suffix: String,
   app_module_name app_module_name: Option(String),
-) -> String {
-  option.unwrap(app_module_name, "") <> "_" <> name_str <> "_pubsub_registry"
+) -> #(String, process.Name(msg)) {
+  let name_str = name_str <> "_pubsub_" <> suffix
+
+  case app_module_name {
+    None -> {
+      let name = name_str |> process.new_name
+      #(name_str, name)
+    }
+
+    Some(app_module_name) -> {
+      let name_str = app_module_name <> "_" <> name_str
+      let name = name_str |> unsafe_unique_name_from
+      #(name_str, name)
+    }
+  }
 }
 
 //
