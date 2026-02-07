@@ -3,8 +3,8 @@ import app/config.{type Config, type PubSub, add_pubsub_workers, authenticate}
 import app/user.{type User}
 import fpo/types.{type EnvVar, Features}
 import fpo/types/spec.{type Spec, Spec}
-import app/websockets
-import app/router
+import app/web/websockets
+import app/web/router
 import cloak_wrapper/aes/gcm as aes_gcm
 
 const cloak_key_env_var_name = "CLOAK_KEY"
