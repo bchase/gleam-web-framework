@@ -8,8 +8,8 @@ import gleam/option.{type Option, Some, None}
 import gleam/otp/static_supervisor
 import fpo/pubsub
 import fpo/types.{type Session, type Flags}
-import spec/pubsub.{type TextMsg} as _
-import spec/user.{type User}
+import app/pubsub.{type TextMsg} as _
+import app/user.{type User}
 import pog
 import sqlight
 import fpo/cloak.{type Cloak}

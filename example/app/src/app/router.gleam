@@ -12,9 +12,9 @@ import fpo/types.{type Context}
 import wisp
 import fpo/types/spec.{type Handler}
 import fpo/monad/app.{pure}
-import spec/examples/counter
-import spec/examples/counter_app
-import spec/examples/server_component_elements as lscs
+import app/examples/counter
+import app/examples/counter_app
+import app/examples/server_component_elements as lscs
 
 pub fn handler(
   req req: Request(wisp.Connection),

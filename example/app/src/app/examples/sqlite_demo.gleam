@@ -14,8 +14,8 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import spec/config
-import spec/domain/msgs/sqlite as msgs
+import app/config
+import app/domain/msgs/sqlite as msgs
 
 pub fn component(
   ctx ctx: Context(config.Config, config.PubSub, user),

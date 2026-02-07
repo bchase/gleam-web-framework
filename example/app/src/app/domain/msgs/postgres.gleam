@@ -1,13 +1,12 @@
-import fpo/db/parrot
 import fpo/monad/app.{type App}
 import gleam/list
-import spec/config.{type Config}
-import spec/db/sqlite as db
+import app/config.{type Config}
+import app/db/postgres as db
 import fpo/sql
 
 pub type Message {
-  //$ derive from spec/sql.ListAllMsgs
-  //$ derive from spec/sql.InsertMsg
+  //$ derive from app/sql.ListAllMsgs
+  //$ derive from app/sql.InsertMsg
   Message(
     id: Int,
     text: String,
@@ -28,15 +27,6 @@ pub fn insert(
   sql.insert_msg(msg:)
   |> db.many
   |> app.map(list.map(_, from_insert_msg_to_message))
-}
-
-pub fn delete(
-  id id: Int,
-) -> App(Nil, Config, pubsub, user) {
-  sql.delete_msg(id:)
-  |> parrot.from_exec
-  |> db.many
-  |> app.replace(Nil)
 }
 
 // DERIVED

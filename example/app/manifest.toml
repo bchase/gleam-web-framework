@@ -16,6 +16,7 @@ packages = [
   { name = "exception", version = "2.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "exception", source = "hex", outer_checksum = "329D269D5C2A314F7364BD2711372B6F2C58FA6F39981572E5CA68624D291F8C" },
   { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
   { name = "formal", version = "3.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_time"], otp_app = "formal", source = "hex", outer_checksum = "686D0C4C9CB36397DBAC2EC8C6ED9BD0F81B2DF2E88F75A7DB75F56768DDD8FC" },
+  { name = "fpo", version = "0.1.0", build_tools = ["gleam"], requirements = ["birl", "cloak_wrapper", "deriv", "dot_env", "gleam_crypto", "gleam_erlang", "gleam_hackney", "gleam_http", "gleam_json", "gleam_otp", "gleam_stdlib", "glow_auth", "group_registry", "logging", "lustre", "mist", "nessie_cluster", "parrot", "pog", "sqlight", "wisp"], source = "local", path = "../.." },
   { name = "glam", version = "2.0.3", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "glam", source = "hex", outer_checksum = "237C2CE218A2A0A5D46D625F8EF5B78F964BC91018B78D692B17E1AB84295229" },
   { name = "glance", version = "5.0.1", build_tools = ["gleam"], requirements = ["gleam_stdlib", "glexer"], otp_app = "glance", source = "hex", outer_checksum = "7F216D97935465FF4AC46699CD1C3E0FB19CB678B002E4ACAFCE256E96312F14" },
   { name = "glance_printer", version = "3.0.0", build_tools = ["gleam"], requirements = ["glam", "glance", "gleam_stdlib"], source = "git", repo = "git@github.com:bchase/glance_printer.git", commit = "c8b362ba7e962064e3d7689fe1fc1fc428876b6f" },
@@ -75,25 +76,8 @@ packages = [
 ]
 
 [requirements]
-birl = { git = "https://github.com/bchase/birl", ref = "bchase" }
-cloak_wrapper = { git = "https://github.com/bchase/cloak_wrapper", ref = "gen-key" }
-deriv = { git = "https://github.com/bchase/deriv", ref = "dev" }
-dot_env = { version = ">= 1.2.0 and < 2.0.0" }
-gleam_crypto = { version = ">= 1.5.1 and < 2.0.0" }
+fpo = { path = "../.." }
 gleam_erlang = { version = ">= 1.3.0 and < 2.0.0" }
-gleam_hackney = { version = ">= 1.3.3 and < 2.0.0" }
-gleam_http = { version = ">= 4.3.0 and < 5.0.0" }
-gleam_json = { version = ">= 3.1.0 and < 4.0.0" }
 gleam_otp = { version = ">= 1.2.0 and < 2.0.0" }
 gleam_stdlib = { version = ">= 0.44.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
-glow_auth = { git = "https://github.com/bchase/glow_auth", ref = "upgrade-dynamic-decode" }
-group_registry = { version = ">= 1.0.0 and < 2.0.0" }
-logging = { version = ">= 1.3.0 and < 2.0.0" }
-lustre = { version = ">= 5.5.2 and < 6.0.0" }
-mist = { version = ">= 5.0.4 and < 6.0.0" }
-nessie_cluster = { git = "https://github.com/bchase/nessie_cluster", ref = "upgrade-stdlib-dynamic-decode" }
-parrot = { version = ">= 2.2.1 and < 3.0.0" }
-pog = { version = ">= 4.1.0 and < 5.0.0" }
-sqlight = { version = ">= 1.0.3 and < 2.0.0" }
-wisp = { version = ">= 2.2.0 and < 3.0.0" }

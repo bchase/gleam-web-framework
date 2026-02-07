@@ -1,5 +1,5 @@
 import fpo/pubsub
-import spec/config
-import spec/pubsub.{type TextMsg} as _
+import app/config
+import app/pubsub.{type TextMsg} as _
 
 pub fn text(pubsub: config.PubSub) -> pubsub.PubSub(TextMsg) { pubsub.text }

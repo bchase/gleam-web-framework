@@ -4,7 +4,7 @@ import fpo/monad/app/db/parrot_postgres as db
 import fpo/db/parrot.{type Parrot}
 import fpo/monad/app.{type App}
 import pog
-import spec/config.{type Config}
+import app/config.{type Config}
 
 pub fn many(
   parrot parrot: Parrot(t),
