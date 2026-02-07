@@ -18,17 +18,16 @@ import app/monad/app.{pure}
 pub fn handler(
   req req: Request(wisp.Connection),
   ctx ctx: Context(config, pubsub, user),
-  session_cookie_name session_cookie_name: String,
 ) -> Result(Handler(config, pubsub, user), Nil) {
   case req |> wisp.path_segments {
     ["_user_client_info"] ->
-      Ok(spec.AppWispHandler(handle: fn(req) {
+      Ok(spec.AppWispSessionCookieHandler(handle: fn(req, session_cookie_name) {
         session.set_session_user_client_info_using_req_json_body(
           req:,
           session_cookie_name:,
         )
         |> result.lazy_unwrap(fn() {
-            wisp.response(400)
+          wisp.response(400)
         })
         |> pure
       }))

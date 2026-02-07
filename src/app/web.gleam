@@ -1,4 +1,3 @@
-import gleam/option.{type Option, Some, None}
 import lustre/element/html
 import gleam/string_tree
 import gleam/dict.{type Dict}
@@ -21,7 +20,7 @@ import app/context
 import app/web/session
 import app/monad/app.{type App}
 import app/types/err.{type Err}
-import app/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppLustreHandler, LustreResponse}
+import app/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppWispSessionCookieHandler, AppLustreHandler, LustreResponse}
 import lustre/element.{type Element}
 import wisp
 import app/flags
@@ -89,12 +88,12 @@ fn web_req_handler(
 
   let handle_wisp_mist =
     fn(req: Request(wisp.Connection), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
-      case spec.router(req, ctx, spec.session_cookie_name) {
+      case spec.router(req, ctx) {
         Error(Nil) ->
           Error(Nil)
 
         Ok(handler) ->
-          Ok(run_handler(req:, handler:, ctx:))
+          Ok(run_handler(req:, handler:, ctx:, session_cookie_name:))
       }
       |> fn(result) {
         case result {
@@ -156,6 +155,7 @@ fn run_handler(
   req req: Request(wisp.Connection),
   handler handler: Handler(config, pubsub, user),
   ctx ctx: Context(config, pubsub, user),
+  session_cookie_name session_cookie_name: String,
 ) -> resp.Response(wisp.Body) {
   case handler {
     WispHandler(handle:) ->
@@ -171,6 +171,14 @@ fn run_handler(
       // })
       req
       |> run_app_handle_wisp(handle:, ctx:, map_ok: fn(x) { x })
+
+    AppWispSessionCookieHandler(handle:) ->
+      // req
+      // |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
+      //   resp
+      // })
+      req
+      |> run_app_handle_wisp(handle: handle(_, session_cookie_name), ctx:, map_ok: fn(x) { x })
 
     AppLustreHandler(handle:) ->
       // req

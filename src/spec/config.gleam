@@ -1,4 +1,3 @@
-import gleam/io
 import gleam/erlang/process
 import gleam/result
 import gleam/dynamic/decode

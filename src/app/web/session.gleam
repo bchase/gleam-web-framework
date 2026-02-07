@@ -49,7 +49,6 @@ pub fn read_mist(
   secret_key_base secret_key_base: String,
 ) -> Result(Session, Nil) {
   use str <- try(read_mist_string(req:, name:, secret_key_base:))
-  echo str
   use session <- try(json.parse(str, types.decoder_session()) |> result.replace_error(Nil))
   Ok(session)
 }
@@ -97,14 +96,10 @@ fn read_user_client_info_from_json_body(
   req req: Request(wisp.Connection),
 ) -> Result(UserClientInfo, Nil) {
   use content_type <- try(req |> request.get_header("content-type"))
-  echo content_type
   use <- bool.guard(content_type != "application/json", Error(Nil))
   use body <- try(req |> wisp.read_body_bits)
-  echo body
   use body <- try(body |> bit_array.to_string)
-  echo body
   use uci <- try(json.parse(body, types.decoder_user_client_info()) |> result.replace_error(Nil))
-  echo uci
   Ok(uci)
 }
 
