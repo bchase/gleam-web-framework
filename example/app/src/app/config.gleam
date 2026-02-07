@@ -76,7 +76,7 @@ fn connect_to_sqlite_and_migrate() -> sqlight.Connection {
   let result = "
     create table if not exists user_tokens (
       id integer not null primary key autoincrement,
-      hashed_token text not null,
+      hashed_token text not null unique,
       context text not null,
       user_id integer not null references users(id)
     );
@@ -115,15 +115,15 @@ fn connect_to_sqlite_and_migrate() -> sqlight.Connection {
 
   let assert Ok(_deleted) = result as "deleted `users`"
 
-  let hashed_token =
-    user.dummy_token_hashed_for_db()
+  // let hashed_token =
+  //   user.dummy_token_hashed_for_db()
 
-  let result = { "
-    insert into user_tokens ( id, hashed_token, context, user_id )
-    values ( 1, '" <> hashed_token <> "', 'session', 1 );
-  " } |> sqlight.query(conn, [], decode.success(Nil))
+  // let result = { "
+  //   insert into user_tokens ( id, hashed_token, context, user_id )
+  //   values ( 1, '" <> hashed_token <> "', 'session', 1 );
+  // " } |> sqlight.query(conn, [], decode.success(Nil))
 
-  let assert Ok(_inserted) = result as "inserted sqlite `users` row"
+  // let assert Ok(_inserted) = result as "inserted sqlite `users` row"
 
   conn
 }

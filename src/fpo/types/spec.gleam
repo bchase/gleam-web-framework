@@ -37,7 +37,7 @@ pub type Config(config) {
 pub type Handler(config, pubsub, user) {
   WispHandler(handle: fn(Request(wisp.Connection), Context(config, pubsub, user)) -> resp.Response(wisp.Body))
   AppWispHandler(handle: fn(Request(wisp.Connection)) -> App(resp.Response(wisp.Body), config, pubsub, user))
-  AppWispSessionCookieHandler(handle: fn(Request(wisp.Connection), String) -> App(resp.Response(wisp.Body), config, pubsub, user))
+  AppWispSessionCookieHandler(handle: fn(Request(wisp.Connection), Result(Session, Nil), String) -> App(resp.Response(wisp.Body), config, pubsub, user))
   AppLustreHandler(handle: fn(Request(wisp.Connection)) -> App(LustreResponse, config, pubsub, user))
   // MistHandler(handle: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData))
   // AppMistHandler(handle: fn(Request(mist.Connection)) -> App(resp.Response(mist.ResponseData), config, user))

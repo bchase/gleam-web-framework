@@ -1,3 +1,4 @@
+import fpo/db/parrot
 import app/db/sqlite as db
 import app/sql
 import app/types.{type Config}
@@ -18,6 +19,28 @@ pub fn get(
   sql.authenticate_user(hashed_token:)
   |> db.many
   |> app.map(list.map(_, from_authenticate_user_to_user))
+}
+
+pub fn insert_session_token(
+  user user: User,
+  hashed_token hashed_token: String,
+) -> App(Result(Nil, Nil), Config, pubsub, user) {
+  sql.insert_user_token(hashed_token:, context: "session", user_id: user.id)
+  |> parrot.from_exec
+  |> db.one
+  |> app.map(fn(x) {
+    echo x
+    x
+  })
+}
+
+
+pub fn delete_session_token(
+  hashed_token hashed_token: String,
+) -> App(Result(Nil, Nil), Config, pubsub, user) {
+  sql.delete_user_token(hashed_token:)
+  |> parrot.from_exec
+  |> db.one
 }
 
 // DERIVED

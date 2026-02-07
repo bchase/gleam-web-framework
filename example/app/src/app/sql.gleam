@@ -54,6 +54,7 @@ pub fn authenticate_user(hashed_token hashed_token: String) {
     "select u.id, u.name
 from users as u
 join user_tokens as ut
+  on u.id = ut.user_id
 where ut.hashed_token = ?1"
   #(sql, [dev.ParamString(hashed_token)], authenticate_user_decoder())
 }
@@ -62,4 +63,28 @@ pub fn authenticate_user_decoder() -> decode.Decoder(AuthenticateUser) {
   use id <- decode.field(0, decode.int)
   use name <- decode.field(1, decode.string)
   decode.success(AuthenticateUser(id:, name:))
+}
+
+pub fn insert_user_token(
+  hashed_token hashed_token: String,
+  context context: String,
+  user_id user_id: Int,
+) {
+  let sql =
+    "insert into user_tokens
+  ( hashed_token, context, user_id )
+values
+  ( ?1, ?2, ?3 )"
+  #(sql, [
+    dev.ParamString(hashed_token),
+    dev.ParamString(context),
+    dev.ParamInt(user_id),
+  ])
+}
+
+pub fn delete_user_token(hashed_token hashed_token: String) {
+  let sql =
+    "delete from user_tokens
+where hashed_token = ?1"
+  #(sql, [dev.ParamString(hashed_token)])
 }

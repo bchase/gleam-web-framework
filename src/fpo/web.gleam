@@ -15,7 +15,7 @@ import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import fpo/types.{type Context, type EnvVar, EnvVar}
+import fpo/types.{type Context, type Session, type EnvVar, EnvVar}
 import fpo/context
 import fpo/web/session
 import fpo/monad/app.{type App}
@@ -87,13 +87,13 @@ fn web_req_handler(
     |> secret_key_base(env_var_name: _)
 
   let handle_wisp_mist =
-    fn(req: Request(wisp.Connection), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
+    fn(req: Request(wisp.Connection), session: Result(Session, Nil), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
       case spec.router(req, ctx) {
         Error(Nil) ->
           Error(Nil)
 
         Ok(handler) ->
-          Ok(run_handler(req:, handler:, ctx:, session_cookie_name:))
+          Ok(run_handler(req:, handler:, ctx:, session:, session_cookie_name:))
       }
       |> fn(result) {
         case result {
@@ -137,14 +137,14 @@ fn web_req_handler(
 }
 
 fn to_mist(
-  wisp_handler wisp_handler: fn(Request(wisp.Connection), Context(config, pubsub, user)) -> resp.Response(wisp.Body),
+  wisp_handler wisp_handler: fn(Request(wisp.Connection), Result(Session, Nil), Context(config, pubsub, user)) -> resp.Response(wisp.Body),
   secret_key_base secret_key_base: String,
   app_module_name app_module_name: String,
-) -> fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData) {
-  fn(mist_req, ctx) {
+) -> fn(Request(mist.Connection), Result(Session, Nil), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData) {
+  fn(mist_req, session, ctx) {
     fn(wisp_req) {
       use wisp_req <- middleware(wisp_req, static_directory(app_module_name:))
-      wisp_handler(wisp_req, ctx)
+      wisp_handler(wisp_req, session, ctx)
     }
     |> wisp_mist.handler(secret_key_base)
     |> fn(handle_mist) { handle_mist(mist_req) }
@@ -155,6 +155,7 @@ fn run_handler(
   req req: Request(wisp.Connection),
   handler handler: Handler(config, pubsub, user),
   ctx ctx: Context(config, pubsub, user),
+  session session: Result(Session, Nil),
   session_cookie_name session_cookie_name: String,
 ) -> resp.Response(wisp.Body) {
   case handler {
@@ -178,7 +179,7 @@ fn run_handler(
       //   resp
       // })
       req
-      |> run_app_handle_wisp(handle: handle(_, session_cookie_name), ctx:, map_ok: fn(x) { x })
+      |> run_app_handle_wisp(handle: handle(_, session, session_cookie_name), ctx:, map_ok: fn(x) { x })
 
     AppLustreHandler(handle:) ->
       // req
@@ -333,7 +334,7 @@ fn build_web_req_handler(
   pubsub pubsub: pubsub,
   secret_key_base secret_key_base: String,
   spec spec: Spec(config, pubsub, user),
-  handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
+  handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Result(Session, Nil), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   session_cookie_name session_cookie_name: String,
 ) -> resp.Response(mist.ResponseData) {
@@ -348,7 +349,7 @@ fn build_web_req_handler(
       mist_req |> handle_mist_websockets(ctx)
 
     _ ->
-      mist_req |> handle_wisp_mist(ctx)
+      mist_req |> handle_wisp_mist(session, ctx)
   }
 }
 
