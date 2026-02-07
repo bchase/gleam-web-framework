@@ -13,13 +13,19 @@ pub type Context(config, pubsub, user) {
 
 pub type Features {
   Features(
-    cloak: Option(fn() -> aes_gcm.Config),
+    cloak: Option(fn(EnvVar) -> aes_gcm.Config),
   )
 }
 
 pub type Flags {
   Flags(
     cloak: Option(Cloak),
+  )
+}
+
+pub type EnvVar {
+  EnvVar(
+    get_string: fn(String) -> Result(String, String),
   )
 }
 

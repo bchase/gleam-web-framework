@@ -1,13 +1,13 @@
 import gleam/erlang/process
 import gleam/option.{Some, None}
 import gleam/otp/static_supervisor
-import app/types.{type Features, type Flags, Flags}
+import app/types.{type Features, type Flags, Flags, type EnvVar}
 import cloak_wrapper/store as cloak_store
 import app/cloak.{Cloak}
 
-
 pub fn build(
   features features: Features,
+  env_var env_var: EnvVar
 ) -> #(List(fn(static_supervisor.Builder) -> static_supervisor.Builder), Flags) {
   case features.cloak {
     None -> {
@@ -15,6 +15,8 @@ pub fn build(
     }
 
     Some(load) -> {
+      let load = fn() { load(env_var) }
+
       let name = process.new_name("cloak-store")
       let cloak = Cloak(name:, store: cloak_store.get(name:))
       let flags = Flags(cloak: Some(cloak))

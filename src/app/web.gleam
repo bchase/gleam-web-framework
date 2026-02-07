@@ -1,5 +1,3 @@
-import gleam/erlang/process
-import gleam/option.{Some, None}
 import lustre/element/html
 import gleam/string_tree
 import gleam/dict.{type Dict}
@@ -17,7 +15,7 @@ import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import app/types.{type Context, type Flags, Flags}
+import app/types.{type Context, type EnvVar, EnvVar}
 import app/context
 import app/web/session
 import app/monad/app.{type App}
@@ -39,14 +37,14 @@ pub fn supervised(
 pub fn init(
   spec spec: Spec(config, pubsub, user),
 ) -> #(static_supervisor.Builder, config, pubsub) {
-  load_dot_env(spec.dot_env_relative_path)
+  let env_var = load_dot_env(spec.dot_env_relative_path)
 
   let #(supervisor, pubsub) =
     static_supervisor.new(static_supervisor.OneForOne)
     |> spec.add_pubsub_workers
 
   let #(add_worker_funcs, flags) =
-    flags.build(features: spec.config.features)
+    flags.build(features: spec.config.features, env_var:)
 
   let supervisor =
     supervisor
@@ -433,11 +431,13 @@ fn secret_key_base(
 
 fn load_dot_env(
   relative_path relative_path: String,
-) -> Nil {
+) -> EnvVar {
   dot_env.new()
   |> dot_env.set_path(relative_path)
   |> dot_env.set_debug(False)
   |> dot_env.load
+
+  EnvVar(get_string: env.get_string)
 }
 
 fn static_directory(
