@@ -1,3 +1,4 @@
+import gleam/list
 import gleam/string
 import gleam/result
 import gleam/option.{None}
@@ -34,8 +35,6 @@ pub fn handler(
 
     [] ->
       Ok(spec.AppLustreHandler(handle: fn(_req) {
-        let has_uci = ctx.user_client_info |> option.is_some
-
         pure(spec.LustreResponse(
           status: 200,
           headers: dict.new(),
@@ -43,18 +42,16 @@ pub fn handler(
             html.p([], [
               html.text("Home"),
             ]),
+
             html.p([], [
-              html.text("has user client info: " <> has_uci |> string.inspect),
+              ctx.user_client_info
+              |> string.inspect
+              |> html.text
+              |> list.wrap
+              |> html.code([], _)
             ]),
-            case ctx.user_client_info {
-              None ->
-                html.meta([attr.name("no-user-client-info")])
 
-              option.Some(_) ->
-                html.text("")
-
-            },
-            gleam_browser_script(),
+            set_user_client_info_if_missing(ctx:),
           ]),
         ))
       }))
@@ -133,10 +130,22 @@ fn lustre_server_component_client_script() -> Element(msg) {
   ], "")
 }
 
-fn gleam_browser_script(
+fn set_user_client_info_if_missing(
+  ctx ctx: Context(config, pubsub, user),
 ) -> Element(msg) {
-  html.script([
-    attr.type_("module"),
-    attr.src("/static/js/gleam-browser.js"),
-  ], "")
+  html.div([], [
+    case ctx.user_client_info {
+      None ->
+        html.meta([attr.name("no-user-client-info")])
+
+      option.Some(_) ->
+        html.text("")
+
+    },
+
+    html.script([
+      attr.type_("module"),
+      attr.src("/static/js/gleam-browser.js"),
+    ], ""),
+  ])
 }
