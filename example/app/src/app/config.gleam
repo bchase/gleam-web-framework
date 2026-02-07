@@ -2,8 +2,6 @@ import gleam/erlang/process
 import gleam/result
 import gleam/dynamic/decode
 import gleam/string
-import fpo/oauth
-import fpo/oauth/oura
 import gleam/option.{type Option, Some, None}
 import gleam/otp/static_supervisor
 import fpo/pubsub
@@ -47,7 +45,6 @@ pub type Config {
     cloak: Cloak,
     sqlite_conn: sqlight.Connection,
     postgres_conn: pog.Connection,
-    oura_oauth: oauth.Config,
   )
 }
 
@@ -64,13 +61,11 @@ pub fn init(
 
   let sqlite_conn = connect_to_sqlite_and_migrate()
   let postgres_conn = connect_to_postgres_and_migrate()
-  let oura_oauth = oura.build_config()
 
   Config(
     cloak:,
     sqlite_conn:,
     postgres_conn:,
-    oura_oauth:,
   )
 }
 

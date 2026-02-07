@@ -17,7 +17,7 @@ pub fn spec() -> Spec(Config, PubSub, User) {
     secret_key_base_env_var_name: "SECRET_KEY_BASE",
     //
     config: spec.Config(
-      features: Features(cloak: Some(fn(env_var) { load_cloak_config(env_var) })),
+      features: Features(cloak: Some(load_cloak_config)),
       init: config.init,
     ),
     add_pubsub_workers:,
