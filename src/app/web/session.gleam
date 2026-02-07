@@ -1,4 +1,5 @@
-import gleam/dict.{type Dict}
+import gleam/list
+import gleam/json
 import gleam/bit_array
 import gleam/result.{try}
 import gleam/option.{type Option, Some}
@@ -8,16 +9,13 @@ import gleam/http
 import gleam/http/cookie
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
-import app/types.{type Session, Session, type UserClientInfo, UserClientInfo}
-
-const time_zone_key = "tz"
-const locale_key = "locale"
+import app/types.{type Session}
 
 // https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1798-L1817
-pub fn write_session(
+pub fn write(
   resp resp: Response(wisp.Body),
   req req: Request(wisp.Connection),
-  user_token user_token: Option(String),
+  session session: Session,
   max_age max_age: Option(Int),
   session_cookie_name session_cookie_name: String,
 ) -> Response(wisp.Body) {
@@ -26,12 +24,6 @@ pub fn write_session(
     _, _ -> http.Https
   }
 
-  let user_token =
-    user_token
-    |> option.map(fn(str) { <<str:utf8>> })
-    |> option.map(wisp.sign_message(req, _, crypto.Sha512))
-    |> option.unwrap("")
-
   let attrs =
     cookie.Attributes(
       ..cookie.defaults(http_scheme),
@@ -39,48 +31,30 @@ pub fn write_session(
       max_age: max_age,
     )
 
+  let signed_session_str =
+    session
+    |> types.encode_session
+    |> json.to_string
+    |> fn(str) { <<str:utf8>> }
+    |> wisp.sign_message(req, _, crypto.Sha512)
+
   resp
-  |> response.set_cookie(session_cookie_name, user_token, attrs)
+  |> response.set_cookie(session_cookie_name, signed_session_str, attrs)
 }
 
-pub fn from_mist(
+pub fn read(
   req req: Request(t),
-  session_cookie_name session_cookie_name: String,
+  name name: String,
   secret_key_base secret_key_base: String,
-) -> Session {
-  let get_session_cookie =
-    get_session_cookie(cookies: cookies(req:), key: _, secret_key_base:)
-
-  let user_client_info =
-    build_user_client_info(get_session_cookie:)
-    |> option.from_result
-
-  let user_token =
-    get_session_cookie(session_cookie_name)
-    |> option.from_result
-
-  Session(user_token:, user_client_info:, get_session_cookie:)
+) -> Result(Session, Nil) {
+  use str <- try(read_string(req:, name:, secret_key_base:))
+  use session <- try(json.parse(str, types.decoder_session()) |> result.replace_error(Nil))
+  Ok(session)
 }
 
-// // based on: https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1839-L1854
-// pub fn from_wisp(
-//   req req: Request(wisp.Connection),
-// ) -> Session {
-//   from_mist(req, req.body.secret_key_base)
-// }
-
-fn build_user_client_info(
-  get_session_cookie get_session_cookie: fn(String) -> Result(String, Nil),
-) -> Result(UserClientInfo, Nil) {
-  use time_zone <- try(get_session_cookie(time_zone_key))
-  use locale <- try(get_session_cookie(locale_key))
-
-  Ok(UserClientInfo(time_zone:, locale:, default: False))
-}
-
-fn get_session_cookie(
-  cookies cookies: Dict(String, String),
-  key key: String,
+fn read_string(
+  req req: Request(t),
+  name name: String,
   secret_key_base secret_key_base: String,
 ) -> Result(String, Nil) {
   // req
@@ -88,18 +62,11 @@ fn get_session_cookie(
   // |> list.key_find(key)
   // |> result.try(verify_signed_message(_, secret_key_base))
   // |> result.try(bit_array.to_string)
-  use raw <- try(dict.get(cookies, key))
+  let cookies = req |> request.get_cookies
+  use raw <- try(list.key_find(cookies, name))
   use bits <- try(verify_signed_message(raw, secret_key_base))
   use val <- try(bit_array.to_string(bits))
   Ok(val)
-}
-
-fn cookies(
-  req req: Request(t),
-) -> Dict(String, String) {
-  req
-  |> request.get_cookies
-  |> dict.from_list
 }
 
 // https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1757C1-L1763C1
@@ -108,34 +75,4 @@ fn verify_signed_message(
   secret_key_base: String,
 ) -> Result(BitArray, Nil) {
   crypto.verify_signed_message(message, <<secret_key_base:utf8>>)
-}
-
-pub fn set_user_client_info_in_session(
-  req: Request(wisp.Connection),
-) -> Response(wisp.Body) {
-  use form <- wisp.require_form(req)
-  let form = form.values |> dict.from_list
-
-  {
-    use tz <- try(dict.get(form, "time_zone"))
-    use locale <- try(dict.get(form, "locale"))
-
-    wisp.response(200)
-    |> wisp.set_cookie(
-      req,
-      time_zone_key,
-      tz,
-      wisp.Signed,
-      365 * 24 * 60 * 60,
-    )
-    |> wisp.set_cookie(
-      req,
-      locale_key,
-      locale,
-      wisp.Signed,
-      365 * 24 * 60 * 60,
-    )
-    |> Ok
-  }
-  |> result.unwrap(wisp.response(400))
 }

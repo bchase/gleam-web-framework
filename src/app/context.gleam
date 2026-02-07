@@ -11,7 +11,7 @@ pub fn build(
 
   let user_client_info =
     session.user_client_info
-    |> option.lazy_unwrap(types.default_user_client_info)
+    |> option.lazy_unwrap(fn() { types.default_user_client_info })
 
   Context(
     cfg:,

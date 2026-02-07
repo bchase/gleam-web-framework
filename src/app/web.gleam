@@ -328,7 +328,11 @@ fn build_web_req_handler(
   handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   session_cookie_name session_cookie_name: String,
 ) -> resp.Response(mist.ResponseData) {
-  let session = session.from_mist(req: mist_req, session_cookie_name:, secret_key_base:)
+  let session =
+    mist_req
+    |> session.read(name: session_cookie_name, secret_key_base:)
+    |> result.lazy_unwrap(fn() { types.zero_session() })
+
   let ctx = context.build(session:, cfg:, pubsub:, authenticate: spec.authenticate)
 
   case mist_req |> request.path_segments {
