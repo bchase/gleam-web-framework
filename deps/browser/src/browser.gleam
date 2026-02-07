@@ -17,15 +17,9 @@ fn put_user_client_info_if_not_set() -> Nil {
       name == Ok("no-user-client-info")
     })
 
-  echo missing_user_client_info
-
   use <- bool.guard(!missing_user_client_info, Nil)
-  echo "SETTING"
 
   put_user_client_info()
-  |> echo
-
-  echo "SET"
 
   Nil
 }
