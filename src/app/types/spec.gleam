@@ -12,13 +12,13 @@ import app/monad/app.{type App}
 pub type Spec(config, pubsub, user) {
   Spec(
     app_module_name: String,
+    session_cookie_name: String,
     dot_env_relative_path: String,
     secret_key_base_env_var_name: String,
     //
     config: Config(config),
     add_pubsub_workers: fn(static_supervisor.Builder) -> #(static_supervisor.Builder, pubsub),
     authenticate: fn(Session, config) -> Option(user),
-    //
     //
     websockets_path_prefix: String,
     websockets_router: fn(Request(mist.Connection), Context(config, pubsub, user)) -> Result(resp.Response(mist.ResponseData), Nil),

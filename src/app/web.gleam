@@ -80,6 +80,7 @@ fn web_req_handler(
   spec spec: Spec(config, pubsub, user),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
   let app_module_name = spec.app_module_name
+  let session_cookie_name = spec.session_cookie_name
 
   let secret_key_base =
     spec.secret_key_base_env_var_name
@@ -126,6 +127,7 @@ fn web_req_handler(
     spec:,
     handle_wisp_mist:,
     handle_mist_websockets:,
+    session_cookie_name:,
   )
   |> mist.new()
   |> mist.bind("0.0.0.0")
@@ -324,8 +326,9 @@ fn build_web_req_handler(
   spec spec: Spec(config, pubsub, user),
   handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
+  session_cookie_name session_cookie_name: String,
 ) -> resp.Response(mist.ResponseData) {
-  let session = session.from_mist(req: mist_req, secret_key_base:)
+  let session = session.from_mist(req: mist_req, session_cookie_name:, secret_key_base:)
   let ctx = context.build(session:, cfg:, pubsub:, authenticate: spec.authenticate)
 
   case mist_req |> request.path_segments {

@@ -10,9 +10,8 @@ import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import app/types.{type Session, Session, type UserClientInfo, UserClientInfo}
 
-const session_cookie_name = "app"
-const time_zone_cookie_name = "app.tz"
-const locale_cookie_name = "app.locale"
+const time_zone_key = "tz"
+const locale_key = "locale"
 
 // https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1798-L1817
 pub fn write_session(
@@ -20,6 +19,7 @@ pub fn write_session(
   req req: Request(wisp.Connection),
   user_token user_token: Option(String),
   max_age max_age: Option(Int),
+  session_cookie_name session_cookie_name: String,
 ) -> Response(wisp.Body) {
   let http_scheme = case req.scheme, req.host {
     http.Http, "localhost" -> http.Http
@@ -45,6 +45,7 @@ pub fn write_session(
 
 pub fn from_mist(
   req req: Request(t),
+  session_cookie_name session_cookie_name: String,
   secret_key_base secret_key_base: String,
 ) -> Session {
   let get_session_cookie =
@@ -71,8 +72,8 @@ pub fn from_mist(
 fn build_user_client_info(
   get_session_cookie get_session_cookie: fn(String) -> Result(String, Nil),
 ) -> Result(UserClientInfo, Nil) {
-  use time_zone <- try(get_session_cookie(time_zone_cookie_name))
-  use locale <- try(get_session_cookie(locale_cookie_name))
+  use time_zone <- try(get_session_cookie(time_zone_key))
+  use locale <- try(get_session_cookie(locale_key))
 
   Ok(UserClientInfo(time_zone:, locale:, default: False))
 }
@@ -122,14 +123,14 @@ pub fn set_user_client_info_in_session(
     wisp.response(200)
     |> wisp.set_cookie(
       req,
-      time_zone_cookie_name,
+      time_zone_key,
       tz,
       wisp.Signed,
       365 * 24 * 60 * 60,
     )
     |> wisp.set_cookie(
       req,
-      locale_cookie_name,
+      locale_key,
       locale,
       wisp.Signed,
       365 * 24 * 60 * 60,

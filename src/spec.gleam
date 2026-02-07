@@ -12,6 +12,7 @@ const cloak_key_env_var_name = "CLOAK_KEY"
 pub fn spec() -> Spec(Config, PubSub, User) {
   Spec(
     app_module_name: "app",
+    session_cookie_name: "app",
     dot_env_relative_path: ".env",
     secret_key_base_env_var_name: "SECRET_KEY_BASE",
     //
