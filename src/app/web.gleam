@@ -1,3 +1,5 @@
+import gleam/erlang/process
+import gleam/option.{Some, None}
 import lustre/element/html
 import gleam/string_tree
 import gleam/dict.{type Dict}
@@ -15,7 +17,7 @@ import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import app/types.{type Context}
+import app/types.{type Context, type Flags, Flags}
 import app/context
 import app/web/session
 import app/monad/app.{type App}
@@ -23,6 +25,7 @@ import app/types/err.{type Err}
 import app/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppLustreHandler, LustreResponse}
 import lustre/element.{type Element}
 import wisp
+import app/flags
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
@@ -38,11 +41,20 @@ pub fn init(
 ) -> #(static_supervisor.Builder, config, pubsub) {
   load_dot_env(spec.dot_env_relative_path)
 
-  let cfg = spec.init_config()
-
   let #(supervisor, pubsub) =
     static_supervisor.new(static_supervisor.OneForOne)
     |> spec.add_pubsub_workers
+
+  let #(add_worker_funcs, flags) =
+    flags.build(features: spec.config.features)
+
+  let supervisor =
+    supervisor
+    |> list.fold(add_worker_funcs, _, fn(supervisor, add_worker) {
+      supervisor |> add_worker
+    })
+
+  let cfg = spec.config.init(flags)
 
   let supervisor =
     supervisor

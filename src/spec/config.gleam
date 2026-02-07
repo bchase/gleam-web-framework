@@ -5,14 +5,15 @@ import gleam/dynamic/decode
 import gleam/string
 import app/oauth
 import app/oauth/oura
-import gleam/option.{type Option, None}
+import gleam/option.{type Option, Some, None}
 import gleam/otp/static_supervisor
 import app/pubsub
-import app/types.{type Session}
+import app/types.{type Session, type Flags}
 import spec/pubsub.{type TextMsg} as _
 import spec/user.{type User}
 import pog
 import sqlight
+import app/cloak.{type Cloak}
 
 const sqlite_db_path = "./app-sqlite3.db"
 const postgres_conn_url = "postgres://webapp:webapp@127.0.0.1:5432/app_gleam"
@@ -44,6 +45,7 @@ pub fn add_pubsub_workers(
 
 pub type Config {
   Config(
+    cloak: Cloak,
     sqlite_conn: sqlight.Connection,
     postgres_conn: pog.Connection,
     oura_oauth: oauth.Config,
@@ -56,12 +58,17 @@ pub type PubSub {
   )
 }
 
-pub fn init_config() -> Config {
+pub fn init(
+  flags flags: Flags,
+) -> Config {
+  let assert Some(cloak) = flags.cloak
+
   let sqlite_conn = connect_to_sqlite_and_migrate()
   let postgres_conn = connect_to_postgres_and_migrate()
   let oura_oauth = oura.build_config()
 
   Config(
+    cloak:,
     sqlite_conn:,
     postgres_conn:,
     oura_oauth:,

@@ -6,7 +6,7 @@ import gleam/option.{type Option}
 import lustre/element.{type Element}
 import mist
 import wisp
-import app/types.{type Context, type Session}
+import app/types.{type Context, type Session, type Flags, type Features}
 import app/monad/app.{type App}
 
 pub type Spec(config, pubsub, user) {
@@ -15,15 +15,22 @@ pub type Spec(config, pubsub, user) {
     dot_env_relative_path: String,
     secret_key_base_env_var_name: String,
     //
-    init_config: fn() -> config,
+    config: Config(config),
+    add_pubsub_workers: fn(static_supervisor.Builder) -> #(static_supervisor.Builder, pubsub),
     authenticate: fn(Session, config) -> Option(user),
     //
-    add_pubsub_workers: fn(static_supervisor.Builder) -> #(static_supervisor.Builder, pubsub),
     //
     websockets_path_prefix: String,
     websockets_router: fn(Request(mist.Connection), Context(config, pubsub, user)) -> Result(resp.Response(mist.ResponseData), Nil),
     //
     router: fn(Request(wisp.Connection), Context(config, pubsub, user)) -> Result(Handler(config, pubsub, user), Nil),
+  )
+}
+
+pub type Config(config) {
+  Config(
+    init: fn(Flags) -> config,
+    features: Features,
   )
 }
 

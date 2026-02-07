@@ -1,7 +1,6 @@
+import app/web
 import gleam/erlang/process
 import gleam/otp/static_supervisor
-import app/web
-//
 import spec
 
 pub fn main() -> Nil {

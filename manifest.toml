@@ -6,6 +6,8 @@ packages = [
   { name = "backoff", version = "1.1.6", build_tools = ["rebar3"], requirements = [], otp_app = "backoff", source = "hex", outer_checksum = "CF0CFFF8995FB20562F822E5CC47D8CCF664C5ECDC26A684CBE85C225F9D7C39" },
   { name = "birl", version = "1.8.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "2AC7BA26F998E3DFADDB657148BD5DDFE966958AD4D6D6957DD0D22E5B56C400" },
   { name = "certifi", version = "2.15.0", build_tools = ["rebar3"], requirements = [], otp_app = "certifi", source = "hex", outer_checksum = "B147ED22CE71D72EAFDAD94F055165C1C182F61A2FF49DF28BCC71D1D5B94A60" },
+  { name = "cloak", version = "1.1.4", build_tools = ["mix"], requirements = ["jason"], otp_app = "cloak", source = "hex", outer_checksum = "92B20527B9ABA3D939FAB0DD32CE592FF86361547CFDC87D74EDCE6F980EB3D7" },
+  { name = "cloak_wrapper", version = "2.0.0", build_tools = ["gleam"], requirements = ["cloak", "gleam_crypto", "gleam_erlang", "gleam_otp", "gleam_stdlib"], source = "git", repo = "https://github.com/bchase/cloak_wrapper", commit = "ff0abaea75abe2bfc19aa53c119ff2d1471f02af" },
   { name = "deriv", version = "2.0.0", build_tools = ["gleam"], requirements = ["argv", "birl", "formal", "glance", "glance_printer", "gleam_json", "gleam_regexp", "gleam_stdlib", "gleam_time", "glint", "lustre", "shellout", "simplifile", "tom", "youid"], source = "git", repo = "https://github.com/bchase/deriv", commit = "567452a43793b85aaac591a9ebcadf8e6161818e" },
   { name = "directories", version = "1.2.0", build_tools = ["gleam"], requirements = ["envoy", "gleam_stdlib", "platform", "simplifile"], otp_app = "directories", source = "hex", outer_checksum = "D13090CFCDF6759B87217E8DDD73A75903A700148A82C1D33799F333E249BF9E" },
   { name = "dot_env", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "simplifile"], otp_app = "dot_env", source = "hex", outer_checksum = "F2B4815F1B5AF8F20A6EADBB393E715C4C35203EBD5BE8200F766EA83A0B18DE" },
@@ -73,6 +75,7 @@ packages = [
 ]
 
 [requirements]
+cloak_wrapper = { git = "https://github.com/bchase/cloak_wrapper", ref = "gen-key" }
 deriv = { git = "https://github.com/bchase/deriv", ref = "dev" }
 dot_env = { version = ">= 1.2.0 and < 2.0.0" }
 gleam_crypto = { version = ">= 1.5.1 and < 2.0.0" }

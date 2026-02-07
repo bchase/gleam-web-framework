@@ -1,9 +1,6 @@
-import gleam/http/response.{type Response}
-import gleam/http/request.{type Request}
-import gleam/option.{type Option, None}
-import mist
-import wisp
-// import app/monad/app.{type App, type Handler}
+import gleam/option.{type Option}
+import app/cloak.{type Cloak}
+import cloak_wrapper/aes/gcm as aes_gcm
 
 pub type Context(config, pubsub, user) {
   Context(
@@ -11,6 +8,18 @@ pub type Context(config, pubsub, user) {
     pubsub: pubsub,
     user_client_info: UserClientInfo,
     user: Option(user),
+  )
+}
+
+pub type Features {
+  Features(
+    cloak: Option(fn() -> aes_gcm.Config),
+  )
+}
+
+pub type Flags {
+  Flags(
+    cloak: Option(Cloak),
   )
 }
 
