@@ -9,19 +9,18 @@ import fpo/lustre.{continue, eff} as _
 import gleam/erlang/process.{type Selector}
 import gleam/option.{type Option, None}
 import lustre
-import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import app/config
-import app/domain/msgs/sqlite as msgs
+import app/domain/msgs/postgres as msgs
 
 pub fn component(
   ctx ctx: Context(config.Config, config.PubSub, user),
 ) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
-    module: "fpo/examples/sqlite_demo",
+    module: "app/web/components/postgres_demo",
     init:,
     post_init: None,
     selectors:,
@@ -53,7 +52,7 @@ fn init() -> App(#(Model, Effect(Msg)), config.Config, config.PubSub, user) {
     msgs.list_all()
     |> eff(
       to_msg: GotMsgs,
-      to_err: GotErr(err: _, origin: "sqlite_demo.init"),
+      to_err: GotErr(err: _, origin: "postgres_demo.init"),
     )
   ])
 }
@@ -63,10 +62,6 @@ pub opaque type Msg {
 
   Submit(
     text: String,
-  )
-
-  Delete(
-    id: Int,
   )
 
   GotMsgs(
@@ -97,21 +92,7 @@ fn update(
         }
         |> eff(
           to_msg: GotMsgs,
-          to_err: GotErr(err: _, origin: "sqlite_demo.update (Submit)"),
-        )
-      ])
-    }
-
-    Delete(id:) -> {
-      model
-      |> continue([
-        {
-          use _deleted <- do(msgs.delete(id:))
-          msgs.list_all()
-        }
-        |> eff(
-          to_msg: GotMsgs,
-          to_err: GotErr(err: _, origin: "sqlite_demo.update (Delete)"),
+          to_err: GotErr(err: _, origin: "postgres_demo.update (Submit)"),
         )
       ])
     }
@@ -159,13 +140,6 @@ fn view(
         |> list.map(fn(msg) {
           html.li([], [
             html.text(msg.text),
-            html.text(" "),
-            html.span([
-              event.on_click(Delete(id: msg.id)),
-              attr.style("cursor", "pointer"),
-            ], [
-              html.text("x")
-            ]),
           ])
         })
       }),

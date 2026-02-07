@@ -3,11 +3,11 @@ import gleam/http/request.{type Request}
 import gleam/http/response as resp
 import mist
 import fpo/lustre/server_component/socket
-import app/examples/counter
-import app/examples/counter_app
-import app/examples/pubsub_demo
-import app/examples/sqlite_demo
-import app/examples/postgres_demo
+import app/web/components/counter
+import app/web/components/counter_app
+import app/web/components/pubsub_demo
+import app/web/components/sqlite_demo
+import app/web/components/postgres_demo
 import app/config
 
 pub fn lustre_server_component_router(

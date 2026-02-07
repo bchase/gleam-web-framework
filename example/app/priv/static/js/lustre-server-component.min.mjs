@@ -1,0 +1,1 @@
+../../../build/packages/lustre/priv/static/lustre-server-component.min.mjs

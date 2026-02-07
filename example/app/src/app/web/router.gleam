@@ -12,9 +12,9 @@ import fpo/types.{type Context}
 import wisp
 import fpo/types/spec.{type Handler}
 import fpo/monad/app.{pure}
-import app/examples/counter
-import app/examples/counter_app
-import app/examples/server_component_elements as lscs
+import app/web/components/counter
+import app/web/components/counter_app
+import app/web/components/server_component_elements as lscs
 
 pub fn handler(
   req req: Request(wisp.Connection),
@@ -145,7 +145,7 @@ fn set_user_client_info_if_missing(
 
     html.script([
       attr.type_("module"),
-      attr.src("/static/js/gleam-browser.js"),
+      attr.src("/static/js/fpo-gleam-browser.js"),
     ], ""),
   ])
 }

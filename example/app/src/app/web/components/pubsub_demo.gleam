@@ -18,7 +18,7 @@ pub fn component(
   ctx ctx: Context(config.Config, config.PubSub, user),
 ) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
-    module: "fpo/examples/pubsub_demo",
+    module: "app/web/components/pubsub_demo",
     init:,
     post_init: None,
     selectors:,

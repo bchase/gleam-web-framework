@@ -25,7 +25,7 @@ pub fn component(
   ctx ctx: Context(config, pubsub, user),
 ) -> lustre.App(Context(config, pubsub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
-    module: "fpo/examples/counter_app",
+    module: "app/web/components/counter_app",
     init:,
     post_init: None,
     selectors:,
