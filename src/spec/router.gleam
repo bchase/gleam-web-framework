@@ -10,11 +10,11 @@ import gleam/dict
 import gleam/http/request.{type Request}
 import app/types.{type Context}
 import wisp
-import app/examples/counter
-import app/examples/counter_app
-import app/examples/server_component_elements as lscs
 import app/types/spec.{type Handler}
 import app/monad/app.{pure}
+import spec/examples/counter
+import spec/examples/counter_app
+import spec/examples/server_component_elements as lscs
 
 pub fn handler(
   req req: Request(wisp.Connection),
