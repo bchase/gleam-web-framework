@@ -17,7 +17,7 @@ pub fn build_lustre_app(
   post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user)),
   selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
   update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user),
-  view view: fn(model, Option(user), UserClientInfo) -> Element(msg),
+  view view: fn(model, Option(user), Option(UserClientInfo)) -> Element(msg),
   module module: String,
   ctx ctx: Context(config, pubsub, user),
 ) -> lustre.App(Context(config, pubsub, user), model, Wrapped(msg)) {
@@ -147,7 +147,7 @@ fn wrap_update(
 }
 
 fn wrap_view(
-  view view: fn(model, Option(user), UserClientInfo) -> Element(msg),
+  view view: fn(model, Option(user), Option(UserClientInfo)) -> Element(msg),
   ctx ctx: Context(config, pubsub, user),
 ) -> fn(model) -> Element(Wrapped(msg)) {
   fn(model) {

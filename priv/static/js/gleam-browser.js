@@ -1,0 +1,1 @@
+../../../deps/browser/dist/browser.js

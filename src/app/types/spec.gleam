@@ -23,7 +23,7 @@ pub type Spec(config, pubsub, user) {
     websockets_path_prefix: String,
     websockets_router: fn(Request(mist.Connection), Context(config, pubsub, user)) -> Result(resp.Response(mist.ResponseData), Nil),
     //
-    router: fn(Request(wisp.Connection), Context(config, pubsub, user)) -> Result(Handler(config, pubsub, user), Nil),
+    router: fn(Request(wisp.Connection), Context(config, pubsub, user), String) -> Result(Handler(config, pubsub, user), Nil),
   )
 }
 

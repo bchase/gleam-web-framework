@@ -1,3 +1,4 @@
+import gleam/option.{type Option, Some, None}
 import lustre/element/html
 import gleam/string_tree
 import gleam/dict.{type Dict}
@@ -88,7 +89,7 @@ fn web_req_handler(
 
   let handle_wisp_mist =
     fn(req: Request(wisp.Connection), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
-      case spec.router(req, ctx) {
+      case spec.router(req, ctx, spec.session_cookie_name) {
         Error(Nil) ->
           Error(Nil)
 
@@ -330,8 +331,7 @@ fn build_web_req_handler(
 ) -> resp.Response(mist.ResponseData) {
   let session =
     mist_req
-    |> session.read(name: session_cookie_name, secret_key_base:)
-    |> result.lazy_unwrap(fn() { types.zero_session() })
+    |> session.read_mist(name: session_cookie_name, secret_key_base:)
 
   let ctx = context.build(session:, cfg:, pubsub:, authenticate: spec.authenticate)
 

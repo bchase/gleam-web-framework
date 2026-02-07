@@ -84,7 +84,7 @@ fn update(
 fn view(
   model: Model,
   _user: Option(user),
-  _user_client_info: types.UserClientInfo,
+  _user_client_info: Option(types.UserClientInfo),
 ) -> Element(Msg) {
   html.div([], [
     html.h1([], [html.text("App Counter")]),

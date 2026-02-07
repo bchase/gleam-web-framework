@@ -9,7 +9,7 @@ pub type Context(config, pubsub, user) {
   Context(
     cfg: config,
     pubsub: pubsub,
-    user_client_info: UserClientInfo,
+    user_client_info: Option(UserClientInfo),
     user: Option(user),
   )
 }

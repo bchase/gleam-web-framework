@@ -1,3 +1,7 @@
+import gleam/string
+import gleam/result
+import gleam/option.{None}
+import app/web/session
 import lustre/attribute as attr
 import lustre/element.{type Element}
 import lustre/element/html
@@ -13,17 +17,50 @@ import app/monad/app.{pure}
 
 pub fn handler(
   req req: Request(wisp.Connection),
-  ctx _ctx: Context(config, pubsub, user),
+  ctx ctx: Context(config, pubsub, user),
+  session_cookie_name session_cookie_name: String,
 ) -> Result(Handler(config, pubsub, user), Nil) {
   case req |> wisp.path_segments {
+    ["_user_client_info"] ->
+      Ok(spec.AppWispHandler(handle: fn(req) {
+        session.set_session_user_client_info_using_req_json_body(
+          req:,
+          session_cookie_name:,
+        )
+        |> result.lazy_unwrap(fn() {
+            wisp.response(400)
+        })
+        |> pure
+      }))
+
     [] ->
       Ok(spec.AppLustreHandler(handle: fn(_req) {
+        let has_uci = ctx.user_client_info |> option.is_some
+
         pure(spec.LustreResponse(
           status: 200,
           headers: dict.new(),
-          element: html.text("routed with `App` + lustre"),
+          element: html.div([], [
+            html.p([], [
+              html.text("Home"),
+            ]),
+            html.p([], [
+              html.text("has user client info: " <> has_uci |> string.inspect),
+            ]),
+            case ctx.user_client_info {
+              None ->
+                html.meta([attr.name("no-user-client-info")])
+
+              option.Some(_) ->
+                html.text("")
+
+            },
+            gleam_browser_script(),
+          ]),
         ))
       }))
+
+    //
 
     ["counter"] ->
       Ok(spec.AppLustreHandler(handle: fn(_req) {
@@ -94,5 +131,13 @@ fn lustre_server_component_client_script() -> Element(msg) {
   html.script([
     attr.type_("module"),
     attr.src("/static/js/lustre-server-component.min.mjs"),
+  ], "")
+}
+
+fn gleam_browser_script(
+) -> Element(msg) {
+  html.script([
+    attr.type_("module"),
+    attr.src("/static/js/gleam-browser.js"),
   ], "")
 }

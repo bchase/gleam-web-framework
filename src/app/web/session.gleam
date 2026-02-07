@@ -1,15 +1,16 @@
+import gleam/bool
 import gleam/list
 import gleam/json
 import gleam/bit_array
 import gleam/result.{try}
-import gleam/option.{type Option, Some}
+import gleam/option.{type Option, Some, None}
 import wisp
 import gleam/crypto
 import gleam/http
 import gleam/http/cookie
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
-import app/types.{type Session}
+import app/types.{type Session, type UserClientInfo}
 
 // https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1798-L1817
 pub fn write(
@@ -42,26 +43,22 @@ pub fn write(
   |> response.set_cookie(session_cookie_name, signed_session_str, attrs)
 }
 
-pub fn read(
+pub fn read_mist(
   req req: Request(t),
   name name: String,
   secret_key_base secret_key_base: String,
 ) -> Result(Session, Nil) {
-  use str <- try(read_string(req:, name:, secret_key_base:))
+  use str <- try(read_mist_string(req:, name:, secret_key_base:))
+  echo str
   use session <- try(json.parse(str, types.decoder_session()) |> result.replace_error(Nil))
   Ok(session)
 }
 
-fn read_string(
+fn read_mist_string(
   req req: Request(t),
   name name: String,
   secret_key_base secret_key_base: String,
 ) -> Result(String, Nil) {
-  // req
-  // |> request.get_cookies()
-  // |> list.key_find(key)
-  // |> result.try(verify_signed_message(_, secret_key_base))
-  // |> result.try(bit_array.to_string)
   let cookies = req |> request.get_cookies
   use raw <- try(list.key_find(cookies, name))
   use bits <- try(verify_signed_message(raw, secret_key_base))
@@ -75,4 +72,58 @@ fn verify_signed_message(
   secret_key_base: String,
 ) -> Result(BitArray, Nil) {
   crypto.verify_signed_message(message, <<secret_key_base:utf8>>)
+}
+
+//
+
+pub fn set_session_user_client_info_using_req_json_body(
+  req req: Request(wisp.Connection),
+  session_cookie_name session_cookie_name: String,
+) -> Result(Response(wisp.Body), Nil) {
+  use uci <- try(read_user_client_info_from_json_body(req:))
+
+  let session =
+    read_wisp(req:, name: session_cookie_name)
+    |> result.lazy_unwrap(fn() { types.zero_session() })
+
+  let session = types.Session(..session, user_client_info: Some(uci))
+
+  wisp.response(200)
+  |> write(req:, session:, max_age: None, session_cookie_name:)
+  |> Ok
+}
+
+fn read_user_client_info_from_json_body(
+  req req: Request(wisp.Connection),
+) -> Result(UserClientInfo, Nil) {
+  use content_type <- try(req |> request.get_header("content-type"))
+  echo content_type
+  use <- bool.guard(content_type != "application/json", Error(Nil))
+  use body <- try(req |> wisp.read_body_bits)
+  echo body
+  use body <- try(body |> bit_array.to_string)
+  echo body
+  use uci <- try(json.parse(body, types.decoder_user_client_info()) |> result.replace_error(Nil))
+  echo uci
+  Ok(uci)
+}
+
+pub fn read_wisp(
+  req req: Request(wisp.Connection),
+  name name: String,
+) -> Result(Session, Nil) {
+  use str <- try(read_string_wisp(req:, name:))
+  use session <- try(json.parse(str, types.decoder_session()) |> result.replace_error(Nil))
+  Ok(session)
+}
+
+fn read_string_wisp(
+  req req: Request(wisp.Connection),
+  name name: String,
+) -> Result(String, Nil) {
+  let cookies = req |> request.get_cookies
+  use raw <- try(list.key_find(cookies, name))
+  use bits <- try(wisp.verify_signed_message(req, raw))
+  use val <- try(bit_array.to_string(bits))
+  Ok(val)
 }
