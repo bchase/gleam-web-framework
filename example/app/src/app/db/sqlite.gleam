@@ -4,7 +4,7 @@ import fpo/monad/app/db/parrot_sqlite as db
 import fpo/db/parrot.{type Parrot}
 import fpo/monad/app.{type App}
 import sqlight
-import app/config.{type Config}
+import app/types.{type Config}
 
 pub fn many(
   parrot parrot: Parrot(t),

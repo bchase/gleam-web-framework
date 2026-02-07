@@ -8,11 +8,11 @@ import app/web/components/counter_app
 import app/web/components/pubsub_demo
 import app/web/components/sqlite_demo
 import app/web/components/postgres_demo
-import app/config
+import app/types.{type Config, type PubSub} as _
 
 pub fn lustre_server_component_router(
   req req: Request(mist.Connection),
-  ctx ctx: Context(config.Config, config.PubSub, user),
+  ctx ctx: Context(Config, PubSub, user),
 ) -> Result(resp.Response(mist.ResponseData), Nil) {
   case req |> request.path_segments {
     ["ws", "counter"] ->

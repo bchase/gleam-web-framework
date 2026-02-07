@@ -1,11 +1,12 @@
 import gleam/option.{Some}
-import app/config.{type Config, type PubSub, add_pubsub_workers, authenticate}
-import app/user.{type User}
+import app/config.{add_pubsub_workers}
+import app/user.{type User, authenticate}
 import fpo/types.{type EnvVar, Features}
 import fpo/types/spec.{type Spec, Spec}
 import app/web/websockets
 import app/web/router
 import cloak_wrapper/aes/gcm as aes_gcm
+import app/types.{type Config, type PubSub} as _
 
 const cloak_key_env_var_name = "CLOAK_KEY"
 

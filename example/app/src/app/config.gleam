@@ -2,25 +2,16 @@ import gleam/erlang/process
 import gleam/result
 import gleam/dynamic/decode
 import gleam/string
-import gleam/option.{type Option, Some, None}
+import gleam/option.{Some}
 import gleam/otp/static_supervisor
 import fpo/pubsub
-import fpo/types.{type Session, type Flags}
-import app/pubsub.{type TextMsg} as _
-import app/user.{type User}
+import fpo/types.{type Flags} as _
 import pog
 import sqlight
-import fpo/cloak.{type Cloak}
+import app/types.{type Config, type PubSub, Config, PubSub}
 
 const sqlite_db_path = "./app-sqlite3.db"
 const postgres_conn_url = "postgres://webapp:webapp@127.0.0.1:5432/app_gleam"
-
-pub fn authenticate(
-  session _session: Session,
-  cfg _cfg: Config,
-) -> Option(User) {
-  None
-}
 
 pub fn add_pubsub_workers(
   supervisor supervisor: static_supervisor.Builder,
@@ -38,20 +29,6 @@ pub fn add_pubsub_workers(
   let pubsub = PubSub(text:)
 
   #(supervisor, pubsub)
-}
-
-pub type Config {
-  Config(
-    cloak: Cloak,
-    sqlite_conn: sqlight.Connection,
-    postgres_conn: pog.Connection,
-  )
-}
-
-pub type PubSub {
-  PubSub(
-    text: pubsub.PubSub(TextMsg),
-  )
 }
 
 pub fn init(
@@ -136,4 +113,4 @@ fn connect_to_postgres() -> pog.Connection {
         ] |> string.join(" ") }
     }
   }
-}
+ }

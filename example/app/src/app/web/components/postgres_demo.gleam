@@ -13,12 +13,12 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import app/config
 import app/domain/msgs/postgres as msgs
+import app/types.{type Config, type PubSub} as _
 
 pub fn component(
-  ctx ctx: Context(config.Config, config.PubSub, user),
-) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
+  ctx ctx: Context(Config, PubSub, user),
+) -> lustre.App(Context(Config, PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
     module: "app/web/components/postgres_demo",
     init:,
@@ -43,7 +43,7 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), config.Config, config.PubSub, user) {
+fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user) {
   Model(
     nil: Nil,
     msgs: [],
@@ -77,7 +77,7 @@ pub opaque type Msg {
 fn update(
   model: Model,
   msg: Msg,
-) -> App(#(Model, Effect(Msg)), config.Config, pubsub, user) {
+) -> App(#(Model, Effect(Msg)), Config, pubsub, user) {
   case msg {
     NoOp ->
       model

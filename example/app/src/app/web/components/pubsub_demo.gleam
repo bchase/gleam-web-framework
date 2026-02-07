@@ -1,6 +1,6 @@
 import gleam/list
 import fpo/monad/app.{type App}
-import fpo/types.{type Context}
+import fpo/types.{type Context, type UserClientInfo} as _
 import fpo/lustre/server_component as lsc
 import fpo/lustre.{continue} as _
 import gleam/erlang/process.{type Selector}
@@ -10,13 +10,13 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import app/config
 import app/pubsub.{type TextMsg, TextMsg} as _
 import app/pubsub/helpers as pubsub
+import app/types.{type Config, type PubSub}
 
 pub fn component(
-  ctx ctx: Context(config.Config, config.PubSub, user),
-) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
+  ctx ctx: Context(Config, PubSub, user),
+) -> lustre.App(Context(Config, PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
     module: "app/web/components/pubsub_demo",
     init:,
@@ -30,7 +30,7 @@ pub fn component(
 
 fn selectors(
   model _model: Model,
-) -> List(App(Selector(Msg), config, config.PubSub, user)) {
+) -> List(App(Selector(Msg), config, PubSub, user)) {
   [
     app.subscribe(
       to: "msgs",
@@ -47,7 +47,7 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), config.Config, config.PubSub, user) {
+fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user) {
   Model(
     nil: Nil,
     msgs: [],
@@ -64,7 +64,7 @@ pub opaque type Msg {
 fn update(
   model: Model,
   msg: Msg,
-) -> App(#(Model, Effect(Msg)), config, config.PubSub, user) {
+) -> App(#(Model, Effect(Msg)), config, PubSub, user) {
   case msg {
     NoOp ->
       model
@@ -93,7 +93,7 @@ fn update(
 fn view(
   model: Model,
   _user: Option(user),
-  _user_client_info: Option(types.UserClientInfo),
+  _user_client_info: Option(UserClientInfo),
 ) -> Element(Msg) {
   let text = "hello"
 
