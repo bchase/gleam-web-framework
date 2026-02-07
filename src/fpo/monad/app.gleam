@@ -1,9 +1,9 @@
 import gleam/erlang/process
 import gleam/list
 import gleam/option.{type Option}
-import app/types.{type Context}
-import app/types/err.{type Err}
-import app/pubsub
+import fpo/types.{type Context}
+import fpo/types/err.{type Err}
+import fpo/pubsub
 
 pub opaque type App(t, config, pubsub, user) {
   App(run: fn(Context(config, pubsub, user)) -> Result(t, Err))

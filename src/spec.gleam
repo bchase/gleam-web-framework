@@ -1,8 +1,8 @@
 import gleam/option.{Some}
 import spec/config.{type Config, type PubSub, add_pubsub_workers, authenticate}
 import spec/user.{type User}
-import app/types.{type EnvVar, Features}
-import app/types/spec.{type Spec, Spec}
+import fpo/types.{type EnvVar, Features}
+import fpo/types/spec.{type Spec, Spec}
 import spec/websockets
 import spec/router
 import cloak_wrapper/aes/gcm as aes_gcm
@@ -11,8 +11,8 @@ const cloak_key_env_var_name = "CLOAK_KEY"
 
 pub fn spec() -> Spec(Config, PubSub, User) {
   Spec(
-    app_module_name: "app",
-    session_cookie_name: "app",
+    app_module_name: "fpo",
+    session_cookie_name: "fpo",
     dot_env_relative_path: ".env",
     secret_key_base_env_var_name: "SECRET_KEY_BASE",
     //

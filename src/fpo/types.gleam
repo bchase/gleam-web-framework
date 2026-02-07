@@ -1,4 +1,4 @@
-import app/cloak.{type Cloak}
+import fpo/cloak.{type Cloak}
 import cloak_wrapper/aes/gcm as aes_gcm
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}

@@ -15,15 +15,15 @@ import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import app/types.{type Context, type EnvVar, EnvVar}
-import app/context
-import app/web/session
-import app/monad/app.{type App}
-import app/types/err.{type Err}
-import app/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppWispSessionCookieHandler, AppLustreHandler, LustreResponse}
+import fpo/types.{type Context, type EnvVar, EnvVar}
+import fpo/context
+import fpo/web/session
+import fpo/monad/app.{type App}
+import fpo/types/err.{type Err}
+import fpo/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppWispSessionCookieHandler, AppLustreHandler, LustreResponse}
 import lustre/element.{type Element}
 import wisp
-import app/flags
+import fpo/flags
 
 const web_req_handler_worker_shutdown_ms = 60_000
 

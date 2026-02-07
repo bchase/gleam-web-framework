@@ -12,5 +12,5 @@ pub fn node_send(
 @external(erlang, "erlang", "send")
 fn erl_send(receiver: #(process.Name(t), node.Node), message: msg) -> Nil
 
-@external(erlang, "app_erl_ffi", "unsafe_cast")
+@external(erlang, "fpo_erl_ffi", "unsafe_cast")
 pub fn unsafe_cast(a: a) -> b

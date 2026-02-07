@@ -2,16 +2,16 @@ import gleam/list
 import gleam/string
 import gleam/result
 import gleam/option.{None}
-import app/web/session
+import fpo/web/session
 import lustre/attribute as attr
 import lustre/element.{type Element}
 import lustre/element/html
 import gleam/dict
 import gleam/http/request.{type Request}
-import app/types.{type Context}
+import fpo/types.{type Context}
 import wisp
-import app/types/spec.{type Handler}
-import app/monad/app.{pure}
+import fpo/types/spec.{type Handler}
+import fpo/monad/app.{pure}
 import spec/examples/counter
 import spec/examples/counter_app
 import spec/examples/server_component_elements as lscs

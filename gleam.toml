@@ -1,4 +1,4 @@
-name = "app"
+name = "fpo"
 version = "0.1.0"
 
 target = "erlang"

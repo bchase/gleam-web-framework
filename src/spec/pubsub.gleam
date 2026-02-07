@@ -1,4 +1,4 @@
-import app/generic/json.{type Transcoders, Transcoders} as _
+import fpo/generic/json.{type Transcoders, Transcoders} as _
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 

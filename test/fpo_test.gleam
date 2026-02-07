@@ -2,7 +2,7 @@ import gleam/dynamic/decode
 import gleeunit
 import gleeunit/should
 import sqlight
-import app/db/sqlight as app_sqlight
+import fpo/db/sqlight as app_sqlight
 
 pub fn main() -> Nil {
   gleeunit.main()

@@ -1,4 +1,4 @@
-import app/web
+import fpo/web
 import gleam/erlang/process
 import gleam/otp/static_supervisor
 import spec

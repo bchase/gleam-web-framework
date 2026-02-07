@@ -2,17 +2,17 @@ import gleam/erlang/process
 import gleam/result
 import gleam/dynamic/decode
 import gleam/string
-import app/oauth
-import app/oauth/oura
+import fpo/oauth
+import fpo/oauth/oura
 import gleam/option.{type Option, Some, None}
 import gleam/otp/static_supervisor
-import app/pubsub
-import app/types.{type Session, type Flags}
+import fpo/pubsub
+import fpo/types.{type Session, type Flags}
 import spec/pubsub.{type TextMsg} as _
 import spec/user.{type User}
 import pog
 import sqlight
-import app/cloak.{type Cloak}
+import fpo/cloak.{type Cloak}
 
 const sqlite_db_path = "./app-sqlite3.db"
 const postgres_conn_url = "postgres://webapp:webapp@127.0.0.1:5432/app_gleam"

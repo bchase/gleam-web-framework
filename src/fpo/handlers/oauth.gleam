@@ -1,4 +1,4 @@
-import app/oauth
+import fpo/oauth
 import gleam/result
 import gleam/list
 import wisp.{type Request, type Response}

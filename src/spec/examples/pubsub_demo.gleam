@@ -1,8 +1,8 @@
 import gleam/list
-import app/monad/app.{type App}
-import app/types.{type Context}
-import app/lustre/server_component as lsc
-import app/lustre.{continue} as _
+import fpo/monad/app.{type App}
+import fpo/types.{type Context}
+import fpo/lustre/server_component as lsc
+import fpo/lustre.{continue} as _
 import gleam/erlang/process.{type Selector}
 import gleam/option.{type Option, None}
 import lustre
@@ -18,7 +18,7 @@ pub fn component(
   ctx ctx: Context(config.Config, config.PubSub, user),
 ) -> lustre.App(Context(config.Config, config.PubSub, user), Model, lsc.Wrapped(Msg)) {
   lsc.build_lustre_app(
-    module: "app/examples/pubsub_demo",
+    module: "fpo/examples/pubsub_demo",
     init:,
     post_init: None,
     selectors:,

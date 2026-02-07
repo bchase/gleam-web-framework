@@ -1,4 +1,4 @@
-import app/pubsub
+import fpo/pubsub
 import spec/config
 import spec/pubsub.{type TextMsg} as _
 

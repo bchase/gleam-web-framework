@@ -1,5 +1,5 @@
 import gleam/option.{type Option, None}
-import app/types.{type Context, type Session, Context}
+import fpo/types.{type Context, type Session, Context}
 
 pub fn build(
   session session: Result(Session, Nil),

@@ -1,9 +1,9 @@
 import gleam/erlang/process
 import gleam/option.{Some, None}
 import gleam/otp/static_supervisor
-import app/types.{type Features, type Flags, Flags, type EnvVar}
+import fpo/types.{type Features, type Flags, Flags, type EnvVar}
 import cloak_wrapper/store as cloak_store
-import app/cloak.{Cloak}
+import fpo/cloak.{Cloak}
 
 pub fn build(
   features features: Features,

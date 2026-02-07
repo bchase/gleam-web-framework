@@ -6,8 +6,8 @@ import gleam/option.{type Option}
 import lustre/element.{type Element}
 import mist
 import wisp
-import app/types.{type Context, type Session, type Flags, type Features}
-import app/monad/app.{type App}
+import fpo/types.{type Context, type Session, type Flags, type Features}
+import fpo/monad/app.{type App}
 
 pub type Spec(config, pubsub, user) {
   Spec(

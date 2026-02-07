@@ -3,7 +3,7 @@ import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import gleam/json
 import gleam/option.{type Option, Some}
-import app/types.{type Context}
+import fpo/types.{type Context}
 import lustre
 import lustre/runtime/server/runtime
 import lustre/server_component

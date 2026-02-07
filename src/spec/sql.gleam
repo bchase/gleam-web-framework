@@ -1,1 +1,1 @@
-../app/sql.gleam
+../../src/fpo/sql.gleam

@@ -1,5 +1,5 @@
 import gleam/option.{type Option, Some, None}
-import app/erl
+import fpo/erl
 import gleam/bool
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
@@ -14,7 +14,7 @@ import gleam/otp/supervision.{type ChildSpecification}
 import gleam/result
 import gleam/string
 import group_registry as gr
-import app/generic/json.{type Transcoders} as _
+import fpo/generic/json.{type Transcoders} as _
 //
 import gleam/otp/static_supervisor
 

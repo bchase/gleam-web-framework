@@ -10,7 +10,7 @@ import gleam/http
 import gleam/http/cookie
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
-import app/types.{type Session, type UserClientInfo}
+import fpo/types.{type Session, type UserClientInfo}
 
 // https://github.com/gleam-wisp/wisp/blob/v1.3.0/src/wisp.gleam#L1798-L1817
 pub fn write(

@@ -6,9 +6,9 @@ import gleam/option.{type Option, Some, None}
 import lustre
 import lustre/server_component
 import lustre/effect.{type Effect}
-import app/types.{type Context, type UserClientInfo}
-import app/monad/app.{type App, do, pure, ok}
-import app/lustre.{continue} as _
+import fpo/types.{type Context, type UserClientInfo}
+import fpo/monad/app.{type App, do, pure, ok}
+import fpo/lustre.{continue} as _
 import gleam/erlang/process.{type Selector}
 import lustre/element.{type Element}
 

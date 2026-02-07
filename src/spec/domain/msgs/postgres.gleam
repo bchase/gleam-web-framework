@@ -1,8 +1,8 @@
-import app/monad/app.{type App}
+import fpo/monad/app.{type App}
 import gleam/list
 import spec/config.{type Config}
 import spec/db/postgres as db
-import spec/sql
+import fpo/sql
 
 pub type Message {
   //$ derive from spec/sql.ListAllMsgs

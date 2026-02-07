@@ -1,7 +1,7 @@
 import gleam/erlang/process
-import app/monad/app.{type App, pure, do}
-import app/types/err
-// import app/types.{type Context}
+import fpo/monad/app.{type App, pure, do}
+import fpo/types/err
+// import fpo/types.{type Context}
 import lustre/effect.{type Effect}
 
 pub fn component(

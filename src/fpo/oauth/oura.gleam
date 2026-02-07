@@ -1,6 +1,6 @@
-import app/oauth
+import fpo/oauth
 import dot_env/env
-// import app/oauth/refresh.{build_refreshed_client}
+// import fpo/oauth/refresh.{build_refreshed_client}
 
 const oura_authz_base_uri = "https://cloud.ouraring.com"
 const oura_authz_endpoint_path = "oauth/authorize"

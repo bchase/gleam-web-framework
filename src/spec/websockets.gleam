@@ -1,8 +1,8 @@
-import app/types.{type Context}
+import fpo/types.{type Context}
 import gleam/http/request.{type Request}
 import gleam/http/response as resp
 import mist
-import app/lustre/server_component/socket
+import fpo/lustre/server_component/socket
 import spec/examples/counter
 import spec/examples/counter_app
 import spec/examples/pubsub_demo
