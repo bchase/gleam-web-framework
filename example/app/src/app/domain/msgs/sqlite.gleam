@@ -1,9 +1,9 @@
+import app/db/sqlite as db
+import app/sql
+import app/types.{type Config}
 import fpo/db/parrot
 import fpo/monad/app.{type App}
 import gleam/list
-import app/types.{type Config}
-import app/db/sqlite as db
-import app/sql
 
 pub type Message {
   //$ derive from app/sql.ListAllMsgs

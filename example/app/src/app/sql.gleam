@@ -44,3 +44,22 @@ pub fn delete_msg(id id: Int) {
 where id = ?1"
   #(sql, [dev.ParamInt(id)])
 }
+
+pub type AuthenticateUser {
+  AuthenticateUser(id: Int, name: String)
+}
+
+pub fn authenticate_user(hashed_token hashed_token: String) {
+  let sql =
+    "select u.id, u.name
+from users as u
+join user_tokens as ut
+where ut.hashed_token = ?1"
+  #(sql, [dev.ParamString(hashed_token)], authenticate_user_decoder())
+}
+
+pub fn authenticate_user_decoder() -> decode.Decoder(AuthenticateUser) {
+  use id <- decode.field(0, decode.int)
+  use name <- decode.field(1, decode.string)
+  decode.success(AuthenticateUser(id:, name:))
+}
