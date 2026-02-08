@@ -24,14 +24,15 @@ pub fn get(
 pub fn insert_session_token(
   user user: User,
   hashed_token hashed_token: String,
-) -> App(Result(Nil, Nil), Config, pubsub, user) {
+) -> App(Result(sql.InsertUserToken, Nil), Config, pubsub, user) {
   sql.insert_user_token(hashed_token:, context: "session", user_id: user.id)
-  |> parrot.from_exec
   |> db.one
-  |> app.map(fn(x) {
-    echo x
-    x
-  })
+}
+
+pub fn list_user_tokens(
+) -> App(List(sql.ListUserTokens), Config, pubsub, user) {
+  sql.list_user_tokens()
+  |> db.many
 }
 
 

@@ -53,8 +53,7 @@ pub fn authenticate_user(hashed_token hashed_token: String) {
   let sql =
     "select u.id, u.name
 from users as u
-join user_tokens as ut
-  on u.id = ut.user_id
+join user_tokens as ut on u.id = ut.user_id
 where ut.hashed_token = ?1"
   #(sql, [dev.ParamString(hashed_token)], authenticate_user_decoder())
 }
@@ -65,21 +64,36 @@ pub fn authenticate_user_decoder() -> decode.Decoder(AuthenticateUser) {
   decode.success(AuthenticateUser(id:, name:))
 }
 
+pub type InsertUserToken {
+  InsertUserToken(id: Int, hashed_token: String, context: String, user_id: Int)
+}
+
 pub fn insert_user_token(
   hashed_token hashed_token: String,
   context context: String,
   user_id user_id: Int,
 ) {
   let sql =
-    "insert into user_tokens
-  ( hashed_token, context, user_id )
-values
-  ( ?1, ?2, ?3 )"
-  #(sql, [
-    dev.ParamString(hashed_token),
-    dev.ParamString(context),
-    dev.ParamInt(user_id),
-  ])
+    "insert into user_tokens ( hashed_token, context, user_id )
+values ( ?1, ?2, ?3 )
+returning id, hashed_token, context, user_id"
+  #(
+    sql,
+    [
+      dev.ParamString(hashed_token),
+      dev.ParamString(context),
+      dev.ParamInt(user_id),
+    ],
+    insert_user_token_decoder(),
+  )
+}
+
+pub fn insert_user_token_decoder() -> decode.Decoder(InsertUserToken) {
+  use id <- decode.field(0, decode.int)
+  use hashed_token <- decode.field(1, decode.string)
+  use context <- decode.field(2, decode.string)
+  use user_id <- decode.field(3, decode.int)
+  decode.success(InsertUserToken(id:, hashed_token:, context:, user_id:))
 }
 
 pub fn delete_user_token(hashed_token hashed_token: String) {
@@ -87,4 +101,23 @@ pub fn delete_user_token(hashed_token hashed_token: String) {
     "delete from user_tokens
 where hashed_token = ?1"
   #(sql, [dev.ParamString(hashed_token)])
+}
+
+pub type ListUserTokens {
+  ListUserTokens(id: Int, hashed_token: String, context: String, user_id: Int)
+}
+
+pub fn list_user_tokens() {
+  let sql =
+    "
+select id, hashed_token, context, user_id from user_tokens"
+  #(sql, [], list_user_tokens_decoder())
+}
+
+pub fn list_user_tokens_decoder() -> decode.Decoder(ListUserTokens) {
+  use id <- decode.field(0, decode.int)
+  use hashed_token <- decode.field(1, decode.string)
+  use context <- decode.field(2, decode.string)
+  use user_id <- decode.field(3, decode.int)
+  decode.success(ListUserTokens(id:, hashed_token:, context:, user_id:))
 }

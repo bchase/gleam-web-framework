@@ -43,13 +43,28 @@ pub fn handler(
           status: 200,
           headers: dict.new(),
           element: html.div([], [
+            html.div([], [
+              html.a([
+                attr.href("/auth/session/create"),
+              ], [
+                html.text("sign in"),
+              ]),
+
+              html.text(" | "),
+
+              html.a([
+                attr.href("/auth/session/delete"),
+              ], [
+                html.text("sign out"),
+              ]),
+            ]),
+
             html.p([], [
               html.text("Home"),
             ]),
 
             html.p([], [
               ctx.user
-              |> echo
               |> string.inspect
               |> html.text
             ]),
@@ -81,7 +96,8 @@ pub fn handler(
             wisp.response(500)
 
           Ok(session) ->
-            wisp.response(200)
+            wisp.response(302)
+            |> wisp.set_header("location", "/")
             |> session.write(
               req:,
               session:,
@@ -96,21 +112,16 @@ pub fn handler(
       Ok(spec.AppWispSessionCookieHandler(handle: fn(_req, session, session_cookie_name) {
         let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
 
-        use result <- do(user.sign_out(session:))
+        use session <- do(user.sign_out(session:))
 
-        case result {
-          Error(Nil) ->
-            wisp.response(500)
-
-          Ok(session) ->
-            wisp.response(200)
-            |> session.write(
-              req:,
-              session:,
-              max_age: None,
-              session_cookie_name:,
-            )
-        }
+        wisp.response(302)
+        |> wisp.set_header("location", "/")
+        |> session.write(
+          req:,
+          session:,
+          max_age: None,
+          session_cookie_name:,
+        )
         |> pure
       }))
 
