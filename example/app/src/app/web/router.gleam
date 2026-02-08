@@ -12,7 +12,8 @@ import gleam/http/request.{type Request}
 import fpo/types.{type Context}
 import wisp
 import fpo/types/spec.{type Handler}
-import fpo/monad/app.{pure, do}
+import fpo/monad/app.{type App, pure, do}
+import fpo/web/authe
 import app/web/components/counter
 import app/web/components/counter_app
 import app/web/components/server_component_elements as lscs
@@ -84,46 +85,21 @@ pub fn handler(
 
     //
 
-    _, ["auth", "session", "create"] ->
-      Ok(spec.AppWispSessionCookieHandler(handle: fn(req, session, session_cookie_name) {
-        let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
+    _, ["auth", "session", "create"] -> {
+      let dummy_user = users.User(id: 1, name: "")
 
-        let user = users.User(id: 1, name: "")
-        use result <- do(user.sign_in(user:, session:))
+      authe.sign_in(
+        user: dummy_user,
+        redirect_to: "/",
+        persist_user_token: user.insert_user_token,
+      )
+    }
 
-        case result {
-          Error(Nil) ->
-            wisp.response(500)
-
-          Ok(session) ->
-            wisp.response(302)
-            |> wisp.set_header("location", "/")
-            |> session.write(
-              req:,
-              session:,
-              max_age: None,
-              session_cookie_name:,
-            )
-        }
-        |> pure
-      }))
-
-    _, ["auth", "session", "delete"] ->
-      Ok(spec.AppWispSessionCookieHandler(handle: fn(_req, session, session_cookie_name) {
-        let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
-
-        use session <- do(user.sign_out(session:))
-
-        wisp.response(302)
-        |> wisp.set_header("location", "/")
-        |> session.write(
-          req:,
-          session:,
-          max_age: None,
-          session_cookie_name:,
-        )
-        |> pure
-      }))
+    _, ["auth", "session", "delete"] -> {
+      authe.sign_out(
+        delete_user_token: user.delete_user_token,
+      )
+    }
 
     //
 
@@ -209,7 +185,6 @@ fn set_user_client_info_if_missing(
 
       option.Some(_) ->
         html.text("")
-
     },
 
     html.script([
