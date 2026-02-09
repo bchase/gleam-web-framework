@@ -84,15 +84,6 @@ fn connect_to_sqlite_and_migrate() -> sqlight.Connection {
 
   let assert Ok(_migrated) = result as "migrated sqlite `user_tokens` table"
 
-  let result = "
-    create table if not exists users (
-      id integer not null primary key autoincrement,
-      name text not null
-    );
-  " |> sqlight.query(conn, [], decode.success(Nil))
-
-  let assert Ok(_migrated) = result as "migrated sqlite `users` table"
-
   //
 
   let result = "

@@ -1,6 +1,6 @@
 import gleam/erlang/process
 import gleam/list
-import gleam/option.{type Option}
+import gleam/option.{type Option, Some, None}
 import fpo/types.{type Context}
 import fpo/types/err.{type Err}
 import fpo/pubsub
@@ -182,4 +182,17 @@ pub fn broadcast(
   |> pubsub.broadcast(channel:, msg:)
 
   cont()
+}
+
+// REDIRECT
+
+pub fn redirect(
+  to location: String
+) -> App(anything, config, pubsub, user) {
+  fail(err.RedirectTo(
+    location:,
+    using: err.Redirect302,
+    flash: None,
+    err: None,
+  ))
 }

@@ -1,6 +1,6 @@
-import fpo/cloak.{type Cloak}
 import cloak_wrapper/aes/gcm as aes_gcm
 import deriv/util as deriv
+import fpo/cloak.{type Cloak}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{type Option, None}
@@ -11,12 +11,26 @@ pub type Context(config, pubsub, user) {
     pubsub: pubsub,
     user_client_info: Option(UserClientInfo),
     user: Option(user),
+    fpo: Fpo,
+  )
+}
+
+pub type Fpo {
+  Fpo(
+    set_user_client_info: Option(SetUserClientInfo),
+  )
+}
+pub type SetUserClientInfo {
+  SetUserClientInfo(
+    path_prefix: String,
+    browser_js_path: String,
   )
 }
 
 pub type Features {
   Features(
     cloak: Option(fn(EnvVar) -> aes_gcm.Config),
+    set_user_client_info: Option(SetUserClientInfo),
   )
 }
 

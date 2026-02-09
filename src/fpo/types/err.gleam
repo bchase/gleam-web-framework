@@ -10,7 +10,18 @@ pub type Err {
     detail: Option(Dynamic),
   )
 
+  RedirectTo(
+    location: String,
+    using: Redirect,
+    flash: Option(String),
+    err: Option(String),
+  )
+
   Err(
     msg: String,
   )
+}
+
+pub type Redirect {
+  Redirect302
 }

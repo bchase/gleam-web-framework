@@ -2,6 +2,18 @@ import lustre/element.{type Element}
 import lustre/attribute as attr
 import lustre/server_component
 
+pub fn counter() -> ServerComponentElement {
+  ServerComponentElement(
+    route: "/ws/counter",
+  )
+}
+
+pub fn counter_app() -> ServerComponentElement {
+  ServerComponentElement(
+    route: "/ws/counter_app",
+  )
+}
+
 pub fn pubsub_demo() -> ServerComponentElement {
   ServerComponentElement(
     route: "/ws/pubsub_demo",

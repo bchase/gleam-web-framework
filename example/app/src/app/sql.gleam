@@ -45,24 +45,27 @@ where id = ?1"
   #(sql, [dev.ParamInt(id)])
 }
 
-pub type AuthenticateUser {
-  AuthenticateUser(id: Int, name: String)
+pub type GetUserBy {
+  GetUserBy(id: Int, name: String)
 }
 
-pub fn authenticate_user(hashed_token hashed_token: String) {
+pub fn get_user_by(hashed_token hashed_token: String) {
   let sql =
     "select u.id, u.name
 from users as u
-join user_tokens as ut
-  on u.id = ut.user_id
+join user_tokens as ut on u.id = ut.user_id
 where ut.hashed_token = ?1"
-  #(sql, [dev.ParamString(hashed_token)], authenticate_user_decoder())
+  #(sql, [dev.ParamString(hashed_token)], get_user_by_decoder())
 }
 
-pub fn authenticate_user_decoder() -> decode.Decoder(AuthenticateUser) {
+pub fn get_user_by_decoder() -> decode.Decoder(GetUserBy) {
   use id <- decode.field(0, decode.int)
   use name <- decode.field(1, decode.string)
-  decode.success(AuthenticateUser(id:, name:))
+  decode.success(GetUserBy(id:, name:))
+}
+
+pub type InsertUserToken {
+  InsertUserToken(id: Int, hashed_token: String, context: String, user_id: Int)
 }
 
 pub fn insert_user_token(
@@ -71,20 +74,44 @@ pub fn insert_user_token(
   user_id user_id: Int,
 ) {
   let sql =
-    "insert into user_tokens
-  ( hashed_token, context, user_id )
-values
-  ( ?1, ?2, ?3 )"
-  #(sql, [
-    dev.ParamString(hashed_token),
-    dev.ParamString(context),
-    dev.ParamInt(user_id),
-  ])
+    "insert into user_tokens ( hashed_token, context, user_id )
+values ( ?1, ?2, ?3 )
+returning id, hashed_token, context, user_id"
+  #(
+    sql,
+    [
+      dev.ParamString(hashed_token),
+      dev.ParamString(context),
+      dev.ParamInt(user_id),
+    ],
+    insert_user_token_decoder(),
+  )
+}
+
+pub fn insert_user_token_decoder() -> decode.Decoder(InsertUserToken) {
+  use id <- decode.field(0, decode.int)
+  use hashed_token <- decode.field(1, decode.string)
+  use context <- decode.field(2, decode.string)
+  use user_id <- decode.field(3, decode.int)
+  decode.success(InsertUserToken(id:, hashed_token:, context:, user_id:))
+}
+
+pub type DeleteUserToken {
+  DeleteUserToken(id: Int, hashed_token: String, context: String, user_id: Int)
 }
 
 pub fn delete_user_token(hashed_token hashed_token: String) {
   let sql =
     "delete from user_tokens
-where hashed_token = ?1"
-  #(sql, [dev.ParamString(hashed_token)])
+where hashed_token = ?1
+returning id, hashed_token, context, user_id"
+  #(sql, [dev.ParamString(hashed_token)], delete_user_token_decoder())
+}
+
+pub fn delete_user_token_decoder() -> decode.Decoder(DeleteUserToken) {
+  use id <- decode.field(0, decode.int)
+  use hashed_token <- decode.field(1, decode.string)
+  use context <- decode.field(2, decode.string)
+  use user_id <- decode.field(3, decode.int)
+  decode.success(DeleteUserToken(id:, hashed_token:, context:, user_id:))
 }

@@ -1,3 +1,5 @@
+import gleam/option.{type Option, Some, None}
+import gleam/uri
 import lustre/element/html
 import gleam/string_tree
 import gleam/dict.{type Dict}
@@ -8,6 +10,7 @@ import gleam/int
 import dot_env/env
 import gleam/result
 import dot_env
+import gleam/http.{Get, Put}
 import gleam/http/response as resp
 import gleam/http/request.{type Request}
 import gleam/bytes_tree
@@ -20,10 +23,14 @@ import fpo/context
 import fpo/web/session
 import fpo/monad/app.{type App}
 import fpo/types/err.{type Err}
-import fpo/types/spec.{type Spec, type Handler, WispHandler, AppWispHandler, AppWispSessionCookieHandler, AppLustreHandler, LustreResponse}
+import fpo/types/spec.{type Spec, type Handler, Wisp, AppWisp, AppWispSessionCookie, AppLustre, LustreResponse}
 import lustre/element.{type Element}
 import wisp
 import fpo/flags
+import fpo/generic/guard
+import fpo/generic/mist as fpo_mist
+import fpo/generic/uri as fpo_uri
+import lustre/attribute as attr
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
@@ -82,6 +89,12 @@ fn web_req_handler(
   let app_module_name = spec.app_module_name
   let session_cookie_name = spec.session_cookie_name
 
+  let fpo_path_prefix =
+    case spec.config.features.set_user_client_info {
+      Some(info) -> info.path_prefix
+      None -> ""
+    }
+
   let secret_key_base =
     spec.secret_key_base_env_var_name
     |> secret_key_base(env_var_name: _)
@@ -90,7 +103,26 @@ fn web_req_handler(
     fn(req: Request(wisp.Connection), session: Result(Session, Nil), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
       case spec.router(req, ctx) {
         Error(Nil) ->
-          Error(Nil)
+          case req.method, req |> wisp.path_segments {
+            Get, [prefix, "user_client_info"] if prefix == fpo_path_prefix ->
+              Ok(wisp_html_resp(
+                status: 200,
+                headers: dict.new(),
+                element: view_set_user_client_info(
+                  req:,
+                  set_user_client_info: spec.config.features.set_user_client_info,
+                ),
+              ))
+
+            Put, [prefix, "user_client_info"] if prefix == fpo_path_prefix ->
+              case session.set_session_user_client_info_using_req_json_body(req:, session_cookie_name:) {
+                Ok(resp) -> Ok(resp)
+                Error(Nil) -> Ok(wisp.response(400))
+              }
+
+            _, _ ->
+              Error(Nil)
+          }
 
         Ok(handler) ->
           Ok(run_handler(req:, handler:, ctx:, session:, session_cookie_name:))
@@ -159,34 +191,19 @@ fn run_handler(
   session_cookie_name session_cookie_name: String,
 ) -> resp.Response(wisp.Body) {
   case handler {
-    WispHandler(handle:) ->
-      // req
-      // |> wisp_mist.handler(handle(_, ctx), secret_key_base)
+    Wisp(handle:) ->
       req
       |> handle(ctx)
 
-    AppWispHandler(handle:) ->
-      // req
-      // |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
-      //   resp
-      // })
+    AppWisp(handle:) ->
       req
       |> run_app_handle_wisp(handle:, ctx:, map_ok: fn(x) { x })
 
-    AppWispSessionCookieHandler(handle:) ->
-      // req
-      // |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
-      //   resp
-      // })
+    AppWispSessionCookie(handle:) ->
       req
       |> run_app_handle_wisp(handle: handle(_, session, session_cookie_name), ctx:, map_ok: fn(x) { x })
 
-    AppLustreHandler(handle:) ->
-      // req
-      // |> run_app_handle(handle:, ctx:, secret_key_base:, map_ok: fn(resp) {
-      //   let LustreResponse(status:, headers:, element:) = resp
-      //   wisp_html_resp(status:, headers:, element:)
-      // })
+    AppLustre(handle:) ->
       req
       |> run_app_handle_wisp(handle:, ctx:, map_ok: fn(resp) {
         let LustreResponse(status:, headers:, element:) = resp
@@ -252,6 +269,21 @@ fn to_wisp_err_resp(
   err err: Err,
 ) -> resp.Response(wisp.Body) {
   case err {
+    err.RedirectTo(location:, using:, ..) -> {
+      let status =
+        case using {
+          err.Redirect302 -> 302
+        }
+
+      wisp_html_resp(
+        status:,
+        element: element.none(),
+        headers: dict.from_list([
+          #("location", location),
+        ]),
+      )
+    }
+
     err.NotFound(..) ->
       wisp_html_resp(
         status: 404,
@@ -273,6 +305,21 @@ pub fn to_err_resp(
   err err: Err,
 ) -> resp.Response(mist.ResponseData) {
   case err {
+    err.RedirectTo(location:, using:, ..) -> {
+      let status =
+        case using {
+          err.Redirect302 -> 302
+        }
+
+      mist_html_resp(
+        status:,
+        element: element.none(),
+        headers: dict.from_list([
+          #("location", location),
+        ]),
+      )
+    }
+
     err.NotFound(..) ->
       mist_html_resp(
         status: 404,
@@ -328,6 +375,35 @@ fn wisp_html_resp(
   })
 }
 
+fn redirect_to_session_init(
+  then_redirect_to_path redirect_to_path: String,
+  features features: types.Features,
+) -> resp.Response(mist.ResponseData) {
+  let redirect_to = fn(location) {
+    fpo_mist.empty_resp(302)
+    |> resp.set_header("location", location)
+  }
+
+  use types.SetUserClientInfo(path_prefix, ..) <-
+    guard.some_(features.set_user_client_info, fn() { redirect_to("/") })
+
+  let redirect_to_path =
+    uri.percent_encode(redirect_to_path)
+
+  let location =
+    fpo_uri.from(
+      path: [ path_prefix, "user_client_info" ],
+      params: [
+        #("redirect_to_path", redirect_to_path),
+      ]
+    )
+    |> echo
+    |> uri.to_string
+    |> echo
+
+  redirect_to(location)
+}
+
 fn build_web_req_handler(
   mist_req mist_req: Request(mist.Connection),
   cfg cfg: config,
@@ -338,11 +414,30 @@ fn build_web_req_handler(
   handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   session_cookie_name session_cookie_name: String,
 ) -> resp.Response(mist.ResponseData) {
-  let session =
-    mist_req
-    |> session.read_mist(name: session_cookie_name, secret_key_base:)
+  let features = spec.config.features
 
-  let ctx = context.build(session:, cfg:, pubsub:, authenticate: spec.authenticate)
+  let session =
+    read_or_init_session(
+      req: mist_req,
+      secret_key_base:,
+      session_cookie_name:,
+      features:,
+    )
+
+  use session <- guard.ok_(session, fn(_err) {
+    redirect_to_session_init(then_redirect_to_path: mist_req.path, features:)
+  })
+
+
+  let session = Ok(session)
+
+  let ctx = context.build(
+    cfg:,
+    pubsub:,
+    session:,
+    authenticate: spec.authenticate,
+    features:,
+  )
 
   case mist_req |> request.path_segments {
     [prefix, ..] if prefix == spec.websockets_path_prefix ->
@@ -350,6 +445,42 @@ fn build_web_req_handler(
 
     _ ->
       mist_req |> handle_wisp_mist(session, ctx)
+  }
+}
+
+fn read_or_init_session(
+  req req: Request(mist.Connection),
+  secret_key_base secret_key_base: String,
+  session_cookie_name session_cookie_name: String,
+  features features: types.Features,
+) -> Result(Session, Nil) {
+  req
+  |> session.read_mist(name: session_cookie_name, secret_key_base:)
+  |> fn(result) {
+    case result, req |> request.path_segments {
+      Ok(session), _ ->
+        Ok(session)
+
+      Error(Nil), _ -> {
+        use types.SetUserClientInfo(path_prefix, browser_js_path) <-
+          guard.some_(features.set_user_client_info, fn() {
+            Error(Nil)
+          })
+
+        case req.path == browser_js_path, req |> request.path_segments {
+          True, _ ->
+            // allow `deps/browser` `.js` to load w/o session
+            Ok(types.zero_session())
+
+          False, [prefix, "user_client_info"] if prefix == path_prefix ->
+            // allow `GET /$PREFIX/user_client_info` to load to perform PUT then redirect
+            Ok(types.zero_session())
+
+          False, _ ->
+            Error(Nil)
+        }
+      }
+    }
   }
 }
 
@@ -385,12 +516,7 @@ fn default_wisp_response(
 fn default_mist_websockets_response(
   req _req: Request(mist.Connection),
 ) -> resp.Response(mist.ResponseData) {
-  404
-  |> resp.new
-  |> resp.set_body(
-    bytes_tree.new()
-    |> mist.Bytes
-  )
+  fpo_mist.empty_resp(404)
 }
 
 fn default_responses(
@@ -461,4 +587,33 @@ fn static_directory(
 ) {
   let assert Ok(priv_directory) = wisp.priv_directory(app_module_name)
   priv_directory <> "/static"
+}
+
+//
+
+fn view_set_user_client_info(
+  req req: Request(conn),
+  set_user_client_info info: Option(types.SetUserClientInfo),
+) -> Element(msg) {
+  use info <- guard.some(info, element.none())
+
+  let redirect_to_path =
+    req
+    |> request.get_query
+    |> result.unwrap([])
+    |> list.key_find("redirect_to_path")
+    |> result.unwrap("/")
+
+  html.div([], [
+    html.meta([
+      attr.name("no-user-client-info"),
+      attr.data("path_prefix", info.path_prefix),
+      attr.data("redirect_to_path", redirect_to_path),
+    ]),
+
+    html.script([
+      attr.type_("module"),
+      attr.src(info.browser_js_path),
+    ], ""),
+  ])
 }
