@@ -23,10 +23,18 @@ fn put_user_client_info_if_not_set() -> Nil {
       element.dataset_get(meta, "path_prefix")
     )
 
-    Ok(put_user_client_info(path_prefix:))
+    let redirect_to_path =
+      meta
+      |> element.dataset_get("redirect_to_path")
+      |> result.unwrap("/")
+
+    Ok(put_user_client_info(path_prefix:, redirect_to_path:))
   }
   |> result.unwrap(Nil)
 }
 
 @external(javascript, "./browser_ffi.mjs", "put_user_client_info")
-fn put_user_client_info(path_prefix path_prefix: String) -> Nil
+fn put_user_client_info(
+  path_prefix path_prefix: String,
+  redirect_to_path redirect_to_path: String,
+) -> Nil

@@ -91,8 +91,6 @@ pub fn handler(
               |> list.wrap
               |> html.code([], _)
             ]),
-
-            set_user_client_info_if_missing(ctx:),
           ]),
         ))
       }))
@@ -193,26 +191,4 @@ fn lustre_server_component_client_script() -> Element(msg) {
     attr.type_("module"),
     attr.src("/static/js/lustre-server-component.min.mjs"),
   ], "")
-}
-
-fn set_user_client_info_if_missing(
-  ctx ctx: Context(config, pubsub, user),
-) -> Element(msg) {
-  html.div([], [
-    case ctx.user_client_info {
-      None ->
-        html.meta([
-          attr.name("no-user-client-info"),
-          attr.data("path_prefix", ctx.fpo.path_prefix),
-        ])
-
-      option.Some(_) ->
-        html.text("")
-    },
-
-    html.script([
-      attr.type_("module"),
-      attr.src(ctx.fpo.browser_js_path),
-    ], ""),
-  ])
 }

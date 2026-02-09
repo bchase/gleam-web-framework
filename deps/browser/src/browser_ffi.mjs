@@ -1,4 +1,4 @@
-export async function put_user_client_info(path_prefix) {
+export async function put_user_client_info(path_prefix, to_path) {
   const time_zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const locale = Intl.DateTimeFormat().resolvedOptions().locale;
   const body = { time_zone, locale };
@@ -12,5 +12,10 @@ export async function put_user_client_info(path_prefix) {
     },
     body: JSON.stringify(body),
   })
+    .then((_) => redirect(to_path))
     .catch(error => console.error('`put_user_client_info` failed:', error));
+}
+
+function redirect(path) {
+  window.location.replace(path);
 }
