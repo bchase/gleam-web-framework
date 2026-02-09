@@ -28,72 +28,11 @@ import formal/form
 
 pub fn handler(
   req req: Request(wisp.Connection),
-  ctx ctx: Context(config, pubsub, user),
+  ctx ctx: Context(Config, pubsub, User),
 ) -> Result(Handler(Config, pubsub, User), Nil) {
   case req.method, req |> wisp.path_segments {
     _, [] ->
-      Ok(spec.AppLustreHandler(handle: fn(_req) {
-        pure(spec.LustreResponse(
-          status: 200,
-          headers: dict.new(),
-          element: html.div([], [
-            html.div([], [
-              html.form([
-                attr.style("display", "inline"),
-                attr.method("POST"),
-                attr.action("/auth/session"),
-              ], [
-                html.input([
-                  attr.name("email"),
-                  attr.value(good_email),
-                ]),
-
-                html.input([
-                  attr.name("password"),
-                  attr.value(good_password),
-                ]),
-
-                html.button([
-                  attr.type_("submit"),
-                ], [
-                  html.text("sign in"),
-                ]),
-              ]),
-
-              html.text(" | "),
-
-              html.form([
-                attr.style("display", "inline"),
-                ..fpo_wisp.action(method: Delete, path: "/auth/session")
-              ], [
-                html.button([
-                  attr.type_("submit"),
-                ], [
-                  html.text("sign out"),
-                ]),
-              ]),
-            ]),
-
-            html.p([], [
-              html.text("Home"),
-            ]),
-
-            html.p([], [
-              ctx.user
-              |> string.inspect
-              |> html.text
-            ]),
-
-            html.p([], [
-              ctx.user_client_info
-              |> string.inspect
-              |> html.text
-              |> list.wrap
-              |> html.code([], _)
-            ]),
-          ]),
-        ))
-      }))
+      Ok(home(ctx:))
 
     //
 
@@ -139,6 +78,73 @@ pub fn handler(
     _, _ ->
       Error(Nil)
   }
+}
+
+fn home(
+  ctx ctx: Context(Config, pubsub, User),
+) -> Handler(Config, pubsub, User) {
+  spec.AppLustreHandler(handle: fn(_req) {
+    pure(spec.LustreResponse(
+      status: 200,
+      headers: dict.new(),
+      element: html.div([], [
+        html.div([], [
+          html.form([
+            attr.style("display", "inline"),
+            attr.method("POST"),
+            attr.action("/auth/session"),
+          ], [
+            html.input([
+              attr.name("email"),
+              attr.value(good_email),
+            ]),
+
+            html.input([
+              attr.name("password"),
+              attr.value(good_password),
+            ]),
+
+            html.button([
+              attr.type_("submit"),
+            ], [
+              html.text("sign in"),
+            ]),
+          ]),
+
+          html.text(" | "),
+
+          html.form([
+            attr.style("display", "inline"),
+            ..fpo_wisp.action(method: Delete, path: "/auth/session")
+          ], [
+            html.button([
+              attr.type_("submit"),
+            ], [
+              html.text("sign out"),
+            ]),
+          ]),
+        ]),
+
+        html.p([], [
+          html.text("Home"),
+        ]),
+
+        html.p([], [
+          ctx.user
+          |> string.inspect
+          |> html.text
+        ]),
+
+        html.p([], [
+          ctx.user_client_info
+          |> string.inspect
+          |> html.text
+          |> list.wrap
+          |> html.code([], _)
+        ]),
+      ]),
+    ))
+  })
 }
 
 fn server_component_handler(
