@@ -1,7 +1,6 @@
 import app/db/sqlite as db
 import app/sql
 import app/types.{type Config}
-import fpo/db/parrot
 import fpo/monad/app.{type App}
 import gleam/list
 
@@ -29,18 +28,10 @@ pub fn insert_session_token(
   |> db.one
 }
 
-pub fn list_user_tokens(
-) -> App(List(sql.ListUserTokens), Config, pubsub, user) {
-  sql.list_user_tokens()
-  |> db.many
-}
-
-
 pub fn delete_session_token(
   hashed_token hashed_token: String,
-) -> App(Result(Nil, Nil), Config, pubsub, user) {
+) -> App(Result(sql.DeleteUserToken, Nil), Config, pubsub, user) {
   sql.delete_user_token(hashed_token:)
-  |> parrot.from_exec
   |> db.one
 }
 

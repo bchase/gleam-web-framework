@@ -42,7 +42,7 @@ pub fn sign_in(
 }
 
 pub fn sign_out(
-  delete_user_token delete_user_token: fn(String) -> App(Result(Nil, Nil), config, pubsub, user)
+  delete_user_token delete_user_token: fn(String) -> App(Result(a, Nil), config, pubsub, user)
 ) -> Result(Handler(config, pubsub, user), Nil) {
   Ok(spec.AppWispSessionCookie(handle: fn(req, session, session_cookie_name) {
     let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
@@ -81,14 +81,13 @@ fn set_token(
 
 fn clear_token(
   session session: Session,
-  delete_user_token delete_user_token: fn(String) -> App(Result(Nil, Nil), config, pubsub, user)
+  delete_user_token delete_user_token: fn(String) -> App(Result(a, Nil), config, pubsub, user)
 ) -> App(Session, config, pubsub, user) {
   use token <- guard.some(session.user_token, pure(session))
 
-  let hashed_token =
-    token
-    |> bit_array.from_string
-    |> hash_sha256_base64
+  use token <- guard.ok_(bit_array.base64_decode(token), fn(_) { pure(session) })
+
+  let hashed_token = hash_sha256_base64(token)
 
   use _deleted <- do(delete_user_token(hashed_token))
 

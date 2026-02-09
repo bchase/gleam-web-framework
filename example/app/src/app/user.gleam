@@ -36,6 +36,6 @@ pub fn insert_user_token(
 
 pub fn delete_user_token(
   hashed_token hashed_token: String,
-) -> App(Result(Nil, Nil), Config, pubsub, user) {
+) -> App(Result(sql.DeleteUserToken, Nil), Config, pubsub, user) {
   users.delete_session_token(hashed_token:)
 }

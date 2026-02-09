@@ -1,24 +1,18 @@
-import fpo/types/err
 import gleam/bool
 import app/domain/users/sqlite as users
 import app/types.{type Config} as _
 import app/user.{type User}
-import app/web/components/counter
-import app/web/components/counter_app
 import app/web/components/server_component_elements as lscs
 import fpo/monad/app.{type App, do, pure}
 import fpo/types.{type Context}
 import fpo/types/spec.{type Handler}
 import fpo/web/authe
-import fpo/web/session
 import fpo/generic/wisp as fpo_wisp
 import fpo/generic/guard
 import gleam/dict
-import gleam/http.{Get, Put, Post, Delete}
+import gleam/http.{Post, Delete}
 import gleam/http/request.{type Request}
 import gleam/list
-import gleam/option.{None}
-import gleam/result.{try}
 import gleam/string
 import lustre/attribute as attr
 import lustre/element.{type Element}

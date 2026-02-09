@@ -9,11 +9,7 @@ insert into user_tokens ( hashed_token, context, user_id )
 values ( @hashed_token, @context, @user_id )
 returning *;
 
--- name: DeleteUserToken :exec
+-- name: DeleteUserToken :one
 delete from user_tokens
-where hashed_token = @hashed_token;
-
---
-
--- name: ListUserTokens :many
-select * from user_tokens;
+where hashed_token = @hashed_token
+returning *;
