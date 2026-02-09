@@ -452,20 +452,23 @@ fn read_or_init_session(
   req
   |> session.read_mist(name: session_cookie_name, secret_key_base:)
   |> fn(result) {
-    case req.path == fpo_browser_js_path, result, req |> request.path_segments {
-      _, Ok(session), _ ->
+    case result, req |> request.path_segments {
+      Ok(session), _ ->
         Ok(session)
 
-      // allow `GET /$PREFIX/user_client_info` to load to perform PUT then redirect
-      _, Error(Nil), [prefix, "user_client_info"] if prefix == fpo_path_prefix  ->
-        Ok(types.zero_session())
+      Error(Nil), _ ->
+        case req.path == fpo_browser_js_path, req |> request.path_segments {
+          True, _ ->
+            // allow `deps/browser` `.js` to load w/o session
+            Ok(types.zero_session())
 
-      // allow `deps/browser` `.js` to load w/o session
-      True, _, _ ->
-        Ok(types.zero_session())
+          False, [prefix, "user_client_info"] if prefix == fpo_path_prefix ->
+            // allow `GET /$PREFIX/user_client_info` to load to perform PUT then redirect
+            Ok(types.zero_session())
 
-      _, Error(Nil), _ ->
-        Error(Nil)
+          False, _ ->
+            Error(Nil)
+        }
     }
   }
 }
