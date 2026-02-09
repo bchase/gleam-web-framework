@@ -1,9 +1,11 @@
-export async function put_user_client_info() {
+export async function put_user_client_info(path_prefix) {
   const time_zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const locale = Intl.DateTimeFormat().resolvedOptions().locale;
   const body = { time_zone, locale };
 
-  return fetch('/_user_client_info', {
+  const path = `/${path_prefix}/user_client_info`;
+
+  return fetch(path, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

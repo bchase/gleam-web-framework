@@ -1,4 +1,4 @@
-import gleam/bool
+import gleam/result.{try}
 import gleam/list
 import gleam/javascript/array
 import plinth/browser/document
@@ -9,20 +9,24 @@ pub fn main() -> Nil {
 }
 
 fn put_user_client_info_if_not_set() -> Nil {
-  let missing_user_client_info =
-    document.query_selector_all("meta")
-    |> array.to_list
-    |> list.any(fn(meta) {
-      let name = meta |> element.get_attribute("name")
-      name == Ok("no-user-client-info")
-    })
+  {
+    use meta <- try(
+      document.query_selector_all("meta")
+      |> array.to_list
+      |> list.find(fn(meta) {
+        let name = meta |> element.get_attribute("name")
+        name == Ok("no-user-client-info")
+      })
+    )
 
-  use <- bool.guard(!missing_user_client_info, Nil)
+    use path_prefix <- try(
+      element.dataset_get(meta, "path_prefix")
+    )
 
-  put_user_client_info()
-
-  Nil
+    Ok(put_user_client_info(path_prefix:))
+  }
+  |> result.unwrap(Nil)
 }
 
 @external(javascript, "./browser_ffi.mjs", "put_user_client_info")
-fn put_user_client_info() -> Nil
+fn put_user_client_info(path_prefix path_prefix: String) -> Nil
