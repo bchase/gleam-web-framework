@@ -1,3 +1,4 @@
+import gleam/http/response.{type Response}
 import gleam/list
 import gleam/string
 import gleam/uri
@@ -8,6 +9,13 @@ import gleam/result.{try}
 import wisp
 import formal/form
 import lustre/attribute as attr
+
+pub fn redirect(
+  to location: String,
+) -> Response(wisp.Body) {
+  wisp.response(302)
+  |> wisp.set_header("location", location)
+}
 
 pub fn action(
   method method: http.Method,

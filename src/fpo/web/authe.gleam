@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/bit_array
 import gleam/crypto
 import gleam/http/request.{type Request}
@@ -10,6 +11,7 @@ import fpo/types/spec.{type Handler}
 import fpo/monad/app.{type App, pure, do}
 import fpo/generic/guard
 import fpo/generic/crypto.{hash_sha256_base64} as _
+import fpo/generic/wisp.{redirect} as _
 
 pub fn sign_in(
   redirect_to location: String,
@@ -17,6 +19,8 @@ pub fn sign_in(
   persist_user_token persist_user_token: fn(user, String) -> App(Result(a, Nil), config, pubsub, user),
 ) -> Result(Handler(config, pubsub, user), Nil) {
   Ok(spec.AppWispSessionCookie(handle: fn(req, session, session_cookie_name) {
+    use <- bool.lazy_guard(session.signed_in(session:), fn() { pure(redirect(to: location)) })
+
     use user <- do(get_user(req))
 
     let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
@@ -28,8 +32,7 @@ pub fn sign_in(
         wisp.response(500)
 
       Ok(session) ->
-        wisp.response(302)
-        |> wisp.set_header("location", location)
+        redirect(to: location)
         |> session.write(
           req:,
           session:,
