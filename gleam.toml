@@ -36,6 +36,7 @@ parrot = ">= 2.2.1 and < 3.0.0"
 pog = ">= 4.1.0 and < 5.0.0"
 cloak_wrapper = { git = "https://github.com/bchase/cloak_wrapper", ref = "gen-key" }
 birl = { git = "https://github.com/bchase/birl", ref = "bchase" }
+formal = ">= 3.0.0 and < 4.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

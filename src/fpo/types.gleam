@@ -1,6 +1,6 @@
-import fpo/cloak.{type Cloak}
 import cloak_wrapper/aes/gcm as aes_gcm
 import deriv/util as deriv
+import fpo/cloak.{type Cloak}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{type Option, None}

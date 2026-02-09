@@ -1,5 +1,6 @@
 import gleam/bit_array
 import gleam/crypto
+import gleam/http/request.{type Request}
 import gleam/result
 import gleam/option.{Some, None}
 import fpo/web/session
@@ -11,12 +12,14 @@ import fpo/generic/guard
 import fpo/generic/crypto.{hash_sha256_base64} as _
 
 pub fn sign_in(
-  user user: user,
   redirect_to location: String,
+  get_user get_user: fn(Request(wisp.Connection)) -> App(user, config, pubsub, user),
   persist_user_token persist_user_token: fn(user, String) -> App(Result(a, Nil), config, pubsub, user),
 ) -> Result(Handler(config, pubsub, user), Nil) {
   Ok(spec.AppWispSessionCookieHandler(handle: fn(req, session, session_cookie_name) {
-    let session = session  |> result.lazy_unwrap(fn() { types.zero_session() })
+    use user <- do(get_user(req))
+
+    let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
 
     use result <- do(set_token(user:, session:, persist_user_token:))
 

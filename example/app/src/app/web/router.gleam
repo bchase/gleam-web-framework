@@ -1,25 +1,30 @@
-import gleam/list
-import gleam/string
-import gleam/result
-import gleam/option.{None}
-import fpo/web/session
-import lustre/attribute as attr
-import lustre/element.{type Element}
-import lustre/element/html
-import gleam/dict
-import gleam/http.{Get}
-import gleam/http/request.{type Request}
-import fpo/types.{type Context}
-import wisp
-import fpo/types/spec.{type Handler}
-import fpo/monad/app.{type App, pure, do}
-import fpo/web/authe
+import fpo/types/err
+import gleam/bool
+import app/domain/users/sqlite as users
+import app/types.{type Config} as _
+import app/user.{type User}
 import app/web/components/counter
 import app/web/components/counter_app
 import app/web/components/server_component_elements as lscs
-import app/user.{type User}
-import app/types.{type Config} as _
-import app/domain/users/sqlite as users
+import fpo/monad/app.{type App, do, pure}
+import fpo/types.{type Context}
+import fpo/types/spec.{type Handler}
+import fpo/web/authe
+import fpo/web/session
+import fpo/generic/wisp as fpo_wisp
+import fpo/generic/guard
+import gleam/dict
+import gleam/http.{Get, Post, Delete}
+import gleam/http/request.{type Request}
+import gleam/list
+import gleam/option.{None}
+import gleam/result.{try}
+import gleam/string
+import lustre/attribute as attr
+import lustre/element.{type Element}
+import lustre/element/html
+import wisp
+import formal/form
 
 pub fn handler(
   req req: Request(wisp.Connection),
@@ -45,18 +50,39 @@ pub fn handler(
           headers: dict.new(),
           element: html.div([], [
             html.div([], [
-              html.a([
-                attr.href("/auth/session/create"),
+              html.form([
+                attr.style("display", "inline"),
+                attr.method("POST"),
+                attr.action("/auth/session"),
               ], [
-                html.text("sign in"),
+                html.input([
+                  attr.name("email"),
+                  attr.value(good_email),
+                ]),
+
+                html.input([
+                  attr.name("password"),
+                  attr.value(good_password),
+                ]),
+
+                html.button([
+                  attr.type_("submit"),
+                ], [
+                  html.text("sign in"),
+                ]),
               ]),
 
               html.text(" | "),
 
-              html.a([
-                attr.href("/auth/session/delete"),
+              html.form([
+                attr.style("display", "inline"),
+                ..fpo_wisp.action(method: Delete, path: "/auth/session")
               ], [
-                html.text("sign out"),
+                html.button([
+                  attr.type_("submit"),
+                ], [
+                  html.text("sign out"),
+                ]),
               ]),
             ]),
 
@@ -85,21 +111,17 @@ pub fn handler(
 
     //
 
-    _, ["auth", "session", "create"] -> {
-      let dummy_user = users.User(id: 1, name: "")
-
+    Post, ["auth", "session"] ->
       authe.sign_in(
-        user: dummy_user,
         redirect_to: "/",
+        get_user:,
         persist_user_token: user.insert_user_token,
       )
-    }
 
-    _, ["auth", "session", "delete"] -> {
+    Delete, ["auth", "session"] ->
       authe.sign_out(
         delete_user_token: user.delete_user_token,
       )
-    }
 
     //
 
@@ -166,6 +188,36 @@ pub fn handler(
     _, _ ->
       Error(Nil)
   }
+}
+
+pub type Login {
+  Login(
+    email: String,
+    password: String,
+  )
+}
+
+fn form_login() -> form.Form(Login) {
+  form.new({
+    use email <- form.field("email", { form.parse_string |> form.check_not_empty })
+    use password <- form.field("password", { form.parse_string |> form.check_not_empty })
+    form.success(Login(email:, password:))
+  })
+}
+
+const good_email = "user@example.com"
+const good_password = "good_password"
+
+fn get_user(
+  req req: Request(wisp.Connection)
+) -> App(User, Config, pubsub, User) {
+  let form = fpo_wisp.read_form(req:, form: form_login())
+  use login <- guard.ok_(form, fn(_err) { app.redirect(to: "/") })
+
+  let good_login = login.email == good_email && login.password == good_password
+  use <- bool.lazy_guard(!good_login, fn() { app.redirect(to: "/") })
+
+  pure(users.User(id: 1, name: ""))
 }
 
 fn lustre_server_component_client_script() -> Element(msg) {

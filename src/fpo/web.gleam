@@ -252,6 +252,21 @@ fn to_wisp_err_resp(
   err err: Err,
 ) -> resp.Response(wisp.Body) {
   case err {
+    err.RedirectTo(location:, using:, ..) -> {
+      let status =
+        case using {
+          err.Redirect302 -> 302
+        }
+
+      wisp_html_resp(
+        status:,
+        element: element.none(),
+        headers: dict.from_list([
+          #("location", location),
+        ]),
+      )
+    }
+
     err.NotFound(..) ->
       wisp_html_resp(
         status: 404,
@@ -273,6 +288,21 @@ pub fn to_err_resp(
   err err: Err,
 ) -> resp.Response(mist.ResponseData) {
   case err {
+    err.RedirectTo(location:, using:, ..) -> {
+      let status =
+        case using {
+          err.Redirect302 -> 302
+        }
+
+      mist_html_resp(
+        status:,
+        element: element.none(),
+        headers: dict.from_list([
+          #("location", location),
+        ]),
+      )
+    }
+
     err.NotFound(..) ->
       mist_html_resp(
         status: 404,
