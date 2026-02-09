@@ -8,6 +8,7 @@ import gleam/int
 import dot_env/env
 import gleam/result
 import dot_env
+import gleam/http.{Put}
 import gleam/http/response as resp
 import gleam/http/request.{type Request}
 import gleam/bytes_tree
@@ -90,7 +91,16 @@ fn web_req_handler(
     fn(req: Request(wisp.Connection), session: Result(Session, Nil), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
       case spec.router(req, ctx) {
         Error(Nil) ->
-          Error(Nil)
+          case req.method, req |> wisp.path_segments {
+            Put, [prefix, "user_client_info"] if prefix == spec.fpo_path_prefix ->
+              case session.set_session_user_client_info_using_req_json_body(req:, session_cookie_name:) {
+                Ok(resp) -> Ok(resp)
+                Error(Nil) -> Ok(wisp.response(400))
+              }
+
+            _, _ ->
+              Error(Nil)
+          }
 
         Ok(handler) ->
           Ok(run_handler(req:, handler:, ctx:, session:, session_cookie_name:))
@@ -372,7 +382,14 @@ fn build_web_req_handler(
     mist_req
     |> session.read_mist(name: session_cookie_name, secret_key_base:)
 
-  let ctx = context.build(session:, cfg:, pubsub:, authenticate: spec.authenticate)
+  let ctx = context.build(
+    session:,
+    cfg:,
+    pubsub:,
+    authenticate: spec.authenticate,
+    fpo_path_prefix: spec.fpo_path_prefix,
+    fpo_browser_js_path: spec.fpo_browser_js_path,
+  )
 
   case mist_req |> request.path_segments {
     [prefix, ..] if prefix == spec.websockets_path_prefix ->

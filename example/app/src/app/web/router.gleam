@@ -14,7 +14,7 @@ import fpo/web/session
 import fpo/generic/wisp as fpo_wisp
 import fpo/generic/guard
 import gleam/dict
-import gleam/http.{Get, Post, Delete}
+import gleam/http.{Get, Put, Post, Delete}
 import gleam/http/request.{type Request}
 import gleam/list
 import gleam/option.{None}
@@ -31,18 +31,6 @@ pub fn handler(
   ctx ctx: Context(config, pubsub, user),
 ) -> Result(Handler(Config, pubsub, User), Nil) {
   case req.method, req |> wisp.path_segments {
-    _, ["_user_client_info"] ->
-      Ok(spec.AppWispSessionCookieHandler(handle: fn(req, _session, session_cookie_name) {
-        session.set_session_user_client_info_using_req_json_body(
-          req:,
-          session_cookie_name:,
-        )
-        |> result.lazy_unwrap(fn() {
-          wisp.response(400)
-        })
-        |> pure
-      }))
-
     _, [] ->
       Ok(spec.AppLustreHandler(handle: fn(_req) {
         pure(spec.LustreResponse(
@@ -213,7 +201,10 @@ fn set_user_client_info_if_missing(
   html.div([], [
     case ctx.user_client_info {
       None ->
-        html.meta([attr.name("no-user-client-info")])
+        html.meta([
+          attr.name("no-user-client-info"),
+          attr.data("path_prefix", ctx.fpo.path_prefix),
+        ])
 
       option.Some(_) ->
         html.text("")
@@ -221,7 +212,7 @@ fn set_user_client_info_if_missing(
 
     html.script([
       attr.type_("module"),
-      attr.src("/static/js/fpo-gleam-browser.js"),
+      attr.src(ctx.fpo.browser_js_path),
     ], ""),
   ])
 }

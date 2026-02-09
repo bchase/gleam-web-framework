@@ -8,14 +8,14 @@ import app/web/router
 import cloak_wrapper/aes/gcm as aes_gcm
 import app/types.{type Config, type PubSub} as _
 
-const cloak_key_env_var_name = "CLOAK_KEY"
-
 pub fn spec() -> Spec(Config, PubSub, User) {
   Spec(
     app_module_name: "app",
     session_cookie_name: "app",
     dot_env_relative_path: ".env",
     secret_key_base_env_var_name: "SECRET_KEY_BASE",
+    fpo_path_prefix: "_fpo",
+    fpo_browser_js_path: "/static/js/fpo-gleam-browser.js",
     //
     config: spec.Config(
       features: Features(cloak: Some(load_cloak_config)),
@@ -30,6 +30,8 @@ pub fn spec() -> Spec(Config, PubSub, User) {
     router: router.handler,
   )
 }
+
+const cloak_key_env_var_name = "CLOAK_KEY"
 
 fn load_cloak_config(
   env_var env_var: EnvVar,

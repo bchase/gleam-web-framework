@@ -15,6 +15,8 @@ pub type Spec(config, pubsub, user) {
     session_cookie_name: String,
     dot_env_relative_path: String,
     secret_key_base_env_var_name: String,
+    fpo_path_prefix: String,
+    fpo_browser_js_path: String,
     //
     config: Config(config),
     add_pubsub_workers: fn(static_supervisor.Builder) -> #(static_supervisor.Builder, pubsub),

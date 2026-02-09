@@ -11,6 +11,14 @@ pub type Context(config, pubsub, user) {
     pubsub: pubsub,
     user_client_info: Option(UserClientInfo),
     user: Option(user),
+    fpo: Fpo,
+  )
+}
+
+pub type Fpo {
+  Fpo(
+    path_prefix: String,
+    browser_js_path: String,
   )
 }
 
