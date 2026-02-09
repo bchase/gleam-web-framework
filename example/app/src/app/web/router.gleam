@@ -126,68 +126,48 @@ pub fn handler(
     //
 
     _, ["counter"] ->
-      Ok(spec.AppLustreHandler(handle: fn(_req) {
-        pure(spec.LustreResponse(
-          status: 200,
-          headers: dict.new(),
-          element: html.div([], [
-            counter.element(),
-            lustre_server_component_client_script(),
-          ])
-        ))
-      }))
+      Ok(server_component_handler(
+        component: lscs.counter(),
+      ))
 
     _, ["counter_app"] ->
-      Ok(spec.AppLustreHandler(handle: fn(_req) {
-        pure(spec.LustreResponse(
-          status: 200,
-          headers: dict.new(),
-          element: html.div([], [
-            counter_app.element(),
-            lustre_server_component_client_script(),
-          ])
-        ))
-      }))
-
-    _, ["sqlite_demo"] ->
-      Ok(spec.AppLustreHandler(handle: fn(_req) {
-        pure(spec.LustreResponse(
-          status: 200,
-          headers: dict.new(),
-          element: html.div([], [
-            lscs.sqlite_demo() |> lscs.element([], []),
-            lustre_server_component_client_script(),
-          ])
-        ))
-      }))
-
-    _, ["postgres_demo"] ->
-      Ok(spec.AppLustreHandler(handle: fn(_req) {
-        pure(spec.LustreResponse(
-          status: 200,
-          headers: dict.new(),
-          element: html.div([], [
-            lscs.postgres_demo() |> lscs.element([], []),
-            lustre_server_component_client_script(),
-          ])
-        ))
-      }))
+      Ok(server_component_handler(
+        component: lscs.counter_app(),
+      ))
 
     _, ["pubsub_demo"] ->
-      Ok(spec.AppLustreHandler(handle: fn(_req) {
-        pure(spec.LustreResponse(
-          status: 200,
-          headers: dict.new(),
-          element: html.div([], [
-            lscs.pubsub_demo() |> lscs.element([], []),
-            lustre_server_component_client_script(),
-          ])
-        ))
-      }))
+      Ok(server_component_handler(
+        component: lscs.pubsub_demo(),
+      ))
+
+    _, ["sqlite_demo"] ->
+      Ok(server_component_handler(
+        component: lscs.sqlite_demo(),
+      ))
+
+    _, ["postgres_demo"] ->
+      Ok(server_component_handler(
+        component: lscs.postgres_demo(),
+      ))
 
     _, _ ->
       Error(Nil)
   }
+}
+
+fn server_component_handler(
+  component component: lscs.ServerComponentElement,
+) -> Handler(config, pubsub, user) {
+  spec.AppLustreHandler(handle: fn(_req) {
+    pure(spec.LustreResponse(
+      status: 200,
+      headers: dict.new(),
+      element: html.div([], [
+        component |> lscs.element([], []),
+        lustre_server_component_client_script(),
+      ])
+    ))
+  })
 }
 
 pub type Login {
