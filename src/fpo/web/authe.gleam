@@ -16,7 +16,7 @@ pub fn sign_in(
   get_user get_user: fn(Request(wisp.Connection)) -> App(user, config, pubsub, user),
   persist_user_token persist_user_token: fn(user, String) -> App(Result(a, Nil), config, pubsub, user),
 ) -> Result(Handler(config, pubsub, user), Nil) {
-  Ok(spec.AppWispSessionCookieHandler(handle: fn(req, session, session_cookie_name) {
+  Ok(spec.AppWispSessionCookie(handle: fn(req, session, session_cookie_name) {
     use user <- do(get_user(req))
 
     let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
@@ -44,7 +44,7 @@ pub fn sign_in(
 pub fn sign_out(
   delete_user_token delete_user_token: fn(String) -> App(Result(Nil, Nil), config, pubsub, user)
 ) -> Result(Handler(config, pubsub, user), Nil) {
-  Ok(spec.AppWispSessionCookieHandler(handle: fn(req, session, session_cookie_name) {
+  Ok(spec.AppWispSessionCookie(handle: fn(req, session, session_cookie_name) {
     let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
 
     use session <- do(clear_token(session:, delete_user_token:))

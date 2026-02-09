@@ -83,7 +83,7 @@ pub fn handler(
 fn home(
   ctx ctx: Context(Config, pubsub, User),
 ) -> Handler(Config, pubsub, User) {
-  spec.AppLustreHandler(handle: fn(_req) {
+  spec.AppLustre(handle: fn(_req) {
     pure(spec.LustreResponse(
       status: 200,
       headers: dict.new(),
@@ -150,7 +150,7 @@ fn home(
 fn server_component_handler(
   component component: lscs.ServerComponentElement,
 ) -> Handler(config, pubsub, user) {
-  spec.AppLustreHandler(handle: fn(_req) {
+  spec.AppLustre(handle: fn(_req) {
     pure(spec.LustreResponse(
       status: 200,
       headers: dict.new(),
