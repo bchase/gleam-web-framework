@@ -1,5 +1,6 @@
 import gleam/result.{try}
 import gleam/list
+import gleam/uri
 import gleam/javascript/array
 import plinth/browser/document
 import plinth/browser/element
@@ -26,6 +27,7 @@ fn put_user_client_info_if_not_set() -> Nil {
     let redirect_to_path =
       meta
       |> element.dataset_get("redirect_to_path")
+      |> result.try(uri.percent_decode)
       |> result.unwrap("/")
 
     Ok(put_user_client_info(path_prefix:, redirect_to_path:))

@@ -29,6 +29,7 @@ import wisp
 import fpo/flags
 import fpo/generic/guard
 import fpo/generic/mist as fpo_mist
+import fpo/generic/uri as fpo_uri
 import lustre/attribute as attr
 
 const web_req_handler_worker_shutdown_ms = 60_000
@@ -390,7 +391,15 @@ fn redirect_to_session_init(
     uri.percent_encode(redirect_to_path)
 
   let location =
-    "/" <> path_prefix <> "/user_client_info?redirect_to_path=" <> redirect_to_path
+    fpo_uri.from(
+      path: [ path_prefix, "user_client_info" ],
+      params: [
+        #("redirect_to_path", redirect_to_path),
+      ]
+    )
+    |> echo
+    |> uri.to_string
+    |> echo
 
   redirect_to(location)
 }
