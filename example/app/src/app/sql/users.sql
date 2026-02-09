@@ -1,4 +1,4 @@
--- name: AuthenticateUser :one
+-- name: GetUserBy :one
 select u.*
 from users as u
 join user_tokens as ut on u.id = ut.user_id

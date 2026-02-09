@@ -21,9 +21,9 @@ pub fn authenticate(
 
   token
   |> hash_sha256_base64
-  |> sql.authenticate_user(hashed_token: _ )
+  |> sql.get_user_by(hashed_token: _ )
   |> db.one_or_sqlite(conn: cfg.sqlite_conn, to_err: fn(_err) { Nil }, err: Nil)
-  |> result.map(users.from_authenticate_user_to_user)
+  |> result.map(users.from_get_user_by_to_user)
   |> option.from_result
 }
 

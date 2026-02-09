@@ -89,10 +89,10 @@ fn web_req_handler(
   let app_module_name = spec.app_module_name
   let session_cookie_name = spec.session_cookie_name
 
-  let #(fpo_path_prefix, fpo_browser_js_path) =
+  let fpo_path_prefix =
     case spec.config.features.set_user_client_info {
-      Some(info) -> #(info.path_prefix, info.browser_js_path)
-      None -> #("", "")
+      Some(info) -> info.path_prefix
+      None -> ""
     }
 
   let secret_key_base =

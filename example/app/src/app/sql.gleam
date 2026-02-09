@@ -45,23 +45,23 @@ where id = ?1"
   #(sql, [dev.ParamInt(id)])
 }
 
-pub type AuthenticateUser {
-  AuthenticateUser(id: Int, name: String)
+pub type GetUserBy {
+  GetUserBy(id: Int, name: String)
 }
 
-pub fn authenticate_user(hashed_token hashed_token: String) {
+pub fn get_user_by(hashed_token hashed_token: String) {
   let sql =
     "select u.id, u.name
 from users as u
 join user_tokens as ut on u.id = ut.user_id
 where ut.hashed_token = ?1"
-  #(sql, [dev.ParamString(hashed_token)], authenticate_user_decoder())
+  #(sql, [dev.ParamString(hashed_token)], get_user_by_decoder())
 }
 
-pub fn authenticate_user_decoder() -> decode.Decoder(AuthenticateUser) {
+pub fn get_user_by_decoder() -> decode.Decoder(GetUserBy) {
   use id <- decode.field(0, decode.int)
   use name <- decode.field(1, decode.string)
-  decode.success(AuthenticateUser(id:, name:))
+  decode.success(GetUserBy(id:, name:))
 }
 
 pub type InsertUserToken {
