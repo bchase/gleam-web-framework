@@ -4,6 +4,7 @@ import gleam/option.{type Option, Some, None}
 import fpo/types.{type Context}
 import fpo/types/err.{type Err}
 import fpo/pubsub
+import fpo/generic/guard
 
 pub opaque type App(t, config, pubsub, user) {
   App(run: fn(Context(config, pubsub, user)) -> Result(t, Err))
@@ -66,6 +67,27 @@ pub fn do(
       Ok(x) -> cont(x) |> run(read)
     }
   })
+}
+
+pub fn do_(
+  app app: App(Result(a, e1), config, pubsub, user),
+  fail fail: fn(e1) -> e2,
+  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user),
+) -> App(Result(b, e2), config, pubsub, user) {
+  use result <- do(app)
+
+  case result {
+    Ok(x) -> cont(x)
+    Error(err) -> pure(Error(fail(err)))
+  }
+}
+
+pub fn do__(
+  app app: App(Result(a, e1), config, pubsub, user),
+  fail err: e2,
+  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user),
+) -> App(Result(b, e2), config, pubsub, user) {
+  do_(app:, fail: fn(_) { err }, cont:)
 }
 
 pub fn ok(
