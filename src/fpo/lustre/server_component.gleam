@@ -18,25 +18,25 @@ import mist
 import gleam/dict.{type Dict}
 import fpo/lustre/server_component/socket
 
-pub opaque type ServerComponents(config, pubsub, user) {
+pub opaque type ServerComponents(config, pubsub, user, err) {
   ServerComponents(
-    components: Dict(List(String), ServerComponent(config, pubsub, user)),
+    components: Dict(List(String), ServerComponent(config, pubsub, user, err)),
   )
 }
 
-pub fn new() -> ServerComponents(config, pubsub, user) {
+pub fn new() -> ServerComponents(config, pubsub, user, err) {
   ServerComponents(components: dict.new())
 }
 
 pub fn element(
-  component component: ServerComponent(config, pubsub, user),
+  component component: ServerComponent(config, pubsub, user, err),
   ctx ctx: Context(config, pubsub, user),
 ) -> Element(msg) {
   element_(component:, ctx:, attrs: [], children: [])
 }
 
 pub fn element_(
-  component component: ServerComponent(config, pubsub, user),
+  component component: ServerComponent(config, pubsub, user, err),
   attrs attrs: List(attr.Attribute(msg)),
   children children: List(Element(msg)),
   ctx ctx: Context(config, pubsub, user),
@@ -50,7 +50,7 @@ pub fn element_(
 }
 
 fn route(
-  component component: ServerComponent(config, pubsub, user),
+  component component: ServerComponent(config, pubsub, user, err),
   fpo fpo: Fpo,
 ) -> String {
   [
@@ -62,7 +62,7 @@ fn route(
   |> string.append(to: "/", suffix: _)
 }
 
-pub opaque type ServerComponent(config, pubsub, user) {
+pub opaque type ServerComponent(config, pubsub, user, err) {
   ServerComponent(
     start: fn(Request(mist.Connection), Context(config, pubsub, user)) -> Response(mist.ResponseData),
     route: List(String),
@@ -72,7 +72,7 @@ pub opaque type ServerComponent(config, pubsub, user) {
 pub fn def(
   route route: List(String),
   app app: fn(Context(config, pubsub, user)) -> lustre.App(Context(config, pubsub, user), model, Wrapped(msg)),
-) -> ServerComponent(config, pubsub, user) {
+) -> ServerComponent(config, pubsub, user, err) {
   ServerComponent(
     route:,
     start: fn(req, ctx) { socket.start(req:, ctx:, app: app(ctx)) },
@@ -80,15 +80,15 @@ pub fn def(
 }
 
 pub fn for(
-  components all: ServerComponents(config, pubsub, user),
+  components all: ServerComponents(config, pubsub, user, err),
   route route: List(String),
-) -> Result(ServerComponent(config, pubsub, user), Nil) {
+) -> Result(ServerComponent(config, pubsub, user, err), Nil) {
   all.components
   |> dict.get(route)
 }
 
 pub fn start(
-  component component: ServerComponent(config, pubsub, user),
+  component component: ServerComponent(config, pubsub, user, err),
   req req: Request(mist.Connection),
   ctx ctx: Context(config, pubsub, user),
 ) -> Response(mist.ResponseData) {
@@ -96,9 +96,9 @@ pub fn start(
 }
 
 pub fn register_many(
-  components all: ServerComponents(config, pubsub, user),
-  component new: List(ServerComponent(config, pubsub, user)),
-) -> Result(ServerComponents(config, pubsub, user), List(String)) {
+  components all: ServerComponents(config, pubsub, user, err),
+  component new: List(ServerComponent(config, pubsub, user, err)),
+) -> Result(ServerComponents(config, pubsub, user, err), List(String)) {
   list.fold_until(new, Ok(all), fn(acc, new) {
     case acc {
       Ok(all) -> list.Continue(register(all, new))
@@ -108,9 +108,9 @@ pub fn register_many(
 }
 
 pub fn register(
-  components all: ServerComponents(config, pubsub, user),
-  component new: ServerComponent(config, pubsub, user),
-) -> Result(ServerComponents(config, pubsub, user), List(String)) {
+  components all: ServerComponents(config, pubsub, user, err),
+  component new: ServerComponent(config, pubsub, user, err),
+) -> Result(ServerComponents(config, pubsub, user, err), List(String)) {
   let existing = all.components |> dict.get(new.route)
 
   use components <-  result.try(
@@ -129,10 +129,10 @@ pub fn register(
 //
 
 pub fn build_lustre_app(
-  init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user),
-  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user)),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
-  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user),
+  init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user, err),
+  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
+  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user, err),
   view view: fn(model, Option(user), Option(UserClientInfo)) -> Element(msg),
   module module: String,
   ctx ctx: Context(config, pubsub, user),
@@ -150,9 +150,9 @@ pub type Wrapped(msg) {
 }
 
 fn select(
-  app app: App(#(model, Effect(msg)), config, pubsub, user),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
-) -> App(#(model, Effect(msg)), config, pubsub, user) {
+  app app: App(#(model, Effect(msg)), config, pubsub, user, err),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
+) -> App(#(model, Effect(msg)), config, pubsub, user, err) {
   use #(model, eff) <- do(app)
 
   model |> continue([
@@ -162,9 +162,9 @@ fn select(
 }
 
 fn select_eff(
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
   model model: model,
-) -> App(Effect(msg), config, pubsub, user) {
+) -> App(Effect(msg), config, pubsub, user, err) {
   use selector <- do(
     model
     |> selectors
@@ -179,10 +179,10 @@ fn select_eff(
 }
 
 fn log_err(
-  app app: App(#(model, Effect(msg)), config, pubsub, user),
+  app app: App(#(model, Effect(msg)), config, pubsub, user, err),
   module module: String,
   func func: String,
-) -> App(#(model, Effect(msg)), config, pubsub, user) {
+) -> App(#(model, Effect(msg)), config, pubsub, user, err) {
   use result <- app.to_result(app)
 
   use _log_err_if_any <- do(
@@ -207,7 +207,7 @@ fn log_err(
 }
 
 fn wrap_init(
-  init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user),
+  init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user, err),
   module module: String,
 ) -> fn(Context(config, pubsub, user)) -> #(model, Effect(Wrapped(msg))) {
   fn(ctx) {
@@ -235,9 +235,9 @@ fn wrap_effect(
 }
 
 fn wrap_update(
-  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user),
-  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user)),
-  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user)),
+  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user, err),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
+  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
   module module: String,
   ctx ctx: Context(config, pubsub, user),
 ) -> fn(model, Wrapped(msg)) -> #(model, Effect(Wrapped(msg))) {

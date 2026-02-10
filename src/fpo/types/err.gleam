@@ -1,7 +1,7 @@
 import gleam/option.{type Option}
 import gleam/dynamic.{type Dynamic}
 
-pub type Err {
+pub type Err(err) {
   DbErr(
     err: Dynamic,
   )
@@ -20,6 +20,8 @@ pub type Err {
   Err(
     msg: String,
   )
+
+  AppErr(err: err)
 }
 
 pub type Redirect {

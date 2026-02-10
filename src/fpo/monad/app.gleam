@@ -1,42 +1,41 @@
 import gleam/erlang/process
 import gleam/list
-import gleam/option.{type Option, Some, None}
+import gleam/option.{type Option, None}
 import fpo/types.{type Context}
 import fpo/types/err.{type Err}
 import fpo/pubsub
-import fpo/generic/guard
 
-pub opaque type App(t, config, pubsub, user) {
-  App(run: fn(Context(config, pubsub, user)) -> Result(t, Err))
+pub opaque type App(t, config, pubsub, user, err) {
+  App(run: fn(Context(config, pubsub, user)) -> Result(t, Err(err)))
 }
 
 pub fn run(
-  app app: App(t, config, pubsub, user),
+  app app: App(t, config, pubsub, user, err),
   read read: Context(config, pubsub, user),
-) -> Result(t, Err) {
+) -> Result(t, Err(err)) {
   app.run(read)
 }
 
 pub fn pure(
   val val: t,
-) -> App(t, config, pubsub, user) {
+) -> App(t, config, pubsub, user, err) {
   App(run: fn(_read) { Ok(val) })
 }
 
 pub fn fail(
-  err err: Err,
-) -> App(t, config, pubsub, user) {
+  err err: Err(err),
+) -> App(t, config, pubsub, user, err) {
   App(run: fn(_read) { Error(err) })
 }
 
-pub fn ctx() -> App(Context(config, pubsub, user), config, pubsub, user) {
+pub fn ctx() -> App(Context(config, pubsub, user), config, pubsub, user, err) {
   App(run: fn(read) { Ok(read) })
 }
 
 pub fn map(
-  app app: App(a, config, pubsub, user),
+  app app: App(a, config, pubsub, user, err),
   f f: fn(a) -> b,
-) -> App(b, config, pubsub, user) {
+) -> App(b, config, pubsub, user, err) {
   App(run: fn(read) {
     case app.run(read) {
       Error(err) -> Error(err)
@@ -46,8 +45,8 @@ pub fn map(
 }
 
 pub fn flatten(
-  app app: App(App(t, config, pubsub, user), config, pubsub, user),
-) -> App(t, config, pubsub, user) {
+  app app: App(App(t, config, pubsub, user, err), config, pubsub, user, err),
+) -> App(t, config, pubsub, user, err) {
   App(run: fn(read) {
     case app.run(read) {
       Error(err) -> Error(err)
@@ -57,9 +56,9 @@ pub fn flatten(
 }
 
 pub fn do(
-  app app: App(a, config, pubsub, user),
-  cont cont: fn(a) -> App(b, config, pubsub, user),
-) -> App(b, config, pubsub, user) {
+  app app: App(a, config, pubsub, user, err),
+  cont cont: fn(a) -> App(b, config, pubsub, user, err),
+) -> App(b, config, pubsub, user, err) {
   // app |> map(cont) |> flatten
   App(run: fn(read) {
     case app.run(read) {
@@ -70,10 +69,10 @@ pub fn do(
 }
 
 pub fn do_(
-  app app: App(Result(a, e1), config, pubsub, user),
+  app app: App(Result(a, e1), config, pubsub, user, err),
   fail fail: fn(e1) -> e2,
-  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user),
-) -> App(Result(b, e2), config, pubsub, user) {
+  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err),
+) -> App(Result(b, e2), config, pubsub, user, err) {
   use result <- do(app)
 
   case result {
@@ -83,23 +82,23 @@ pub fn do_(
 }
 
 pub fn do__(
-  app app: App(Result(a, e1), config, pubsub, user),
+  app app: App(Result(a, e1), config, pubsub, user, err),
   fail err: e2,
-  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user),
-) -> App(Result(b, e2), config, pubsub, user) {
+  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err),
+) -> App(Result(b, e2), config, pubsub, user, err) {
   do_(app:, fail: fn(_) { err }, cont:)
 }
 
 pub fn ok(
-  result result: Result(t, Err),
-) -> App(t, config, pubsub, user) {
+  result result: Result(t, Err(err)),
+) -> App(t, config, pubsub, user, err) {
   App(run: fn(_read) { result })
 }
 
 pub fn some(
   option option: Option(t),
-  err err: Err,
-) -> App(t, config, pubsub, user) {
+  err err: Err(err),
+) -> App(t, config, pubsub, user, err) {
   App(run: fn(_read) {
     option
     |> option.to_result(err)
@@ -107,8 +106,8 @@ pub fn some(
 }
 
 pub fn sequence(
-  apps apps: List(App(a, config, pubsub, user)),
-) -> App(List(a), config, pubsub, user) {
+  apps apps: List(App(a, config, pubsub, user, err)),
+) -> App(List(a), config, pubsub, user, err) {
   App(fn(r) {
     apps
     |> list.fold_until(Ok([]), fn(acc, app) {
@@ -129,8 +128,8 @@ pub fn sequence(
 }
 
 pub fn sequence_(
-  apps apps: List(App(Nil, config, pubsub, user)),
-) -> App(Nil, config, pubsub, user) {
+  apps apps: List(App(Nil, config, pubsub, user, err)),
+) -> App(Nil, config, pubsub, user, err) {
   App(fn(r) {
     apps
     |> list.fold_until(Ok(Nil), fn(acc, app) {
@@ -153,9 +152,9 @@ pub fn sequence_(
 }
 
 pub fn replace(
-  app app: App(a, config, pubsub, user),
+  app app: App(a, config, pubsub, user, err),
   val val: b,
-) -> App(b, config, pubsub, user) {
+) -> App(b, config, pubsub, user, err) {
   App(fn(r) {
     case app.run(r) {
       Ok(_) -> Ok(val)
@@ -165,9 +164,9 @@ pub fn replace(
 }
 
 pub fn to_result(
-  app app: App(a, config, pubsub, user),
-  cont cont: fn(Result(a, Err)) -> App(b, config, pubsub, user)
-) -> App(b, config, pubsub, user) {
+  app app: App(a, config, pubsub, user, err),
+  cont cont: fn(Result(a, Err(err))) -> App(b, config, pubsub, user, err)
+) -> App(b, config, pubsub, user, err) {
   use ctx <- do(ctx())
 
   app
@@ -181,7 +180,7 @@ pub fn subscribe(
   to channel: String,
   in pubsub: fn(pubsub) -> pubsub.PubSub(pubsub_msg),
   wrap to_msg: fn(pubsub_msg) -> msg
-) -> App(process.Selector(msg), config, pubsub, user) {
+) -> App(process.Selector(msg), config, pubsub, user, err) {
   use ctx <- do(ctx())
 
   ctx.pubsub
@@ -195,8 +194,8 @@ pub fn broadcast(
   in pubsub: fn(pubsub) -> pubsub.PubSub(msg),
   to channel: String,
   msg msg: msg,
-  cont cont: fn() -> App(t, config, pubsub, user)
-) -> App(t, config, pubsub, user) {
+  cont cont: fn() -> App(t, config, pubsub, user, err)
+) -> App(t, config, pubsub, user, err) {
   use ctx <- do(ctx())
 
   ctx.pubsub
@@ -210,7 +209,7 @@ pub fn broadcast(
 
 pub fn redirect(
   to location: String
-) -> App(anything, config, pubsub, user) {
+) -> App(anything, config, pubsub, user, err) {
   fail(err.RedirectTo(
     location:,
     using: err.Redirect302,

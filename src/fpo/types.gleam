@@ -4,6 +4,7 @@ import fpo/cloak.{type Cloak}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{type Option, None}
+import pog
 
 pub type Context(config, pubsub, user) {
   Context(
@@ -33,12 +34,19 @@ pub type Features {
     fpo_path_prefix: String,
     cloak: Option(fn(EnvVar) -> aes_gcm.Config),
     set_user_client_info: Option(SetUserClientInfo),
+    pog: Option(Pog)
   )
+}
+
+pub type Pog {
+  PogConnUrlEnvVar(name: String)
+  Pog(conn_url: String)
 }
 
 pub type Flags {
   Flags(
     cloak: Option(Cloak),
+    pog: Option(pog.Connection),
     env_var: EnvVar,
   )
 }

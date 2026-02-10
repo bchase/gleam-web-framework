@@ -15,9 +15,9 @@ import fpo/generic/wisp.{redirect} as _
 
 pub fn sign_in(
   redirect_to location: String,
-  get_user get_user: fn(Request(wisp.Connection)) -> App(user, config, pubsub, user),
-  persist_user_token persist_user_token: fn(user, String) -> App(Result(a, Nil), config, pubsub, user),
-) -> Result(Handler(config, pubsub, user), Nil) {
+  get_user get_user: fn(Request(wisp.Connection)) -> App(user, config, pubsub, user, err),
+  persist_user_token persist_user_token: fn(user, String) -> App(Result(a, Nil), config, pubsub, user, err),
+) -> Result(Handler(config, pubsub, user, err), Nil) {
   Ok(spec.AppWispSessionCookie(handle: fn(req, session, session_cookie_name) {
     use <- bool.lazy_guard(session.signed_in(session:), fn() { pure(redirect(to: location)) })
 
@@ -45,8 +45,8 @@ pub fn sign_in(
 }
 
 pub fn sign_out(
-  delete_user_token delete_user_token: fn(String) -> App(Result(a, Nil), config, pubsub, user)
-) -> Result(Handler(config, pubsub, user), Nil) {
+  delete_user_token delete_user_token: fn(String) -> App(Result(a, Nil), config, pubsub, user, err)
+) -> Result(Handler(config, pubsub, user, err), Nil) {
   Ok(spec.AppWispSessionCookie(handle: fn(req, session, session_cookie_name) {
     let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
 
@@ -69,8 +69,8 @@ pub fn sign_out(
 fn set_token(
   session session: Session,
   user user: user,
-  persist_user_token persist_user_token: fn(user, String) -> App(Result(token, Nil), config, pubsub, user),
-) -> App(Result(Session, Nil), config, pubsub, user) {
+  persist_user_token persist_user_token: fn(user, String) -> App(Result(token, Nil), config, pubsub, user, err),
+) -> App(Result(Session, Nil), config, pubsub, user, err) {
   let token = crypto.strong_random_bytes(32)
   let hashed_token = hash_sha256_base64(token)
   use result <- do(persist_user_token(user, hashed_token))
@@ -84,8 +84,8 @@ fn set_token(
 
 fn clear_token(
   session session: Session,
-  delete_user_token delete_user_token: fn(String) -> App(Result(a, Nil), config, pubsub, user)
-) -> App(Session, config, pubsub, user) {
+  delete_user_token delete_user_token: fn(String) -> App(Result(a, Nil), config, pubsub, user, err)
+) -> App(Session, config, pubsub, user, err) {
   use token <- guard.some(session.user_token, pure(session))
 
   use token <- guard.ok_(bit_array.base64_decode(token), fn(_) { pure(session) })

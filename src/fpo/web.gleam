@@ -36,14 +36,14 @@ import fpo/lustre/server_component as lsc
 const web_req_handler_worker_shutdown_ms = 60_000
 
 pub fn supervised(
-  spec spec: Spec(config, pubsub, user),
+  spec spec: Spec(config, pubsub, user, err),
 ) -> static_supervisor.Builder {
   let #(supervisor, _, _) = init(spec:)
   supervisor
 }
 
 pub fn init(
-  spec spec: Spec(config, pubsub, user),
+  spec spec: Spec(config, pubsub, user, err),
 ) -> #(static_supervisor.Builder, config, pubsub) {
   let env_var = load_dot_env(spec.dot_env_relative_path)
 
@@ -51,7 +51,7 @@ pub fn init(
     static_supervisor.new(static_supervisor.OneForOne)
     |> spec.add_pubsub_workers
 
-  let #(add_worker_funcs, flags) =
+  let #(flags, add_worker_funcs) =
     flags.build(features: spec.config.features, env_var:)
 
   let supervisor =
@@ -72,7 +72,7 @@ pub fn init(
 fn web_req_handler_worker(
   cfg cfg: config,
   pubsub pubsub: pubsub,
-  spec spec: Spec(config, pubsub, user),
+  spec spec: Spec(config, pubsub, user, err),
 ) -> ChildSpecification(Supervisor) {
   supervision.ChildSpecification(
     start: fn() { web_req_handler(cfg:, spec:, pubsub:) },
@@ -87,7 +87,7 @@ const lsc_infix = "lsc"
 fn web_req_handler(
   cfg cfg: config,
   pubsub pubsub: pubsub,
-  spec spec: Spec(config, pubsub, user),
+  spec spec: Spec(config, pubsub, user, err),
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
   let app_module_name = spec.app_module_name
   let session_cookie_name = spec.session_cookie_name
@@ -205,7 +205,7 @@ fn to_mist(
 
 fn run_handler(
   req req: Request(wisp.Connection),
-  handler handler: Handler(config, pubsub, user),
+  handler handler: Handler(config, pubsub, user, err),
   ctx ctx: Context(config, pubsub, user),
   session session: Result(Session, Nil),
   session_cookie_name session_cookie_name: String,
@@ -249,7 +249,7 @@ fn run_handler(
 
 fn run_app_handle_wisp(
   req req: Request(wisp.Connection),
-  handle handle: fn(Request(wisp.Connection)) -> App(t, config, pubsub, user),
+  handle handle: fn(Request(wisp.Connection)) -> App(t, config, pubsub, user, err),
   ctx ctx: Context(config, pubsub, user),
   map_ok f: fn(t) -> resp.Response(wisp.Body),
 ) -> resp.Response(wisp.Body) {
@@ -286,7 +286,7 @@ fn run_app_handle_wisp(
 // }
 
 fn to_wisp_err_resp(
-  err err: Err,
+  err err: Err(err),
 ) -> resp.Response(wisp.Body) {
   case err {
     err.RedirectTo(location:, using:, ..) -> {
@@ -312,7 +312,8 @@ fn to_wisp_err_resp(
       )
 
     err.DbErr(..) |
-    err.Err(..) ->
+    err.Err(..) |
+    err.AppErr(..) ->
       wisp_html_resp(
         status: 500,
         element: html.text("Internal Server Error"),
@@ -322,7 +323,7 @@ fn to_wisp_err_resp(
 }
 
 pub fn to_err_resp(
-  err err: Err,
+  err err: Err(err),
 ) -> resp.Response(mist.ResponseData) {
   case err {
     err.RedirectTo(location:, using:, ..) -> {
@@ -348,7 +349,8 @@ pub fn to_err_resp(
       )
 
     err.DbErr(..) |
-    err.Err(..) ->
+    err.Err(..) |
+    err.AppErr(..) ->
       mist_html_resp(
         status: 500,
         element: html.text("Internal Server Error"),
@@ -427,7 +429,7 @@ fn build_web_req_handler(
   cfg cfg: config,
   pubsub pubsub: pubsub,
   secret_key_base secret_key_base: String,
-  spec spec: Spec(config, pubsub, user),
+  spec spec: Spec(config, pubsub, user, err),
   handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Result(Session, Nil), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   handle_server_components_websockets handle_server_components_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),

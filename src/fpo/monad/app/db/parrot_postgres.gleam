@@ -8,7 +8,7 @@ import pog
 pub fn many(
   parrot parrot: Parrot(t),
   conn conn: fn(config) -> pog.Connection,
-) -> App(List(t), config, pubsub, user)  {
+) -> App(List(t), config, pubsub, user, err)  {
   use ctx <- do(app.ctx())
 
   parrot
@@ -19,7 +19,7 @@ pub fn many(
 pub fn one(
   parrot parrot: Parrot(t),
   conn conn: fn(config) -> pog.Connection,
-) -> App(Result(t, Nil), config, pubsub, user)  {
+) -> App(Result(t, Nil), config, pubsub, user, err)  {
   use ctx <- do(app.ctx())
 
   parrot
@@ -30,7 +30,7 @@ pub fn one(
 pub fn one_not_many(
   parrot parrot: Parrot(t),
   conn conn: fn(config) -> pog.Connection,
-) -> App(Result(t, Option(List(t))), config, pubsub, user)  {
+) -> App(Result(t, Option(List(t))), config, pubsub, user, err)  {
   use ctx <- do(app.ctx())
 
   parrot
@@ -40,9 +40,9 @@ pub fn one_not_many(
 
 pub fn one_or(
   parrot parrot: Parrot(t),
-  err err: err.Err,
+  err err: err.Err(err),
   conn conn: fn(config) -> pog.Connection,
-) -> App(t, config, pubsub, user)  {
+) -> App(t, config, pubsub, user, err)  {
   use ctx <- do(app.ctx())
 
   parrot
@@ -52,9 +52,9 @@ pub fn one_or(
 
 pub fn one_not_many_or(
   parrot parrot: Parrot(t),
-  err err: fn(Option(List(t))) -> err.Err,
+  err err: fn(Option(List(t))) -> err.Err(err),
   conn conn: fn(config) -> pog.Connection,
-) -> App(t, config, pubsub, user)  {
+) -> App(t, config, pubsub, user, err)  {
   use ctx <- do(app.ctx())
 
   parrot
@@ -66,7 +66,7 @@ pub fn one_not_many_or(
 
 fn to_err(
   err err: pog.QueryError,
-) -> err.Err {
+) -> err.Err(err) {
   err
   |> app_pog.encode_pog_query_error
   |> err.DbErr
