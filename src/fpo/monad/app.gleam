@@ -1,9 +1,14 @@
+import gleam/crypto
 import gleam/erlang/process
+import gleam/json
 import gleam/list
 import gleam/option.{type Option, None}
 import fpo/types.{type Context}
+import fpo/context
 import fpo/types/err.{type Err}
 import fpo/pubsub
+import fpo/generic/crypto as fpo_crypto
+import fpo/generic/json.{type Transcoders} as _
 
 pub opaque type App(t, config, pubsub, user, err) {
   App(run: fn(Context(config, pubsub, user)) -> Result(t, Err(err)))
@@ -216,4 +221,38 @@ pub fn redirect(
     flash: None,
     err: None,
   ))
+}
+
+//
+
+const algo = crypto.Sha512
+
+pub fn sign(
+  msg msg: t,
+  transcoders transcoders: Transcoders(t),
+) -> App(String, config, pubsub, user, err) {
+  use result <- do(secret_key_base())
+
+  case result {
+    Ok(types.SecretKeyBase(key)) -> pure(fpo_crypto.sign(msg:, transcoders:, key:, algo:))
+    Error(Nil) -> fail(err.SecretKeyBaseLookupFailed)
+  }
+}
+
+pub fn verify(
+  msg msg: String,
+  transcoders transcoders: Transcoders(t),
+) -> App(Result(t, Nil), config, pubsub, user, err) {
+  use result <- do(secret_key_base())
+
+  case result {
+    Ok(types.SecretKeyBase(key)) -> pure(fpo_crypto.verify(msg:, transcoders:, key:))
+    Error(Nil) -> fail(err.SecretKeyBaseLookupFailed)
+  }
+}
+
+fn secret_key_base(
+) -> App(Result(types.SecretKeyBase, Nil), config, pubsub, user, err) {
+  use ctx <- do(ctx())
+  pure(context.secret_key_base(ctx))
 }

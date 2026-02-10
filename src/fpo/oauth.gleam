@@ -1,14 +1,20 @@
-import gleam/json.{type Json}
-import gleam/string
+import gleam/crypto
+import gleam/dynamic/decode.{type Decoder}
 import gleam/hackney
 import gleam/http/request.{type Request}
 import gleam/io
+import gleam/json.{type Json}
+import gleam/string
 import gleam/uri.{type Uri}
 import glow_auth.{type Client, Client}
 import glow_auth/access_token.{type AccessToken}
 import glow_auth/authorize_uri
 import glow_auth/token_request
 import glow_auth/uri/uri_builder.{type UriAppendage, RelativePath}
+import fpo/generic/crypto as fpo_crypto
+import fpo/generic/json.{Transcoders} as _
+import fpo/oauth/state.{type State}
+import fpo/monad/app.{type App}
 
 pub type Config {
   Config(
@@ -63,34 +69,50 @@ pub fn authorize_redirect_uri(
   cfg cfg: Config,
   scopes scopes: List(String),
   scopes_separator scopes_separator: String,
-  state state: Json,
-) -> Uri {
+) -> App(Uri, config, pubsub, user, err) {
   let scope =
     scopes
     |> string.join(scopes_separator)
     |> uri.percent_encode
 
-  let state =
-    state
-    |> todo
-    |> uri.percent_encode
+  use state <- app.do(state.new_signed())
 
   cfg.authz_client
   |> authorize_uri.build(cfg.authz_path, cfg.redirect_uri)
   |> authorize_uri.set_scope(scope)
   |> authorize_uri.set_state(state)
   |> authorize_uri.to_code_authorization_uri
+  |> app.pure
 }
 
+// pub fn authorize_redirect_uri_(
+//   cfg cfg: Config,
+//   scopes scopes: List(String),
+//   scopes_separator scopes_separator: String,
+//   state state: State,
+//   key key: BitArray,
+// ) -> Uri {
+//   let scope =
+//     scopes
+//     |> string.join(scopes_separator)
+//     |> uri.percent_encode
+
+//   cfg.authz_client
+//   |> authorize_uri.build(cfg.authz_path, cfg.redirect_uri)
+//   |> authorize_uri.set_scope(scope)
+//   |> authorize_uri.set_state(fpo_crypto.sign(state, state.transcoders, key, crypto.Sha512))
+//   |> authorize_uri.to_code_authorization_uri
+// }
+
 pub fn fetch_access_token(
-  oauth_cfg: Config,
-  code: String,
+  cfg cfg: Config,
+  code code: String,
 ) -> Result(AccessToken, Nil) {
-  oauth_cfg.token_client
+  cfg.token_client
   |> token_request.authorization_code(
-    oauth_cfg.token_path,
+    cfg.token_path,
     code,
-    oauth_cfg.redirect_uri,
+    cfg.redirect_uri,
   )
   |> fetch_token
 }
@@ -122,7 +144,3 @@ pub fn fetch_token(req: Request(String)) -> Result(AccessToken, Nil) {
       }
   }
 }
-
-//
-
-

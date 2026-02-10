@@ -1,3 +1,5 @@
+import gleam/bit_array
+import gleam/erlang/process
 import gleam/option.{type Option, Some, None}
 import gleam/uri
 import lustre/element/html
@@ -18,7 +20,7 @@ import mist
 import wisp/wisp_mist
 import gleam/otp/static_supervisor.{type Supervisor}
 import gleam/otp/supervision.{type ChildSpecification}
-import fpo/types.{type Context, type Session, type EnvVar, EnvVar}
+import fpo/types.{type Context, type Session, type SecretKeyBase, type EnvVar, type Fpo, EnvVar, SecretKeyBase}
 import fpo/context
 import fpo/web/session
 import fpo/monad/app.{type App}
@@ -38,17 +40,33 @@ const web_req_handler_worker_shutdown_ms = 60_000
 pub fn supervised(
   spec spec: Spec(config, pubsub, user, err),
 ) -> static_supervisor.Builder {
-  let #(supervisor, _, _) = init(spec:)
+  let #(supervisor, _, _, _) = init(spec:)
   supervisor
 }
 
 pub fn init(
   spec spec: Spec(config, pubsub, user, err),
-) -> #(static_supervisor.Builder, config, pubsub) {
+) -> #(static_supervisor.Builder, config, pubsub, Fpo) {
   let env_var = load_dot_env(spec.dot_env_relative_path)
 
-  let #(supervisor, pubsub) =
+  let supervisor =
     static_supervisor.new(static_supervisor.OneForOne)
+
+  let name = process.new_name("secret_key_base")
+  let secret_key_base =
+    spec.secret_key_base_env_var_name
+    |> secret_key_base(env_var_name: _)
+    |> bit_array.from_string
+    |> fn(secret_key_base) {
+      fn() { secret_key_base }
+    }
+  let supervisor =
+    supervisor
+    |> static_supervisor.add(supervised_secret_key_base(name:, secret_key_base:))
+  let fpo = types.Fpo(secret_key_base: name, path_prefix: "", set_user_client_info: None)
+
+  let #(supervisor, pubsub) =
+    supervisor
     |> spec.add_pubsub_workers
 
   let #(flags, add_worker_funcs) =
@@ -64,18 +82,36 @@ pub fn init(
 
   let supervisor =
     supervisor
-    |> static_supervisor.add(web_req_handler_worker(cfg:, spec:, pubsub:))
+    |> static_supervisor.add(web_req_handler_worker(cfg:, spec:, pubsub:, fpo:))
 
-  #(supervisor, cfg, pubsub)
+  #(supervisor, cfg, pubsub, fpo)
+}
+
+fn supervised_secret_key_base(
+  name name: process.Name(process.Subject(SecretKeyBase)),
+  secret_key_base secret_key_base: fn() -> BitArray,
+) -> ChildSpecification(process.Subject(process.Subject(SecretKeyBase))) {
+  supervision.worker(fn() {
+    let secret_key_base = secret_key_base()
+
+    actor.new(Nil)
+    |> actor.on_message(fn(state, reply) {
+      process.send(reply, SecretKeyBase(secret_key_base))
+      actor.continue(state)
+    })
+    |> actor.named(name)
+    |> actor.start
+  })
 }
 
 fn web_req_handler_worker(
   cfg cfg: config,
   pubsub pubsub: pubsub,
   spec spec: Spec(config, pubsub, user, err),
+  fpo fpo: Fpo,
 ) -> ChildSpecification(Supervisor) {
   supervision.ChildSpecification(
-    start: fn() { web_req_handler(cfg:, spec:, pubsub:) },
+    start: fn() { web_req_handler(cfg:, spec:, pubsub:, fpo:) },
     restart: supervision.Permanent,
     significant: False,
     child_type: supervision.Worker(shutdown_ms: web_req_handler_worker_shutdown_ms),
@@ -88,6 +124,7 @@ fn web_req_handler(
   cfg cfg: config,
   pubsub pubsub: pubsub,
   spec spec: Spec(config, pubsub, user, err),
+  fpo fpo: Fpo,
 ) -> Result(actor.Started(Supervisor), actor.StartError) {
   let app_module_name = spec.app_module_name
   let session_cookie_name = spec.session_cookie_name
@@ -174,6 +211,7 @@ fn web_req_handler(
     mist_req: _,
     cfg:,
     pubsub:,
+    fpo:,
     secret_key_base:,
     spec:,
     handle_wisp_mist:,
@@ -311,6 +349,7 @@ fn to_wisp_err_resp(
         headers: dict.new(),
       )
 
+    err.SecretKeyBaseLookupFailed |
     err.DbErr(..) |
     err.Err(..) |
     err.AppErr(..) ->
@@ -348,6 +387,7 @@ pub fn to_err_resp(
         headers: dict.new(),
       )
 
+    err.SecretKeyBaseLookupFailed |
     err.DbErr(..) |
     err.Err(..) |
     err.AppErr(..) ->
@@ -428,6 +468,7 @@ fn build_web_req_handler(
   mist_req mist_req: Request(mist.Connection),
   cfg cfg: config,
   pubsub pubsub: pubsub,
+  fpo fpo: Fpo,
   secret_key_base secret_key_base: String,
   spec spec: Spec(config, pubsub, user, err),
   handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Result(Session, Nil), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
@@ -455,6 +496,7 @@ fn build_web_req_handler(
   let ctx = context.build(
     cfg:,
     pubsub:,
+    fpo:,
     session:,
     authenticate: spec.authenticate,
     features:,

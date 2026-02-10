@@ -17,6 +17,8 @@ pub type Err(err) {
     err: Option(String),
   )
 
+  SecretKeyBaseLookupFailed
+
   Err(
     msg: String,
   )

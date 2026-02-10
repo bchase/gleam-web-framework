@@ -2,6 +2,7 @@ import cloak_wrapper/aes/gcm as aes_gcm
 import deriv/util as deriv
 import fpo/cloak.{type Cloak}
 import gleam/dynamic/decode.{type Decoder}
+import gleam/erlang/process
 import gleam/json.{type Json}
 import gleam/option.{type Option, None}
 import pog
@@ -16,8 +17,13 @@ pub type Context(config, pubsub, user) {
   )
 }
 
+pub type SecretKeyBase {
+  SecretKeyBase(BitArray)
+}
+
 pub type Fpo {
   Fpo(
+    secret_key_base: process.Name(process.Subject(SecretKeyBase)),
     path_prefix: String,
     set_user_client_info: Option(SetUserClientInfo),
   )
