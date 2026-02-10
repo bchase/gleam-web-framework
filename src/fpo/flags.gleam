@@ -11,7 +11,7 @@ pub fn build(
 ) -> #(List(fn(static_supervisor.Builder) -> static_supervisor.Builder), Flags) {
   case features.cloak {
     None -> {
-      #([], Flags(cloak: None))
+      #([], Flags(cloak: None, env_var:))
     }
 
     Some(load) -> {
@@ -19,7 +19,7 @@ pub fn build(
 
       let name = process.new_name("cloak-store")
       let cloak = Cloak(name:, store: cloak_store.get(name:))
-      let flags = Flags(cloak: Some(cloak))
+      let flags = Flags(cloak: Some(cloak), env_var:)
 
       let add_worker_func =
         fn(supervisor) {

@@ -17,18 +17,20 @@ pub type Context(config, pubsub, user) {
 
 pub type Fpo {
   Fpo(
+    path_prefix: String,
     set_user_client_info: Option(SetUserClientInfo),
   )
 }
 pub type SetUserClientInfo {
   SetUserClientInfo(
-    path_prefix: String,
+    path_prefix: String, // TODO rm now that in `Fpo`
     browser_js_path: String,
   )
 }
 
 pub type Features {
   Features(
+    fpo_path_prefix: String,
     cloak: Option(fn(EnvVar) -> aes_gcm.Config),
     set_user_client_info: Option(SetUserClientInfo),
   )
@@ -37,6 +39,7 @@ pub type Features {
 pub type Flags {
   Flags(
     cloak: Option(Cloak),
+    env_var: EnvVar,
   )
 }
 

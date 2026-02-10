@@ -17,15 +17,14 @@ pub fn build(
         #(authenticate(session, cfg), session.user_client_info)
     }
 
-  let Features(set_user_client_info:, ..) = features
-
   Context(
     cfg:,
     pubsub:,
     user:,
     user_client_info:,
     fpo: Fpo(
-      set_user_client_info:,
+      path_prefix: features.fpo_path_prefix,
+      set_user_client_info: features.set_user_client_info,
     ),
   )
 }

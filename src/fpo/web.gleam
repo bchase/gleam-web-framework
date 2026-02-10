@@ -31,6 +31,7 @@ import fpo/generic/guard
 import fpo/generic/mist as fpo_mist
 import fpo/generic/uri as fpo_uri
 import lustre/attribute as attr
+import fpo/lustre/server_component as lsc
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
@@ -81,6 +82,8 @@ fn web_req_handler_worker(
   )
 }
 
+const lsc_infix = "lsc"
+
 fn web_req_handler(
   cfg cfg: config,
   pubsub pubsub: pubsub,
@@ -98,6 +101,22 @@ fn web_req_handler(
   let secret_key_base =
     spec.secret_key_base_env_var_name
     |> secret_key_base(env_var_name: _)
+
+  let handle_server_components_websockets =
+    fn(req: Request(mist.Connection), ctx: Context(config, pubsub, user)) -> resp.Response(mist.ResponseData) {
+      let path_prefix = ctx.fpo.path_prefix
+
+      case req |> request.path_segments {
+        [prefix, infix, ..route] if prefix == path_prefix && infix == lsc_infix ->
+          spec.server_components
+          |> lsc.for(route)
+          |> result.map(fn(sc) { sc |> lsc.start(req, ctx) })
+          |> result.lazy_unwrap(fn() { fpo_mist.empty_resp(404) })
+
+        _ ->
+          fpo_mist.empty_resp(404)
+      }
+    }
 
   let handle_wisp_mist =
     fn(req: Request(wisp.Connection), session: Result(Session, Nil), ctx: Context(config, pubsub, user)) -> resp.Response(wisp.Body) {
@@ -159,6 +178,7 @@ fn web_req_handler(
     spec:,
     handle_wisp_mist:,
     handle_mist_websockets:,
+    handle_server_components_websockets:,
     session_cookie_name:,
   )
   |> mist.new()
@@ -397,9 +417,7 @@ fn redirect_to_session_init(
         #("redirect_to_path", redirect_to_path),
       ]
     )
-    |> echo
     |> uri.to_string
-    |> echo
 
   redirect_to(location)
 }
@@ -411,6 +429,7 @@ fn build_web_req_handler(
   secret_key_base secret_key_base: String,
   spec spec: Spec(config, pubsub, user),
   handle_wisp_mist handle_wisp_mist: fn(Request(mist.Connection), Result(Session, Nil), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
+  handle_server_components_websockets handle_server_components_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   handle_mist_websockets handle_mist_websockets: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData),
   session_cookie_name session_cookie_name: String,
 ) -> resp.Response(mist.ResponseData) {
@@ -439,7 +458,13 @@ fn build_web_req_handler(
     features:,
   )
 
+  let fpo_path_prefix = spec.config.features.fpo_path_prefix
+
   case mist_req |> request.path_segments {
+    [prefix, infix, ..] if prefix == fpo_path_prefix && infix == lsc_infix -> {
+      mist_req |> handle_server_components_websockets(ctx)
+    }
+
     [prefix, ..] if prefix == spec.websockets_path_prefix ->
       mist_req |> handle_mist_websockets(ctx)
 
