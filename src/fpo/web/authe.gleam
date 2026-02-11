@@ -66,7 +66,7 @@ pub fn sign_out(
 
 //
 
-fn set_token(
+pub fn set_token(
   session session: Session,
   user user: user,
   persist_user_token persist_user_token: fn(user, String) -> App(Result(token, Nil), config, pubsub, user, err),
