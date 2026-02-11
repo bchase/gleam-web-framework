@@ -18,6 +18,7 @@ import fpo/monad/app.{type App}
 
 pub type Config(provider) {
   Config(
+    provider: String,
     client_id: String,
     client_secret: String,
     authz_client: Client(String),
@@ -31,6 +32,7 @@ pub type Config(provider) {
 }
 
 pub fn build_oauth_config(
+  provider provider: String,
   authz_base_uri authz_base_uri: String,
   authz_endpoint_path authz_endpoint_path: String,
   token_base_uri token_base_uri: String,
@@ -53,6 +55,7 @@ pub fn build_oauth_config(
   let scopes_separator = " "
 
   Config(
+    provider:,
     client_id:,
     client_secret:,
     authz_client:,

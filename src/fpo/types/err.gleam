@@ -28,6 +28,8 @@ pub type Err(err) {
     err: fhttp.Err,
   )
 
+  Unauthenticated
+
   AppErr(err: err)
 }
 

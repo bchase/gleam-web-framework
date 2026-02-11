@@ -1,8 +1,9 @@
+import gleam/result
 import gleam/crypto
 import gleam/erlang/process
 import gleam/json
 import gleam/list
-import gleam/option.{type Option, None}
+import gleam/option.{type Option, Some, None}
 import fpo/types.{type Context}
 import fpo/context
 import fpo/types/err.{type Err}
@@ -48,6 +49,22 @@ pub fn map(
     }
   })
 }
+
+// pub fn map_ok(
+//   app app: App(Result(a, e), config, pubsub, user, err),
+//   f f: fn(a) -> b,
+// ) -> App(Result(b, e), config, pubsub, user, err) {
+//   app
+//   |> map(result.map(_, f))
+// }
+
+// pub fn map_some(
+//   app app: App(Option(a), config, pubsub, user, err),
+//   f f: fn(a) -> b,
+// ) -> App(Option(b), config, pubsub, user, err) {
+//   app
+//   |> map(option.map(_, f))
+// }
 
 pub fn flatten(
   app app: App(App(t, config, pubsub, user, err), config, pubsub, user, err),
@@ -301,4 +318,16 @@ fn secret_key_base(
 ) -> App(Result(types.SecretKeyBase, Nil), config, pubsub, user, err) {
   use ctx <- do(ctx())
   pure(context.secret_key_base(ctx))
+}
+
+// USER
+
+pub fn user(
+) -> App(user, config, pubsub, user, err) {
+  use ctx <- do(ctx())
+
+  case ctx.user {
+    Some(user) -> pure(user)
+    None -> fail(err.Unauthenticated)
+  }
 }

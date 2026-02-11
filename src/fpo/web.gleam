@@ -349,6 +349,13 @@ fn to_wisp_err_resp(
         headers: dict.new(),
       )
 
+    err.Unauthenticated ->
+      wisp_html_resp(
+        status: 401,
+        element: html.text("Unauthorized"),
+        headers: dict.new(),
+      )
+
     err.SecretKeyBaseLookupFailed |
     err.HttpReqErr(..) |
     err.DbErr(..) |
@@ -385,6 +392,13 @@ pub fn to_err_resp(
       mist_html_resp(
         status: 404,
         element: html.text("Not Found"),
+        headers: dict.new(),
+      )
+
+    err.Unauthenticated ->
+      mist_html_resp(
+        status: 401,
+        element: html.text("Unauthorized"),
         headers: dict.new(),
       )
 

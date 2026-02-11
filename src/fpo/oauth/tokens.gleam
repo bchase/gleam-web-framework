@@ -21,6 +21,30 @@ pub opaque type Tokens(encryption) {
   )
 }
 
+pub fn encrypted_tokens(
+  access_token  access_token: Token(Encrypted),
+  access_token_expires_at access_token_expires_at: Option(ts.Timestamp),
+  refresh_token refresh_token: Option(Token(Encrypted)),
+) -> Tokens(Encrypted) {
+  Tokens(
+    access_token:,
+    access_token_expires_at:,
+    refresh_token:,
+  )
+}
+
+pub fn encrypted_token(
+  str str: String,
+) -> Token(Encrypted) {
+  Token(token: str)
+}
+
+pub fn encrypted_token_str(
+  token token: Token(Encrypted) ,
+) -> String {
+  token.token
+}
+
 pub type EncryptedToken = Token(Encrypted)
 
 @internal
