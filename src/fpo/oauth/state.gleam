@@ -32,7 +32,7 @@ pub fn verify(
 ) -> App(Result(State, Nil), config, pubsub, user, err) {
   use state <- app.do__(app.verify(msg:, transcoders:), Nil)
 
-  let expired = birl.compare(state.expires_at, birl.utc_now()) == order.Gt
+  let expired = birl.compare(state.expires_at, birl.utc_now()) == order.Lt
 
   use <- bool.guard(expired, pure(Error(Nil)))
 

@@ -70,16 +70,11 @@ pub fn authorize_redirect_uri(
   scopes scopes: List(String),
   scopes_separator scopes_separator: String,
 ) -> App(Uri, config, pubsub, user, err) {
-  let scope =
-    scopes
-    |> string.join(scopes_separator)
-    |> uri.percent_encode
-
   use state <- app.do(state.new_signed())
 
   cfg.authz_client
   |> authorize_uri.build(cfg.authz_path, cfg.redirect_uri)
-  |> authorize_uri.set_scope(scope)
+  |> authorize_uri.set_scope(scopes |> string.join(scopes_separator))
   |> authorize_uri.set_state(state)
   |> authorize_uri.to_code_authorization_uri
   |> app.pure
