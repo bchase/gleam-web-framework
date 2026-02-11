@@ -73,6 +73,19 @@ pub fn do(
   })
 }
 
+pub fn do_ok(
+  app app: App(Result(a, e1), config, pubsub, user, err),
+  err to_err: fn(e1) -> Err(err),
+  cont cont: fn(a) -> App(b, config, pubsub, user, err),
+) -> App(b, config, pubsub, user, err) {
+  use result <- do(app)
+
+  case result {
+    Ok(x) -> cont(x)
+    Error(err) -> fail(to_err(err))
+  }
+}
+
 pub fn do_(
   app app: App(Result(a, e1), config, pubsub, user, err),
   fail fail: fn(e1) -> e2,
