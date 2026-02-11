@@ -61,10 +61,23 @@ pub fn encrypted_access_token(
   tokens.access_token
 }
 
+pub fn encrypted_access_token_str(
+  tokens tokens: Tokens(Encrypted),
+) -> String {
+  tokens.access_token.token
+}
+
 pub fn encrypted_refresh_token(
   tokens tokens: Tokens(Encrypted),
 ) -> Option(Token(Encrypted)) {
   tokens.refresh_token
+}
+
+pub fn encrypted_refresh_token_str(
+  tokens tokens: Tokens(Encrypted),
+) -> Option(String) {
+  tokens.refresh_token
+  |> option.map(fn(token) { token.token })
 }
 
 pub type EncryptionErr(id) {
