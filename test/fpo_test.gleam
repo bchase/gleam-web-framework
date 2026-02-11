@@ -7,6 +7,7 @@ import gleam/json
 import gleam/dynamic/decode
 import cloak_wrapper/crypto/key
 import fpo/generic/crypto as fpo_crypto
+import fpo/generic/json.{Transcoders} as _
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -30,13 +31,15 @@ const plaintext = "Fear is the little-death that brings total obliteration."
 pub fn signed_msg_test() {
   let key = key.gen(32)
 
-  let msg = fpo_crypto.sign(msg: plaintext, encode: json.string, key:, algo: crypto.Sha512)
+  let transcoders = Transcoders(encode: json.string, decoder: fn() { decode.string })
+
+  let msg = fpo_crypto.sign(msg: plaintext, transcoders:, key:, algo: crypto.Sha512)
 
   msg
   |> should.not_equal(plaintext)
 
   msg
-  |> fpo_crypto.verify(decoder: decode.string, key:)
+  |> fpo_crypto.verify(transcoders:, key:)
   |> should.be_ok
   |> should.equal(plaintext)
 }
