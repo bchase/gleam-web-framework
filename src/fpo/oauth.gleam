@@ -16,7 +16,7 @@ import fpo/generic/json.{Transcoders} as _
 import fpo/oauth/state.{type State}
 import fpo/monad/app.{type App}
 
-pub type Config {
+pub type Config(provider) {
   Config(
     client_id: String,
     client_secret: String,
@@ -38,7 +38,7 @@ pub fn build_oauth_config(
   redirect_uri redirect_uri: String,
   client_id client_id: String,
   client_secret client_secret: String,
-) -> Config {
+) -> Config(provider) {
   let assert Ok(authz_site) = uri.parse(authz_base_uri)
   let authz_client = Client(client_id, client_secret, authz_site)
   let authz_path = RelativePath(authz_endpoint_path)
@@ -66,7 +66,7 @@ pub fn build_oauth_config(
 }
 
 pub fn authorize_redirect_uri(
-  cfg cfg: Config,
+  cfg cfg: Config(provider),
   scopes scopes: List(String),
   scopes_separator scopes_separator: String,
 ) -> App(Uri, config, pubsub, user, err) {
@@ -105,7 +105,7 @@ pub fn authorize_redirect_uri(
 // }
 
 pub fn fetch_access_token(
-  cfg cfg: Config,
+  cfg cfg: Config(provider),
   code code: String,
 ) -> Result(AccessToken, Nil) {
   cfg.token_client
@@ -118,7 +118,7 @@ pub fn fetch_access_token(
 }
 
 pub fn fetch_refresh_token(
-  oauth_cfg: Config,
+  oauth_cfg: Config(provider),
   refresh_token: String,
 ) -> Result(AccessToken, Nil) {
   oauth_cfg.token_client
