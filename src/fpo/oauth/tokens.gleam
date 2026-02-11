@@ -21,7 +21,10 @@ pub opaque type Tokens(encryption) {
   )
 }
 
-pub opaque type Token(encryption) {
+pub type EncryptedToken = Token(Encrypted)
+
+@internal
+pub type Token(encryption) {
   Token(token: String)
 }
 
@@ -53,14 +56,14 @@ pub fn expires_at(
 }
 
 pub fn encrypted_access_token(
-  tokens tokens: Tokens(encryption),
-) -> Token(encryption) {
+  tokens tokens: Tokens(Encrypted),
+) -> Token(Encrypted) {
   tokens.access_token
 }
 
 pub fn encrypted_refresh_token(
-  tokens tokens: Tokens(encryption),
-) -> Option(Token(encryption)) {
+  tokens tokens: Tokens(Encrypted),
+) -> Option(Token(Encrypted)) {
   tokens.refresh_token
 }
 

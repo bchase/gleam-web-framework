@@ -1,5 +1,6 @@
 import gleam/option.{type Option}
 import gleam/dynamic.{type Dynamic}
+import fpo/http/err as fhttp
 
 pub type Err(err) {
   DbErr(
@@ -21,6 +22,10 @@ pub type Err(err) {
 
   Err(
     msg: String,
+  )
+
+  HttpReqErr(
+    err: fhttp.Err,
   )
 
   AppErr(err: err)

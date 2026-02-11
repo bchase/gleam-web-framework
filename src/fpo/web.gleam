@@ -350,6 +350,7 @@ fn to_wisp_err_resp(
       )
 
     err.SecretKeyBaseLookupFailed |
+    err.HttpReqErr(..) |
     err.DbErr(..) |
     err.Err(..) |
     err.AppErr(..) ->
@@ -388,6 +389,7 @@ pub fn to_err_resp(
       )
 
     err.SecretKeyBaseLookupFailed |
+    err.HttpReqErr(..) |
     err.DbErr(..) |
     err.Err(..) |
     err.AppErr(..) ->
