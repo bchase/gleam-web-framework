@@ -95,9 +95,36 @@ pub fn do__(
 }
 
 pub fn ok(
-  result result: Result(t, Err(err)),
-) -> App(t, config, pubsub, user, err) {
-  App(run: fn(_read) { result })
+  result result: Result(a, e1),
+  err to_err: fn(e1) -> Err(err),
+  cont cont: fn(a) -> App(b, config, pubsub, user, err)
+) -> App(b, config, pubsub, user, err) {
+  case result {
+    Ok(x) -> cont(x)
+    Error(err) -> fail(to_err(err))
+  }
+}
+
+pub fn ok_(
+  result result: Result(a, e1),
+  err to_err: fn(e1) -> e2,
+  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err)
+) -> App(Result(b, e2), config, pubsub, user, err) {
+  case result {
+    Ok(x) -> cont(x)
+    Error(err) -> pure(Error(to_err(err)))
+  }
+}
+
+pub fn ok__(
+  result result: Result(a, e1),
+  err err: e2,
+  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err)
+) -> App(Result(b, e2), config, pubsub, user, err) {
+  case result {
+    Ok(x) -> cont(x)
+    Error(_) -> pure(Error(err))
+  }
 }
 
 pub fn some(
@@ -166,6 +193,12 @@ pub fn replace(
       Error(e) -> Error(e)
     }
   })
+}
+
+pub fn from_result(
+  result result: Result(t, Err(err)),
+) -> App(t, config, pubsub, user, err) {
+  App(run: fn(_read) { result })
 }
 
 pub fn to_result(

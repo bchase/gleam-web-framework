@@ -8,7 +8,7 @@ import lustre/attribute as attr
 import lustre/server_component
 import lustre/effect.{type Effect}
 import fpo/types.{type Context, type UserClientInfo, type Fpo}
-import fpo/monad/app.{type App, do, pure, ok}
+import fpo/monad/app.{type App, do, pure}
 import fpo/lustre.{continue} as _
 import gleam/erlang/process.{type Selector}
 import lustre/element.{type Element}
@@ -203,7 +203,7 @@ fn log_err(
     }
   )
 
-  ok(result)
+  app.from_result(result)
 }
 
 fn wrap_init(

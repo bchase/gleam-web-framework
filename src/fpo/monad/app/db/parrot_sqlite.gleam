@@ -13,7 +13,7 @@ pub fn many(
 
   parrot
   |> parrot.many_sqlite(conn: conn(ctx.cfg), to_err:)
-  |> app.ok
+  |> app.from_result
 }
 
 pub fn one(
@@ -24,7 +24,7 @@ pub fn one(
 
   parrot
   |> parrot.one_sqlite(conn: conn(ctx.cfg), to_err:)
-  |> app.ok
+  |> app.from_result
 }
 
 pub fn one_not_many(
@@ -35,7 +35,7 @@ pub fn one_not_many(
 
   parrot
   |> parrot.one_not_many_sqlite(conn: conn(ctx.cfg), to_err:)
-  |> app.ok
+  |> app.from_result
 }
 
 pub fn one_or(
@@ -47,7 +47,7 @@ pub fn one_or(
 
   parrot
   |> parrot.one_or_sqlite(conn: conn(ctx.cfg), to_err:, err:)
-  |> app.ok
+  |> app.from_result
 }
 
 pub fn one_not_many_or(
@@ -59,7 +59,7 @@ pub fn one_not_many_or(
 
   parrot
   |> parrot.one_not_many_or_sqlite(conn: conn(ctx.cfg), to_err:, err:)
-  |> app.ok
+  |> app.from_result
 }
 
 //
