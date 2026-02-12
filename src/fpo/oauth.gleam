@@ -1,4 +1,3 @@
-import gleam/crypto
 import gleam/dynamic/decode.{type Decoder}
 import gleam/hackney
 import gleam/http/request.{type Request}
@@ -11,7 +10,6 @@ import glow_auth/access_token.{type AccessToken}
 import glow_auth/authorize_uri
 import glow_auth/token_request
 import glow_auth/uri/uri_builder.{type UriAppendage, RelativePath}
-import fpo/generic/crypto as fpo_crypto
 import fpo/generic/json.{Transcoders} as _
 import fpo/oauth/state.{type State}
 import fpo/monad/app.{type App, pure, do}
@@ -118,6 +116,12 @@ pub fn fetch_refresh_token(
   oauth_cfg: Config(provider),
   refresh_token: String,
 ) -> Result(AccessToken, Nil) {
+  let refresh_token =
+    refresh_token
+    |> uri.percent_encode
+    // |> bit_array.from_string
+    // |> bit_array.base64_encode(True)
+
   oauth_cfg.token_client
   |> token_request.refresh(oauth_cfg.token_path, refresh_token)
   |> fetch_token
@@ -145,7 +149,7 @@ pub fn fetch_token(req: Request(String)) -> Result(AccessToken, Nil) {
 pub fn refresh(
   cfg cfg: fn(config) -> Config(provider),
   cloak cloak: fn(config) -> Cloak,
-  refresh refresh: Option(fn(String) -> Result(Tokens(Unencrypted), Nil)),
+  refresh refresh: Option(fn(Config(provider), String) -> Result(Tokens(Unencrypted), Nil)),
   to_tokens to_tokens: fn(oauth) -> Tokens(Encrypted),
   get_oauth get_oauth: fn(user, String) -> App(oauth, config, pubsub, user, err),
   update_oauth update_oauth: fn(oauth, Tokens(Encrypted)) -> App(oauth, config, pubsub, user, err),
@@ -159,8 +163,8 @@ pub fn refresh(
 
   let tokens = oauth |> to_tokens
 
-  use refresh_token <- guard.some_(
-    tokens.encrypted_refresh_token(tokens),
+  use _has_refresh_token <- guard.some_(
+    tokens.refresh_token,
     fn() { pure(Refreshed(tokens)) },
   )
 
@@ -176,17 +180,26 @@ pub fn refresh(
   let fetch =
     refresh
     |> option.lazy_unwrap(fn() {
-      fn(str) {
+      fn(cfg, str) {
         str
         |> fetch_refresh_token(cfg, _)
         |> result.map(tokens.from)
       }
     })
 
+  use tokens.Tokens(refresh_token:, ..) <- app.do_ok(
+    tokens.decrypt(tokens:, store: cloak),
+    fn(_) { err.Err("oauth refresh failed to decrypt") },
+  )
+
+  use refresh_token <- guard.some_(
+    refresh_token,
+    fn() { pure(Refreshed(tokens)) },
+  )
+
   use tokens <- guard.ok_(
-    refresh_token
-    |> tokens.encrypted_token_str
-    |> fetch,
+    refresh_token.token
+    |> fetch(cfg, _),
     fn(_) { app.fail(err.Err("oauth refresh fetch (http) failed")) },
   )
 

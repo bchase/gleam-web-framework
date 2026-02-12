@@ -13,7 +13,7 @@ import fpo/generic/birl as fpo_birl
 pub type Unencrypted
 pub type Encrypted
 
-pub opaque type Tokens(encryption) {
+pub type Tokens(encryption) {
   Tokens(
     access_token: Token(encryption),
     access_token_expires_at: Option(ts.Timestamp),
@@ -41,6 +41,12 @@ pub fn encrypted_token(
 
 pub fn encrypted_token_str(
   token token: Token(Encrypted) ,
+) -> String {
+  token.token
+}
+
+pub fn unencrypted_token_str(
+  token token: Token(Unencrypted) ,
 ) -> String {
   token.token
 }

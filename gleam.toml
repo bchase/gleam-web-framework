@@ -16,7 +16,8 @@ target = "erlang"
 
 [dependencies]
 gleam_stdlib = ">= 0.44.0 and < 2.0.0"
-glow_auth = { git = "https://github.com/bchase/glow_auth", ref = "upgrade-dynamic-decode" }
+# glow_auth = { git = "https://github.com/bchase/glow_auth", ref = "upgrade-dynamic-decode" }
+glow_auth = ">= 1.0.1 and < 2.0.0"
 deriv = { git = "https://github.com/bchase/deriv", ref = "dev" }
 gleam_json = ">= 3.1.0 and < 4.0.0"
 mist = ">= 5.0.4 and < 6.0.0"
