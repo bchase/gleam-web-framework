@@ -1,3 +1,4 @@
+import gleam/result
 import gleam/option.{type Option}
 import fpo/monad/app.{type App, type AppWithParam, do}
 // import fpo/types.{type Context}
@@ -9,41 +10,59 @@ import pog
 pub type AppDb(t, config, pubsub, user, err) =
   AppWithParam(t, pog.Connection, config, pubsub, user, err)
 
-pub fn many_(
-  parrot parrot: Parrot(t),
+pub fn example(
   conn conn: fn(config) -> pog.Connection,
-) -> AppDb(List(t), config, pubsub, user, err)  {
-  use ctx <- do(app.ctx())
-  use param <- do(app.param())
+) -> App(#(List(a), List(b)), config, pubsub, user, err) {
+  use _ <-do(transaction(conn:, err: todo, app: {
+    use xs <- app.do(many_(todo))
+    use ys <- app.do(many_(todo))
+    app.pure(#(xs, ys))
+  }))
 
-  parrot
-  |> parrot.many_postgres(conn: conn(ctx.cfg), to_err:)
-  |> app.from_result
+  use #(xs, ys) <-do(db(conn:, app: {
+    use xs <- app.do(many_(todo))
+    use ys <- app.do(many_(todo))
+    app.pure(#(xs, ys))
+  }))
 
-  todo
+  app.pure(#(xs, ys))
 }
 
-// pub opaque type AppTransaction(t, config, pubsub, user, err) {
-//   AppTransaction(
-//     app: fn(pog.Connection) -> App(t, config, pubsub, user, err),
-//     // conn: pog.Connection,
-//   )
-// }
+pub fn transaction(
+  conn get_conn: fn(config) -> pog.Connection,
+  err to_err: fn(pog.TransactionError(err.Err(err))) -> err.Err(err),
+  app app: AppDb(t, config, pubsub, user, err),
+) -> App(t, config, pubsub, user, err) {
+  use ctx <- do(app.ctx())
 
-// pub fn transaction(
-//   ctx ctx: Context(config, pubsub, user),
-//   conn conn: fn(config) -> pog.Connection,
-// ) -> AppTransaction(Nil, config, pubsub, user, err)  {
-//   let conn = conn(ctx.cfg)
+  ctx.cfg
+  |> get_conn
+  |> pog.transaction(app.run(app, ctx, _))
+  |> result.map_error(to_err)
+  |> app.from_result
+}
 
-//   pog.transaction(conn, fn(conn) {
-//   })
+pub fn db(
+  conn conn: fn(config) -> pog.Connection,
+  app app: AppDb(t, config, pubsub, user, err),
+) -> App(t, config, pubsub, user, err) {
+  use ctx <- do(app.ctx())
 
-//   parrot
-//   |> parrot.many_postgres(conn:, to_err:)
-//   |> app.from_result
-//   |> todo
-// }
+  app
+  |> app.run(ctx, conn(ctx.cfg))
+  |> app.from_result
+}
+
+pub fn many_(
+  parrot parrot: Parrot(t),
+) -> AppDb(List(t), config, pubsub, user, err) {
+  use conn <- do(app.param())
+
+  parrot
+  |> parrot.many_postgres(conn:, to_err:)
+  |> app.from_result
+}
+
 
 pub fn many(
   parrot parrot: Parrot(t),
