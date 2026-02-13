@@ -29,7 +29,7 @@ pub fn eff(
 
   effect.from(fn(dispatch) {
     process.spawn_unlinked(fn() {
-      case app.run(app, ctx) {
+      case app.run(app, ctx, Nil) {
         Error(err) -> dispatch(to_err(err))
         Ok(x) -> dispatch(to_msg(x))
       }

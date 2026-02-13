@@ -293,7 +293,7 @@ fn run_app_handle_wisp(
 ) -> resp.Response(wisp.Body) {
   req
   |> handle
-  |> app.run(ctx)
+  |> app.run(ctx, Nil)
   |> fn(result) {
     case result {
       Ok(x) -> f(x)

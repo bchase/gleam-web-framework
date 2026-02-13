@@ -1,7 +1,5 @@
-import gleam/result
 import gleam/crypto
 import gleam/erlang/process
-import gleam/json
 import gleam/list
 import gleam/option.{type Option, Some, None}
 import fpo/types.{type Context}
@@ -11,39 +9,56 @@ import fpo/pubsub
 import fpo/generic/crypto as fpo_crypto
 import fpo/generic/json.{type Transcoders} as _
 
-pub opaque type App(t, config, pubsub, user, err) {
-  App(run: fn(Context(config, pubsub, user)) -> Result(t, Err(err)))
+pub opaque type AppWithParam(t, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(Context(config, pubsub, user), param) -> Result(t, Err(err)))
 }
 
+pub type App(t, config, pubsub, user, err) =
+  AppWithParam(t, Nil, config, pubsub, user, err)
+
+// pub fn run(
+//   app app: App(t, config, pubsub, user, err),
+//   read read: Context(config, pubsub, user),
+// ) -> Result(t, Err(err)) {
+//   app.run(read, Nil)
+// }
+
 pub fn run(
-  app app: App(t, config, pubsub, user, err),
+  app app: AppWithParam(t, param, config, pubsub, user, err),
   read read: Context(config, pubsub, user),
+  param param: param,
 ) -> Result(t, Err(err)) {
-  app.run(read)
+  app.run(read, param)
 }
 
 pub fn pure(
   val val: t,
-) -> App(t, config, pubsub, user, err) {
-  App(run: fn(_read) { Ok(val) })
+) -> AppWithParam(t, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(_read, _param) { Ok(val) })
 }
 
 pub fn fail(
   err err: Err(err),
-) -> App(t, config, pubsub, user, err) {
-  App(run: fn(_read) { Error(err) })
+) -> AppWithParam(t, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(_read, _param) { Error(err) })
 }
 
-pub fn ctx() -> App(Context(config, pubsub, user), config, pubsub, user, err) {
-  App(run: fn(read) { Ok(read) })
+pub fn ctx(
+) -> AppWithParam(Context(config, pubsub, user), param, config, pubsub, user, err) {
+  AppWithParam(run: fn(read, _param) { Ok(read) })
+}
+
+pub fn param(
+) -> AppWithParam(param, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(_read, param) { Ok(param) })
 }
 
 pub fn map(
-  app app: App(a, config, pubsub, user, err),
+  app app: AppWithParam(a, param, config, pubsub, user, err),
   f f: fn(a) -> b,
-) -> App(b, config, pubsub, user, err) {
-  App(run: fn(read) {
-    case app.run(read) {
+) -> AppWithParam(b, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(read, param) {
+    case app.run(read, param) {
       Error(err) -> Error(err)
       Ok(x) -> Ok(f(x))
     }
@@ -51,50 +66,50 @@ pub fn map(
 }
 
 // pub fn map_ok(
-//   app app: App(Result(a, e), config, pubsub, user, err),
+//   app app: AppWithParam(Result(a, e), config, pubsub, user, err),
 //   f f: fn(a) -> b,
-// ) -> App(Result(b, e), config, pubsub, user, err) {
+// ) -> AppWithParam(Result(b, e), config, pubsub, user, err) {
 //   app
 //   |> map(result.map(_, f))
 // }
 
 // pub fn map_some(
-//   app app: App(Option(a), config, pubsub, user, err),
+//   app app: AppWithParam(Option(a), config, pubsub, user, err),
 //   f f: fn(a) -> b,
-// ) -> App(Option(b), config, pubsub, user, err) {
+// ) -> AppWithParam(Option(b), config, pubsub, user, err) {
 //   app
 //   |> map(option.map(_, f))
 // }
 
 pub fn flatten(
-  app app: App(App(t, config, pubsub, user, err), config, pubsub, user, err),
-) -> App(t, config, pubsub, user, err) {
-  App(run: fn(read) {
-    case app.run(read) {
+  app app: AppWithParam(AppWithParam(t, param, config, pubsub, user, err), param, config, pubsub, user, err),
+) -> AppWithParam(t, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(read, param) {
+    case app.run(read, param) {
       Error(err) -> Error(err)
-      Ok(app) -> app.run(read)
+      Ok(app) -> app.run(read, param)
     }
   })
 }
 
 pub fn do(
-  app app: App(a, config, pubsub, user, err),
-  cont cont: fn(a) -> App(b, config, pubsub, user, err),
-) -> App(b, config, pubsub, user, err) {
+  app app: AppWithParam(a, param, config, pubsub, user, err),
+  cont cont: fn(a) -> AppWithParam(b, param, config, pubsub, user, err),
+) -> AppWithParam(b, param, config, pubsub, user, err) {
   // app |> map(cont) |> flatten
-  App(run: fn(read) {
-    case app.run(read) {
+  AppWithParam(run: fn(read, param) {
+    case app.run(read, param) {
       Error(err) -> Error(err)
-      Ok(x) -> cont(x) |> run(read)
+      Ok(x) -> cont(x) |> run(read, param)
     }
   })
 }
 
 pub fn do_ok(
-  app app: App(Result(a, e1), config, pubsub, user, err),
+  app app: AppWithParam(Result(a, e1), param, config, pubsub, user, err),
   err to_err: fn(e1) -> Err(err),
-  cont cont: fn(a) -> App(b, config, pubsub, user, err),
-) -> App(b, config, pubsub, user, err) {
+  cont cont: fn(a) -> AppWithParam(b, param, config, pubsub, user, err),
+) -> AppWithParam(b, param, config, pubsub, user, err) {
   use result <- do(app)
 
   case result {
@@ -104,10 +119,10 @@ pub fn do_ok(
 }
 
 pub fn do_(
-  app app: App(Result(a, e1), config, pubsub, user, err),
+  app app: AppWithParam(Result(a, e1), param, config, pubsub, user, err),
   fail fail: fn(e1) -> e2,
-  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err),
-) -> App(Result(b, e2), config, pubsub, user, err) {
+  cont cont: fn(a) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err),
+) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err) {
   use result <- do(app)
 
   case result {
@@ -117,18 +132,18 @@ pub fn do_(
 }
 
 pub fn do__(
-  app app: App(Result(a, e1), config, pubsub, user, err),
+  app app: AppWithParam(Result(a, e1), param, config, pubsub, user, err),
   fail err: e2,
-  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err),
-) -> App(Result(b, e2), config, pubsub, user, err) {
+  cont cont: fn(a) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err),
+) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err) {
   do_(app:, fail: fn(_) { err }, cont:)
 }
 
 pub fn ok(
   result result: Result(a, e1),
   err to_err: fn(e1) -> Err(err),
-  cont cont: fn(a) -> App(b, config, pubsub, user, err)
-) -> App(b, config, pubsub, user, err) {
+  cont cont: fn(a) -> AppWithParam(b, param, config, pubsub, user, err)
+) -> AppWithParam(b, param, config, pubsub, user, err) {
   case result {
     Ok(x) -> cont(x)
     Error(err) -> fail(to_err(err))
@@ -138,8 +153,8 @@ pub fn ok(
 pub fn ok_(
   result result: Result(a, e1),
   err to_err: fn(e1) -> e2,
-  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err)
-) -> App(Result(b, e2), config, pubsub, user, err) {
+  cont cont: fn(a) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err)
+) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err) {
   case result {
     Ok(x) -> cont(x)
     Error(err) -> pure(Error(to_err(err)))
@@ -149,8 +164,8 @@ pub fn ok_(
 pub fn ok__(
   result result: Result(a, e1),
   err err: e2,
-  cont cont: fn(a) -> App(Result(b, e2), config, pubsub, user, err)
-) -> App(Result(b, e2), config, pubsub, user, err) {
+  cont cont: fn(a) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err)
+) -> AppWithParam(Result(b, e2), param, config, pubsub, user, err) {
   case result {
     Ok(x) -> cont(x)
     Error(_) -> pure(Error(err))
@@ -160,17 +175,17 @@ pub fn ok__(
 pub fn some(
   option option: Option(t),
   err err: Err(err),
-) -> App(t, config, pubsub, user, err) {
-  App(run: fn(_read) {
+) -> AppWithParam(t, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(_read, _param) {
     option
     |> option.to_result(err)
   })
 }
 
 pub fn sequence(
-  apps apps: List(App(a, config, pubsub, user, err)),
-) -> App(List(a), config, pubsub, user, err) {
-  App(fn(r) {
+  apps apps: List(AppWithParam(a, param, config, pubsub, user, err)),
+) -> AppWithParam(List(a), param, config, pubsub, user, err) {
+  AppWithParam(fn(read, param) {
     apps
     |> list.fold_until(Ok([]), fn(acc, app) {
       case acc {
@@ -178,7 +193,7 @@ pub fn sequence(
           list.Stop(Error(err))
 
         Ok(acc) ->
-          case run(app, r) {
+          case app.run(read, param) {
             Error(err) -> Error(err)
 
             Ok(x) -> Ok(list.append(acc, [x]))
@@ -190,9 +205,9 @@ pub fn sequence(
 }
 
 pub fn sequence_(
-  apps apps: List(App(Nil, config, pubsub, user, err)),
-) -> App(Nil, config, pubsub, user, err) {
-  App(fn(r) {
+  apps apps: List(AppWithParam(Nil, param, config, pubsub, user, err)),
+) -> AppWithParam(Nil, param, config, pubsub, user, err) {
+  AppWithParam(fn(read, param) {
     apps
     |> list.fold_until(Ok(Nil), fn(acc, app) {
       case acc {
@@ -200,7 +215,7 @@ pub fn sequence_(
           list.Stop(Error(err))
 
         Ok(_) ->
-          case run(app, r) {
+          case app.run(read, param) {
             Error(err) ->
               list.Stop(Error(err))
 
@@ -214,11 +229,11 @@ pub fn sequence_(
 }
 
 pub fn replace(
-  app app: App(a, config, pubsub, user, err),
+  app app: AppWithParam(a, param, config, pubsub, user, err),
   val val: b,
-) -> App(b, config, pubsub, user, err) {
-  App(fn(r) {
-    case app.run(r) {
+) -> AppWithParam(b, param, config, pubsub, user, err) {
+  AppWithParam(fn(read, param) {
+    case app.run(read, param) {
       Ok(_) -> Ok(val)
       Error(e) -> Error(e)
     }
@@ -227,18 +242,19 @@ pub fn replace(
 
 pub fn from_result(
   result result: Result(t, Err(err)),
-) -> App(t, config, pubsub, user, err) {
-  App(run: fn(_read) { result })
+) -> AppWithParam(t, param, config, pubsub, user, err) {
+  AppWithParam(run: fn(_read, _param) { result })
 }
 
 pub fn to_result(
-  app app: App(a, config, pubsub, user, err),
-  cont cont: fn(Result(a, Err(err))) -> App(b, config, pubsub, user, err)
-) -> App(b, config, pubsub, user, err) {
+  app app: AppWithParam(a, param, config, pubsub, user, err),
+  cont cont: fn(Result(a, Err(err))) -> AppWithParam(b, param, config, pubsub, user, err)
+) -> AppWithParam(b, param, config, pubsub, user, err) {
   use ctx <- do(ctx())
+  use param <- do(param())
 
   app
-  |> run(ctx)
+  |> run(ctx, param)
   |> cont
 }
 
@@ -248,7 +264,7 @@ pub fn subscribe(
   to channel: String,
   in pubsub: fn(pubsub) -> pubsub.PubSub(pubsub_msg),
   wrap to_msg: fn(pubsub_msg) -> msg
-) -> App(process.Selector(msg), config, pubsub, user, err) {
+) -> AppWithParam(process.Selector(msg), param, config, pubsub, user, err) {
   use ctx <- do(ctx())
 
   ctx.pubsub
@@ -262,8 +278,8 @@ pub fn broadcast(
   in pubsub: fn(pubsub) -> pubsub.PubSub(msg),
   to channel: String,
   msg msg: msg,
-  cont cont: fn() -> App(t, config, pubsub, user, err)
-) -> App(t, config, pubsub, user, err) {
+  cont cont: fn() -> AppWithParam(t, param, config, pubsub, user, err)
+) -> AppWithParam(t, param, config, pubsub, user, err) {
   use ctx <- do(ctx())
 
   ctx.pubsub
@@ -277,7 +293,7 @@ pub fn broadcast(
 
 pub fn redirect(
   to location: String
-) -> App(anything, config, pubsub, user, err) {
+) -> AppWithParam(anything, param, config, pubsub, user, err) {
   fail(err.RedirectTo(
     location:,
     using: err.Redirect302,
@@ -293,7 +309,7 @@ const algo = crypto.Sha512
 pub fn sign(
   msg msg: t,
   transcoders transcoders: Transcoders(t),
-) -> App(String, config, pubsub, user, err) {
+) -> AppWithParam(String, param, config, pubsub, user, err) {
   use result <- do(secret_key_base())
 
   case result {
@@ -305,7 +321,7 @@ pub fn sign(
 pub fn verify(
   msg msg: String,
   transcoders transcoders: Transcoders(t),
-) -> App(Result(t, Nil), config, pubsub, user, err) {
+) -> AppWithParam(Result(t, Nil), param, config, pubsub, user, err) {
   use result <- do(secret_key_base())
 
   case result {
@@ -315,7 +331,7 @@ pub fn verify(
 }
 
 fn secret_key_base(
-) -> App(Result(types.SecretKeyBase, Nil), config, pubsub, user, err) {
+) -> AppWithParam(Result(types.SecretKeyBase, Nil), param, config, pubsub, user, err) {
   use ctx <- do(ctx())
   pure(context.secret_key_base(ctx))
 }
@@ -323,7 +339,7 @@ fn secret_key_base(
 // USER
 
 pub fn user(
-) -> App(user, config, pubsub, user, err) {
+) -> AppWithParam(user, param, config, pubsub, user, err) {
   use ctx <- do(ctx())
 
   case ctx.user {

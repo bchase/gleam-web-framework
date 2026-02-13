@@ -221,7 +221,7 @@ fn wrap_init(
       ]))
     })
     |> log_err(module:, func: "wrap_init")
-    |> app.run(ctx)
+    |> app.run(ctx, Nil)
     |> result.lazy_unwrap(fn() { panic as { "`" <> module <> ".wrap_init` failed" } })
   }
 }
@@ -257,7 +257,7 @@ fn wrap_update(
     }
     |> app.map(wrap_effect(model_and_effect: _, wrapper: InnerMsg))
     |> log_err(module:, func: "wrap_update")
-    |> app.run(ctx)
+    |> app.run(ctx, Nil)
     |> result.unwrap(#(model, effect.none()))
   }
 }
