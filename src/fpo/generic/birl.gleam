@@ -1,10 +1,12 @@
 import gleam/string
 import gleam/int
-import gleam/result
-import birl
+import gleam/result.{try}
 import gleam/time/timestamp as ts
 import gleam/time/duration as dur
 import gleam/time/calendar as cal
+import birl/duration
+import gleam/order
+import birl.{type Day}
 
 pub fn to_timestamp(
   time time: birl.Time,
@@ -50,4 +52,50 @@ pub fn from_timestamp(
   birl.from_erlang_universal_datetime(
     #(#(year, month, day), #(hours, minutes, seconds)),
   )
+}
+
+pub fn day_str(
+  day day: Day,
+) -> String {
+  [
+    day.year |> int.to_string |> string.pad_start(4, "0"),
+    day.month |> int.to_string |> string.pad_start(2, "0"),
+    day.date |> int.to_string |> string.pad_start(2, "0"),
+  ]
+  |> string.join("-")
+}
+
+pub fn date_range(
+  from from: Day,
+  through through: Day,
+) -> List(Day) {
+  let start = birl.unix_epoch |> birl.set_day(from)
+  let end = birl.unix_epoch |> birl.set_day(through)
+
+  case start |> birl.compare(end) {
+    order.Gt ->
+      []
+
+    order.Eq | order.Lt -> {
+      let next = start |> birl.add(duration.days(1)) |> birl.get_day
+
+      [from, ..date_range(from: next, through:)]
+    }
+  }
+}
+
+pub fn day_from_calendar_date(
+  date date: cal.Date,
+) -> Day {
+    let cal.Date(year:, month:, day: date) = date
+    let month = cal.month_to_int(month)
+    birl.Day(year:, month:, date:)
+}
+
+pub fn day_to_calendar_date(
+  day day: Day,
+) -> Result(cal.Date, Nil) {
+    let birl.Day(year:, month:, date: day) = day
+    use month <- try(cal.month_from_int(month))
+    Ok(cal.Date(year:, month:, day:))
 }

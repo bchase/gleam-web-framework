@@ -1,3 +1,4 @@
+import gleam/result
 import gleam/crypto
 import gleam/erlang/process
 import gleam/list
@@ -65,21 +66,21 @@ pub fn map(
   })
 }
 
-// pub fn map_ok(
-//   app app: AppWithParam(Result(a, e), config, pubsub, user, err),
-//   f f: fn(a) -> b,
-// ) -> AppWithParam(Result(b, e), config, pubsub, user, err) {
-//   app
-//   |> map(result.map(_, f))
-// }
+pub fn map_ok(
+  app app: AppWithParam(Result(a, e), config, param, pubsub, user, err),
+  f f: fn(a) -> b,
+) -> AppWithParam(Result(b, e), config, param, pubsub, user, err) {
+  app
+  |> map(result.map(_, f))
+}
 
-// pub fn map_some(
-//   app app: AppWithParam(Option(a), config, pubsub, user, err),
-//   f f: fn(a) -> b,
-// ) -> AppWithParam(Option(b), config, pubsub, user, err) {
-//   app
-//   |> map(option.map(_, f))
-// }
+pub fn map_some(
+  app app: AppWithParam(Option(a), config, param, pubsub, user, err),
+  f f: fn(a) -> b,
+) -> AppWithParam(Option(b), config, param, pubsub, user, err) {
+  app
+  |> map(option.map(_, f))
+}
 
 pub fn flatten(
   app app: AppWithParam(AppWithParam(t, param, config, pubsub, user, err), param, config, pubsub, user, err),
