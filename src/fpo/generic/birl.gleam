@@ -99,3 +99,18 @@ pub fn day_to_calendar_date(
     use month <- try(cal.month_from_int(month))
     Ok(cal.Date(year:, month:, day:))
 }
+
+pub fn day_utc_now() -> Day {
+  birl.utc_now()
+  |> birl.get_day
+}
+
+pub fn day_adjust(
+  day day: Day,
+  days days: Int,
+) -> Day {
+  day
+  |> birl.set_day(birl.unix_epoch, _)
+  |> birl.add(duration.days(days))
+  |> birl.get_day
+}

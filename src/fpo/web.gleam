@@ -1,3 +1,5 @@
+import gleam/string
+import gleam/io
 import gleam/bit_array
 import gleam/erlang/process
 import gleam/option.{type Option, Some, None}
@@ -296,8 +298,15 @@ fn run_app_handle_wisp(
   |> app.run(ctx, Nil)
   |> fn(result) {
     case result {
-      Ok(x) -> f(x)
-      Error(err) -> err |> to_wisp_err_resp
+      Ok(x) ->
+        f(x)
+
+      Error(err) -> {
+        echo err
+        io.println_error(string.inspect(err))
+
+        err |> to_wisp_err_resp
+      }
     }
   }
 }
