@@ -1,12 +1,12 @@
-import gleam/bool
-import gleam/order
 import birl.{type Time}
 import birl/duration
 import deriv/util.{decoder_birl_parse, encode_birl_to_iso8601}
 import fpo/generic/json.{Transcoders} as _
 import fpo/monad/app.{type App, pure}
+import gleam/bool
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
+import gleam/order
 
 pub const transcoders = Transcoders(encode_state, decoder_state)
 

@@ -42,6 +42,7 @@ pub type Handler(config, pubsub, user, err) {
   AppWisp(handle: fn(Request(wisp.Connection)) -> App(resp.Response(wisp.Body), config, pubsub, user, err))
   AppWispSessionCookie(handle: fn(Request(wisp.Connection), Result(Session, Nil), String) -> App(resp.Response(wisp.Body), config, pubsub, user, err))
   AppLustre(handle: fn(Request(wisp.Connection)) -> App(LustreResponse, config, pubsub, user, err))
+  AppLustreSession(handle: fn(Request(wisp.Connection), Result(Session, Nil)) -> App(LustreResponse, config, pubsub, user, err))
   // MistHandler(handle: fn(Request(mist.Connection), Context(config, pubsub, user)) -> resp.Response(mist.ResponseData))
   // AppMistHandler(handle: fn(Request(mist.Connection)) -> App(resp.Response(mist.ResponseData), config, user))
 }

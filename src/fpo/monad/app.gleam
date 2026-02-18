@@ -82,6 +82,14 @@ pub fn map_some(
   |> map(option.map(_, f))
 }
 
+pub fn map_list(
+  app app: AppWithParam(List(a), config, param, pubsub, user, err),
+  f f: fn(a) -> b,
+) -> AppWithParam(List(b), config, param, pubsub, user, err) {
+  app
+  |> map(list.map(_, f))
+}
+
 pub fn flatten(
   app app: AppWithParam(AppWithParam(t, param, config, pubsub, user, err), param, config, pubsub, user, err),
 ) -> AppWithParam(t, param, config, pubsub, user, err) {

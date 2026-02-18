@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/bool
 import gleam/list
 import gleam/json
@@ -11,6 +12,23 @@ import gleam/http/cookie
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import fpo/types.{type Session, type UserClientInfo, Session}
+
+pub fn or_new(
+  session session: Result(Session, Nil),
+) -> Session {
+  session
+  |> result.lazy_unwrap(fn() {
+    types.zero_session()
+  })
+}
+
+pub fn get(
+  session session: Session,
+  key key: String,
+) -> Result(String, Nil) {
+  session.kv
+  |> dict.get(key)
+}
 
 pub fn signed_in(
   session session: Result(Session, Nil),

@@ -1,6 +1,7 @@
 import cloak_wrapper/aes/gcm as aes_gcm
 import deriv/util as deriv
 import fpo/cloak.{type Cloak}
+import gleam/dict.{type Dict}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/process
 import gleam/json.{type Json}
@@ -69,6 +70,7 @@ pub type Session {
   Session(
     user_token: Option(String),
     user_client_info: Option(UserClientInfo),
+    kv: Dict(String, String),
   )
 }
 
@@ -85,6 +87,9 @@ pub const default_user_client_info =
     time_zone: "Etc/UTC",
     locale: "en-US",
   )
+
+// TODO fix `deriv` to use `dict.new()`
+fn zero_dict() -> Dict(a, b) { dict.new() }
 
 // DERIVED
 
@@ -113,6 +118,7 @@ pub fn encode_session(value: Session) -> Json {
   case value {
     Session(..) as value ->
       json.object([
+        #("kv", json.dict(value.kv, fn(str) { str }, json.string)),
         #(
           "user_client_info",
           json.nullable(value.user_client_info, encode_user_client_info),
@@ -137,9 +143,10 @@ pub fn decoder_session_session() -> Decoder(Session) {
     deriv.none,
     decode.optional(decoder_user_client_info()),
   )
-  decode.success(Session(user_token:, user_client_info:))
+  use kv <- decode.field("kv", decode.dict(decode.string, decode.string))
+  decode.success(Session(user_token:, user_client_info:, kv:))
 }
 
 pub fn zero_session() -> Session {
-  Session(None, None)
+  Session(None, None, zero_dict())
 }

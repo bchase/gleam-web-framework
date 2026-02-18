@@ -27,7 +27,7 @@ import fpo/context
 import fpo/web/session
 import fpo/monad/app.{type App}
 import fpo/types/err.{type Err}
-import fpo/types/spec.{type Spec, type Handler, Wisp, AppWisp, AppWispSessionCookie, AppLustre, LustreResponse}
+import fpo/types/spec.{type Spec, type Handler, Wisp, AppWisp, AppWispSessionCookie, AppLustre, AppLustreSession, LustreResponse}
 import lustre/element.{type Element}
 import wisp
 import fpo/flags
@@ -262,6 +262,13 @@ fn run_handler(
     AppWispSessionCookie(handle:) ->
       req
       |> run_app_handle_wisp(handle: handle(_, session, session_cookie_name), ctx:, map_ok: fn(x) { x })
+
+    AppLustreSession(handle:) ->
+      req
+      |> run_app_handle_wisp(handle: handle(_, session), ctx:, map_ok: fn(resp) {
+        let LustreResponse(status:, headers:, element:) = resp
+        wisp_html_resp(status:, headers:, element:)
+      })
 
     AppLustre(handle:) ->
       req
@@ -514,7 +521,6 @@ fn build_web_req_handler(
   use session <- guard.ok_(session, fn(_err) {
     redirect_to_session_init(then_redirect_to_path: mist_req.path, features:)
   })
-
 
   let session = Ok(session)
 
