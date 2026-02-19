@@ -56,7 +56,7 @@ pub fn param(
 
 pub fn map(
   app app: AppWithParam(a, param, config, pubsub, user, err),
-  f f: fn(a) -> b,
+  apply f: fn(a) -> b,
 ) -> AppWithParam(b, param, config, pubsub, user, err) {
   AppWithParam(run: fn(read, param) {
     case app.run(read, param) {
