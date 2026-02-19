@@ -26,21 +26,9 @@ import fpo/cloak.{type Cloak}
 import birl
 import fpo/generic/birl as fpo_birl
 import gleam/order
+import fpo/oauth/types as oauth
 
-pub type Config(provider) {
-  Config(
-    provider: String,
-    client_id: String,
-    client_secret: String,
-    authz_client: Client(String),
-    authz_path: UriAppendage,
-    token_client: Client(String),
-    token_path: UriAppendage,
-    redirect_uri: Uri,
-    scopes: List(String),
-    scopes_separator: String,
-  )
-}
+pub type Config(provider) = oauth.Config(provider)
 
 pub type Refreshed(provider) {
   Refreshed(
@@ -70,7 +58,7 @@ pub fn build_oauth_config(
 
   let assert Ok(redirect_uri) = uri.parse(redirect_uri)
 
-  Config(
+  oauth.Config(
     provider:,
     client_id:,
     client_secret:,
@@ -86,14 +74,14 @@ pub fn build_oauth_config(
 
 pub fn authorize_redirect_uri(
   cfg cfg: Config(provider),
-  scopes scopes: List(String),
-  scopes_separator scopes_separator: String,
 ) -> App(Uri, config, pubsub, user, err) {
   use state <- app.do(state.new_signed())
 
+  let scope = cfg.scopes |> string.join(cfg.scopes_separator)
+
   cfg.authz_client
   |> authorize_uri.build(cfg.authz_path, cfg.redirect_uri)
-  |> authorize_uri.set_scope(scopes |> string.join(scopes_separator))
+  |> authorize_uri.set_scope(scope)
   |> authorize_uri.set_state(state)
   |> authorize_uri.to_code_authorization_uri
   |> app.pure
@@ -183,7 +171,7 @@ pub fn refresh(
       fn(cfg, str) {
         str
         |> fetch_refresh_token(cfg, _)
-        |> result.map(tokens.from)
+        |> result.map(tokens.from(oauth: _, cfg:))
       }
     })
 

@@ -1,3 +1,4 @@
+import gleam/string
 import fpo/cloak
 import gleam/result
 import birl
@@ -9,6 +10,7 @@ import fpo/monad/app.{type App, pure}
 import cloak_wrapper/store
 import fpo/generic/prelude
 import fpo/generic/birl as fpo_birl
+import fpo/oauth/types as oauth
 
 pub type Unencrypted
 pub type Encrypted
@@ -18,6 +20,7 @@ pub type Tokens(encryption) {
     access_token: Token(encryption),
     access_token_expires_at: Option(ts.Timestamp),
     refresh_token: Option(Token(encryption)),
+    scopes: List(String),
   )
 }
 
@@ -25,11 +28,13 @@ pub fn encrypted_tokens(
   access_token  access_token: Token(Encrypted),
   access_token_expires_at access_token_expires_at: Option(ts.Timestamp),
   refresh_token refresh_token: Option(Token(Encrypted)),
+  scopes scopes: List(String),
 ) -> Tokens(Encrypted) {
   Tokens(
     access_token:,
     access_token_expires_at:,
     refresh_token:,
+    scopes:,
   )
 }
 
@@ -60,11 +65,13 @@ pub type Token(encryption) {
 
 pub fn from(
   oauth oauth: glow_auth.AccessToken,
+  cfg cfg: oauth.Config(provider),
 ) -> Tokens(Unencrypted) {
   Tokens(
     access_token: oauth.access_token |> Token,
     access_token_expires_at: oauth.expires_at |> option.map(ts.from_unix_seconds),
-    refresh_token: oauth.refresh_token |> option.map(Token)
+    refresh_token: oauth.refresh_token |> option.map(Token),
+    scopes: oauth.scope |> option.map(string.split(_, cfg.scopes_separator)) |> option.unwrap([]),
   )
 }
 
@@ -169,7 +176,7 @@ fn run(
 ) -> App(Result(Tokens(to), EncryptionErr(id)), config, pubsub, user, err) {
   use func <- app.do(func)
 
-  let Tokens(access_token:, refresh_token:, access_token_expires_at:) = tokens
+  let Tokens(access_token:, refresh_token:, access_token_expires_at:, scopes:) = tokens
 
   use access_token <- app.ok__({
     func.run(access_token.token)
@@ -182,5 +189,5 @@ fn run(
     |> prelude.option_result_to_result_option
   }, err)
 
-  pure(Ok(Tokens(access_token:, access_token_expires_at:, refresh_token:)))
+  pure(Ok(Tokens(access_token:, access_token_expires_at:, refresh_token:, scopes:)))
 }

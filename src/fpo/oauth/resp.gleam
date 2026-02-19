@@ -1,3 +1,7 @@
+import gleam/option.{type Option, Some, None}
+import fpo/generic/guard
+import gleam/string
+import glow_auth/access_token.{type AccessToken}
 import fpo/oauth
 import gleam/list
 import wisp
@@ -26,9 +30,19 @@ pub fn verify_state_then_fetch_tokens(
     InvalidCode,
   )
 
+  let tokens = tokens.from(oauth:, cfg:)
+
   // makochannnnn
-  app.pure(Ok(tokens.from(oauth:)))
+  app.pure(Ok(tokens))
 }
+
+// fn scopes(
+//   oauth oauth: AccessToken,
+//   cfg cfg: oauth.Config(provider),
+// ) -> List(String) {
+//   use scope <- guard.some(oauth.scope, [])
+//   scope |> string.split(cfg.scopes_separator)
+// }
 
 pub type RespErr {
   NoState
