@@ -1,3 +1,4 @@
+import gleam/option.{type Option}
 import gleam/string
 import gleam/int
 import gleam/result.{try}
@@ -7,6 +8,7 @@ import gleam/time/calendar as cal
 import birl/duration
 import gleam/order
 import birl.{type Day}
+import gleam/yielder.{type Yielder}
 
 pub fn to_timestamp(
   time time: birl.Time,
@@ -114,3 +116,23 @@ pub fn day_adjust(
   |> birl.add(duration.days(days))
   |> birl.get_day
 }
+
+pub fn zero_day() -> Day {
+  birl.unix_epoch
+  |> birl.get_day
+}
+
+// pub fn day_range(
+//   start start: Day,
+//   end end: Option(Day),
+// ) -> Yielder(Day) {
+//   let zero = birl.unix_epoch
+
+//   let start = birl.set_day(zero, start)
+//   let end = end |> option.map(fn(end) { birl.set_day(zero, end) })
+
+//   let step = duration.days(1)
+
+//   birl.range(from: start, to: end, step:)
+//   |> yielder.map(fn(time) { birl.get_day(time) })
+// }

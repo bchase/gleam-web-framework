@@ -101,6 +101,30 @@ pub fn flatten(
   })
 }
 
+pub fn fold(
+  over list: List(t),
+  from initial: acc,
+  with f: fn(acc, t) -> AppWithParam(acc, param, config, pubsub, user, err),
+) -> AppWithParam(acc, param, config, pubsub, user, err) {
+  fold_(over: list, acc: initial, with: f)
+}
+
+fn fold_(
+  over list: List(t),
+  acc acc: acc,
+  with f: fn(acc, t) -> AppWithParam(acc, param, config, pubsub, user, err),
+) -> AppWithParam(acc, param, config, pubsub, user, err) {
+  case list {
+    [] ->
+      pure(acc)
+
+    [x, ..xs] -> {
+      use acc <- do(f(acc, x))
+      fold_(over: xs, acc:, with: f)
+    }
+  }
+}
+
 pub fn do(
   app app: AppWithParam(a, param, config, pubsub, user, err),
   cont cont: fn(a) -> AppWithParam(b, param, config, pubsub, user, err),
