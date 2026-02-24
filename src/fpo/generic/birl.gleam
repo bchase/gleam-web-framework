@@ -1,4 +1,4 @@
-import gleam/option.{type Option}
+import gleam/option.{type Option, Some, None}
 import gleam/string
 import gleam/int
 import gleam/result.{try}
@@ -8,7 +8,6 @@ import gleam/time/calendar as cal
 import birl/duration
 import gleam/order
 import birl.{type Day}
-import gleam/yielder.{type Yielder}
 
 pub fn to_timestamp(
   time time: birl.Time,
@@ -135,4 +134,148 @@ pub fn zero_day() -> Day {
 
 //   birl.range(from: start, to: end, step:)
 //   |> yielder.map(fn(time) { birl.get_day(time) })
+// }
+
+// // //
+
+// pub opaque type Timezone {
+//   Timezone(tz: tempo.TimeZoneProvider)
+// }
+
+// pub opaque type Offset {
+//   Offset(offset: tempo.Offset)
+// }
+
+// pub fn utc_timezone() -> Timezone {
+//   let assert Ok(tz) = parse_timezone("Etc/UTC")
+//   tz
+// }
+
+// pub fn utc_offset() -> Offset {
+//   let assert Ok(os) = parse_offset(0)
+//   os
+// }
+
+// pub fn parse_timezone(
+//   str str: String,
+// ) -> Result(Timezone, Nil) {
+//   gtz.timezone(str)
+//   |> result.map(Timezone)
+// }
+
+// pub fn parse_offset(
+//   minutes minutes: Int
+// ) -> Result(Offset, Nil) {
+//   offset.from_duration(tdur.minutes(minutes))
+//   |> result.map(Offset)
+// }
+
+// pub fn offset(
+//   time time: birl.Time,
+//   offset offset: Offset,
+// ) -> birl.Time {
+//   let dt =
+//     time
+//     |> to_timestamp
+//     |> datetime.from_timestamp
+//     |> datetime.to_offset(offset.offset)
+
+//   let offset =
+//     dt
+//     |> datetime.get_offset
+//     |> offset.to_string
+
+//   dt
+//   |> datetime.to_timestamp
+//   |> from_timestamp
+//   |> birl.set_offset(offset)
+//   |> result.unwrap(time)
+// }
+
+// pub fn convert(
+//   time time: birl.Time,
+//   tz tz: Timezone,
+// ) -> birl.Time {
+//   let assert Ok(offset) =
+//     time
+//     |> birl.get_offset
+//     |> offset.from_string
+
+//   let ts =
+//     time
+//     |> to_timestamp
+
+//   let dt =
+//     ts
+//     |> datetime.from_timestamp
+//     // |> datetime.to_offset(offset)
+//     |> datetime.to_timezone(tz.tz)
+
+//   let offset =
+//     dt
+//     |> datetime.get_offset
+//     |> offset.to_string
+
+//   dt
+//   |> datetime.to_timestamp
+//   |> from_timestamp
+//   |> birl.set_offset(offset)
+//   |> result.unwrap(time)
+// }
+
+// pub fn offset_minutes(
+//   time time: birl.Time,
+// ) -> Int {
+//   let offset = birl.get_offset(time)
+
+//   use <- bool.guard(offset == "Z", 0)
+
+//   let assert Ok(re) =
+//     "^([-+])?(\\d+)[:](\\d+)$"
+//     |> regexp.from_string
+
+//   let groups =
+//     case regexp.scan(re, offset) {
+//       [regexp.Match(submatches:, ..), .. ] -> submatches
+//       _ -> []
+//     }
+
+//   let #(sign, hours, mins) =
+//     case groups {
+//       [sign, Some(hours), Some(mins)] -> {
+//         case int.parse(hours), int.parse(mins) {
+//           Ok(hours), Ok(mins) -> #(sign, hours, mins)
+//           _, _ -> #(None, 0, 0)
+//         }
+//       }
+//       _ -> #(None, 0, 0)
+//     }
+
+//   let offset = hours * 60 + mins
+
+//   case sign {
+//     Some("-") ->
+//       int.negate(offset)
+
+//     Some("+") |
+//     Some(_) |
+//     None ->
+//       offset
+//   }
+// }
+
+// pub fn beginning_of_day(
+//   time time: birl.Time,
+// ) -> birl.Time {
+//   time
+//   |> birl.set_time_of_day(birl.TimeOfDay(0, 0, 0, 0))
+// }
+
+// pub fn end_of_day(
+//   time time: birl.Time,
+// ) -> birl.Time {
+//   time
+//   |> birl.set_time_of_day(birl.TimeOfDay(0, 0, 0, 0))
+//   |> birl.add(duration.days(1))
+//   |> birl.subtract(duration.micro_seconds(1))
 // }

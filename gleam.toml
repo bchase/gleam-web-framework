@@ -41,6 +41,8 @@ formal = ">= 3.0.0 and < 4.0.0"
 gleam_time = ">= 1.7.0 and < 2.0.0"
 gsv = ">= 5.0.0 and < 6.0.0"
 gleam_regexp = ">= 1.1.1 and < 2.0.0"
+gtz = ">= 0.3.0 and < 1.0.0"
+gtempo = ">= 7.2.4 and < 8.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
