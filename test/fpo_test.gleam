@@ -53,7 +53,27 @@ pub fn signed_msg_test() {
   |> should.equal(plaintext)
 }
 
-pub fn tempo_test() {
+// pub fn tempo_datetime_in_date_timezone_offset_test() {
+//   // let assert Ok(jst) = datetime.from_string("2026-02-24T11:33:10+09:00")
+//   // let assert Ok(est) = datetime.from_string("2026-02-23T21:33:10-05:00")
+//   let assert Ok(jst) = datetime.from_string("2025-08-28T11:33:10+09:00")
+//   // let assert Ok(edt) = datetime.from_string("2025-08-27T22:33:10-04:00")
+
+//   // i have a target date
+//   // i have a datetime, maybe a timezone or offset
+//   //
+//   // if a timezone, i set the datetime to that tz
+//   // if an offset, i set the datetime to that offset
+//   // if neither, i leave it as is (utc)
+//   //
+//   // i take the date of the datetime
+//   // if the date matches the target date, true
+//   // else, false
+
+//   todo
+// }
+
+pub fn tempo_start_end_of_day_test() {
   // let assert Ok(ny) = gtz.timezone("America/New_York")
 
   // let assert Ok(jst) = datetime.from_string("2026-02-24T11:33:10+09:00")
