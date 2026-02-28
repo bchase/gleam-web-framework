@@ -76,6 +76,16 @@ fn pubsub_name(
   }
 }
 
+pub type Join {
+  Join(
+    pubsub: String,
+    channel: String,
+  )
+}
+
+pub type Authz(ctx) =
+  fn(Join, ctx) -> Bool
+
 //
 
 pub opaque type PubSub(msg) {
@@ -86,14 +96,29 @@ pub opaque type PubSub(msg) {
   )
 }
 
+pub fn name_str(
+  pubsub pubsub: PubSub(msg),
+) -> String {
+  pubsub.name_str
+}
+
 pub fn subscribe(
   pubsub pubsub: PubSub(msg),
   channel channel: String,
-) -> Selector(msg) {
-  pubsub.name
-  |> gr.get_registry
-  |> gr.join(channel, process.self())
-  |> process.select(process.new_selector(), _)
+  authz authz: Authz(ctx),
+  ctx ctx: ctx,
+) -> Result(Selector(msg), Nil) {
+  case Join(pubsub: pubsub.name_str, channel:) |> authz(ctx) {
+    True ->
+      pubsub.name
+      |> gr.get_registry
+      |> gr.join(channel, process.self())
+      |> process.select(process.new_selector(), _)
+      |> Ok
+
+    False ->
+      Error(Nil)
+  }
 }
 
 // // TODO -- i think `subscribe`, `unsubscribe`, `subscribe` results

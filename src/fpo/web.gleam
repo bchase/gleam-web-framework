@@ -36,6 +36,7 @@ import fpo/generic/mist as fpo_mist
 import fpo/generic/uri as fpo_uri
 import lustre/attribute as attr
 import fpo/lustre/server_component as lsc
+import fpo/pubsub
 
 const web_req_handler_worker_shutdown_ms = 60_000
 
@@ -365,7 +366,8 @@ fn to_wisp_err_resp(
         headers: dict.new(),
       )
 
-    err.Unauthenticated ->
+    err.Unauthenticated |
+    err.Unauthorized(..) ->
       wisp_html_resp(
         status: 401,
         element: html.text("Unauthorized"),
@@ -411,7 +413,8 @@ pub fn to_err_resp(
         headers: dict.new(),
       )
 
-    err.Unauthenticated ->
+    err.Unauthenticated |
+    err.Unauthorized(..) ->
       mist_html_resp(
         status: 401,
         element: html.text("Unauthorized"),
@@ -531,6 +534,7 @@ fn build_web_req_handler(
     session:,
     authenticate: spec.authenticate,
     features:,
+    pubsub_authz: spec.pubsub_authz,
   )
 
   let fpo_path_prefix = spec.config.features.fpo_path_prefix

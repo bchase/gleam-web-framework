@@ -9,9 +9,10 @@ import fpo/types.{type Flags} as _
 import pog
 import sqlight
 import app/types.{type Config, type PubSub, Config, PubSub}
+import fpo/types.{type Context} as _
+import fpo/pubsub.{type Join} as _
 //
-import app/user
-import gleam/bit_array
+import app/user.{type User}
 
 const sqlite_db_path = "./app-sqlite3.db"
 const postgres_conn_url = "postgres://webapp:webapp@127.0.0.1:5432/app_gleam"
@@ -32,6 +33,21 @@ pub fn add_pubsub_workers(
   let pubsub = PubSub(text:)
 
   #(supervisor, pubsub)
+}
+
+pub fn pubsub_authz(
+  join join: Join,
+  ctx ctx: Context(Config, PubSub, User),
+) -> Bool {
+  let text = ctx.pubsub.text |> pubsub.name_str
+
+  case ctx.user, join.pubsub, join.channel {
+    _user, pubsub, _channel if pubsub == text ->
+      True
+
+    _, _, _ ->
+      False
+  }
 }
 
 pub fn init(

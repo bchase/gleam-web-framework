@@ -12,7 +12,7 @@ import app/types.{type Config, type PubSub, type Err} as _
 import app/web/components/counter_app
 
 pub fn spec() -> Spec(Config, PubSub, User, Err) {
-  panic as "`register_server_components` not working"
+  // panic as "`register_server_components` needs to be fixed"
 
   let assert Ok(server_components) =
     register_server_components() as "registered server components with unique routes"
@@ -36,6 +36,7 @@ pub fn spec() -> Spec(Config, PubSub, User, Err) {
       init: config.init,
     ),
     add_pubsub_workers:,
+    pubsub_authz: config.pubsub_authz,
     authenticate:,
     //
     websockets_path_prefix: "ws",

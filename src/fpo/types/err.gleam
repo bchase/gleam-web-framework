@@ -29,6 +29,7 @@ pub type Err(err) {
   )
 
   Unauthenticated
+  Unauthorized(detail: Option(String))
 
   AppErr(err: err)
 }

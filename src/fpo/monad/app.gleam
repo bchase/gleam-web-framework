@@ -298,13 +298,33 @@ pub fn subscribe(
   in pubsub: fn(pubsub) -> pubsub.PubSub(pubsub_msg),
   wrap to_msg: fn(pubsub_msg) -> msg
 ) -> AppWithParam(process.Selector(msg), param, config, pubsub, user, err) {
+  use result <- do(subscribe_(to: channel, in: pubsub, wrap: to_msg))
+  case result {
+    Ok(selector) ->
+      pure(selector)
+
+    Error(Nil) -> {
+      use ctx <- do(ctx())
+      let pubsub = ctx.pubsub |> pubsub |> pubsub.name_str
+      fail(err.Unauthorized(Some("pubsub: " <> pubsub <> " channel: " <> channel)))
+    }
+  }
+}
+
+pub fn subscribe_(
+  to channel: String,
+  in pubsub: fn(pubsub) -> pubsub.PubSub(pubsub_msg),
+  wrap to_msg: fn(pubsub_msg) -> msg
+) -> AppWithParam(Result(process.Selector(msg), Nil), param, config, pubsub, user, err) {
   use ctx <- do(ctx())
 
-  ctx.pubsub
-  |> pubsub
-  |> pubsub.subscribe(channel:)
-  |> process.map_selector(to_msg)
-  |> pure
+  case pubsub.subscribe(pubsub(ctx.pubsub), channel:, authz: ctx.pubsub_authz, ctx:) {
+    Ok(selector) ->
+      pure(Ok(selector |> process.map_selector(to_msg)))
+
+    Error(Nil) ->
+      pure(Error(Nil))
+  }
 }
 
 pub fn broadcast(

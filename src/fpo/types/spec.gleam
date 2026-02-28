@@ -9,6 +9,7 @@ import wisp
 import fpo/types.{type Context, type Session, type Flags, type Features}
 import fpo/monad/app.{type App}
 import fpo/lustre/server_component as lsc
+import fpo/pubsub
 
 pub type Spec(config, pubsub, user, err) {
   Spec(
@@ -18,8 +19,9 @@ pub type Spec(config, pubsub, user, err) {
     secret_key_base_env_var_name: String,
     //
     config: Config(config),
-    add_pubsub_workers: fn(static_supervisor.Builder) -> #(static_supervisor.Builder, pubsub),
     authenticate: fn(Session, config) -> Option(user),
+    add_pubsub_workers: fn(static_supervisor.Builder) -> #(static_supervisor.Builder, pubsub),
+    pubsub_authz: pubsub.Authz(Context(config, pubsub, user)),
     //
     websockets_path_prefix: String,
     websockets_router: fn(Request(mist.Connection), Context(config, pubsub, user)) -> Result(resp.Response(mist.ResponseData), Nil),

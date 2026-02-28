@@ -6,14 +6,18 @@ import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/process
 import gleam/json.{type Json}
 import gleam/option.{type Option, None}
+import fpo/pubsub
 import pog
 
 pub type Context(config, pubsub, user) {
   Context(
     cfg: config,
     pubsub: pubsub,
+    pubsub_authz: pubsub.Authz(Context(config, pubsub, user)),
+    //
     user_client_info: Option(UserClientInfo),
     user: Option(user),
+    //
     fpo: Fpo,
   )
 }

@@ -1,6 +1,7 @@
 import gleam/erlang/process
 import gleam/option.{type Option, None}
 import fpo/types.{type Context, type Features, type Session, type SecretKeyBase, Context, Fpo}
+import fpo/pubsub
 
 pub fn build(
   session session: Result(Session, Nil),
@@ -9,6 +10,7 @@ pub fn build(
   fpo fpo: types.Fpo,
   authenticate authenticate: fn(Session, config) -> Option(user),
   features features: Features,
+  pubsub_authz pubsub_authz: pubsub.Authz(Context(config, pubsub, user)),
 ) -> Context(config, pubsub, user) {
   let #(user, user_client_info) =
     case session {
@@ -31,6 +33,7 @@ pub fn build(
     user:,
     user_client_info:,
     fpo:,
+    pubsub_authz:,
   )
 }
 
