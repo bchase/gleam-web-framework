@@ -14,7 +14,7 @@ pub type User {
 
 pub fn get(
   hashed_token hashed_token: String,
-) -> App(List(User), Config, pubsub, user) {
+) -> App(List(User), Config, pubsub, user, err) {
   sql.get_user_by(hashed_token:)
   |> db.many
   |> app.map(list.map(_, from_get_user_by_to_user))
@@ -23,14 +23,14 @@ pub fn get(
 pub fn insert_session_token(
   user user: User,
   hashed_token hashed_token: String,
-) -> App(Result(sql.InsertUserToken, Nil), Config, pubsub, user) {
+) -> App(Result(sql.InsertUserToken, Nil), Config, pubsub, user, err) {
   sql.insert_user_token(hashed_token:, context: "session", user_id: user.id)
   |> db.one
 }
 
 pub fn delete_session_token(
   hashed_token hashed_token: String,
-) -> App(Result(sql.DeleteUserToken, Nil), Config, pubsub, user) {
+) -> App(Result(sql.DeleteUserToken, Nil), Config, pubsub, user, err) {
   sql.delete_user_token(hashed_token:)
   |> db.one
 }

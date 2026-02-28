@@ -2,6 +2,8 @@ import app/db/postgres as db
 import app/sql
 import app/types.{type Config}
 import fpo/monad/app.{type App}
+import fpo/monad/app/db/parrot_postgres.{type AppPg} as _
+import app/types/err.{type Err} as _
 import gleam/list
 
 pub type Message {
@@ -15,7 +17,7 @@ pub type Message {
 }
 
 pub fn list_all(
-) -> App(List(Message), Config, pubsub, user) {
+) -> AppPg(List(Message), Config, pubsub, user, Err) {
   sql.list_all_msgs()
   |> db.many
   |> app.map(list.map(_, from_list_all_msgs_to_message))
@@ -23,7 +25,7 @@ pub fn list_all(
 
 pub fn insert(
   text msg: String,
-) -> App(List(Message), Config, pubsub, user) {
+) -> AppPg(List(Message), Config, pubsub, user, Err) {
   sql.insert_msg(msg:)
   |> db.many
   |> app.map(list.map(_, from_insert_msg_to_message))

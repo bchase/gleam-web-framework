@@ -16,6 +16,7 @@ import lustre/element/html
 import lustre/event
 import app/domain/msgs/sqlite as msgs
 import app/types.{type Config, type PubSub} as _
+import app/types/err.{type Err} as _
 
 pub fn component(
   ctx ctx: Context(Config, PubSub, user),
@@ -33,7 +34,7 @@ pub fn component(
 
 fn selectors(
   model _model: Model,
-) -> List(App(Selector(Msg), config, pubsub, user)) {
+) -> List(App(Selector(Msg), config, pubsub, user, Err)) {
   []
 }
 
@@ -44,7 +45,7 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user) {
+fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user, Err) {
   Model(
     nil: Nil,
     msgs: [],
@@ -74,7 +75,7 @@ pub opaque type Msg {
   )
 
   GotErr(
-    err: err.Err,
+    err: err.Err(Err),
     origin: String,
   )
 }
@@ -82,7 +83,7 @@ pub opaque type Msg {
 fn update(
   model: Model,
   msg: Msg,
-) -> App(#(Model, Effect(Msg)), Config, pubsub, user) {
+) -> App(#(Model, Effect(Msg)), Config, pubsub, user, Err) {
   case msg {
     NoOp ->
       model

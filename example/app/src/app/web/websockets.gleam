@@ -18,8 +18,8 @@ pub fn lustre_server_component_router(
     ["ws", "counter"] ->
       Ok(socket.start(req:, ctx:, app: counter.component()))
 
-    ["ws", "counter_app"] ->
-      Ok(socket.start(req:, ctx:, app: counter_app.component(ctx:)))
+    // ["ws", "counter_app"] ->
+    //   Ok(socket.start(req:, ctx:, app: counter_app.component(ctx:)))
 
     ["ws", "pubsub_demo"] ->
       Ok(socket.start(req:, ctx:, app: pubsub_demo.component(ctx:)))

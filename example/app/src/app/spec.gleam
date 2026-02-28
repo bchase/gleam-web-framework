@@ -3,12 +3,20 @@ import app/config.{add_pubsub_workers}
 import app/user.{type User, authenticate}
 import fpo/types.{type EnvVar, Features}
 import fpo/types/spec.{type Spec, Spec}
+import fpo/lustre/server_component as lsc
 import app/web/websockets
 import app/web/router
 import cloak_wrapper/aes/gcm as aes_gcm
-import app/types.{type Config, type PubSub} as _
+import app/types.{type Config, type PubSub, type Err} as _
+//
+import app/web/components/counter_app
 
-pub fn spec() -> Spec(Config, PubSub, User) {
+pub fn spec() -> Spec(Config, PubSub, User, Err) {
+  panic as "`register_server_components` not working"
+
+  let assert Ok(server_components) =
+    register_server_components() as "registered server components with unique routes"
+
   Spec(
     app_module_name: "app",
     session_cookie_name: "app",
@@ -17,7 +25,9 @@ pub fn spec() -> Spec(Config, PubSub, User) {
     //
     config: spec.Config(
       features: Features(
+        fpo_path_prefix: "_",
         cloak: Some(load_cloak_config),
+        pog: Some(types.PogConnUrlEnvVar(name: "PG_URL")),
         set_user_client_info: Some(types.SetUserClientInfo(
           path_prefix: "_fpo",
           browser_js_path: "/static/js/fpo-gleam-browser.js",
@@ -32,7 +42,16 @@ pub fn spec() -> Spec(Config, PubSub, User) {
     websockets_router: websockets.lustre_server_component_router,
     //
     router: router.handler,
+    //
+    server_components:,
   )
+}
+
+fn register_server_components() {
+  lsc.new()
+  |> lsc.register_many([
+    counter_app.server_component(),
+  ])
 }
 
 const cloak_key_env_var_name = "CLOAK_KEY"

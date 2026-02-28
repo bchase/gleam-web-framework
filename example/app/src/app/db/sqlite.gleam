@@ -8,33 +8,33 @@ import app/types.{type Config}
 
 pub fn many(
   parrot parrot: Parrot(t),
-) -> App(List(t), Config, pubsub, user)  {
+) -> App(List(t), Config, pubsub, user, err)  {
   db.many(parrot:, conn: config_to_conn)
 }
 
 pub fn one(
   parrot parrot: Parrot(t),
-) -> App(Result(t, Nil), Config, pubsub, user)  {
+) -> App(Result(t, Nil), Config, pubsub, user, err)  {
   db.one(parrot:, conn: config_to_conn)
 }
 
 pub fn one_not_many(
   parrot parrot: Parrot(t),
-) -> App(Result(t, Option(List(t))), Config, pubsub, user)  {
+) -> App(Result(t, Option(List(t))), Config, pubsub, user, err)  {
   db.one_not_many(parrot:, conn: config_to_conn)
 }
 
 pub fn one_or(
   parrot parrot: Parrot(t),
-  err err: err.Err,
-) -> App(t, Config, pubsub, user)  {
+  err err: err.Err(err),
+) -> App(t, Config, pubsub, user, err)  {
   db.one_or(parrot:, conn: config_to_conn, err:)
 }
 
 pub fn one_not_many_or(
   parrot parrot: Parrot(t),
-  err err: fn(Option(List(t))) -> err.Err,
-) -> App(t, Config, pubsub, user)  {
+  err err: fn(Option(List(t))) -> err.Err(err),
+) -> App(t, Config, pubsub, user, err)  {
   db.one_not_many_or(parrot:, conn: config_to_conn, err:)
 }
 

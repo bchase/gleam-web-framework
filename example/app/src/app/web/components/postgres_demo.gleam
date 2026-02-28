@@ -14,7 +14,18 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import app/domain/msgs/postgres as msgs
+import fpo/monad/app/db/parrot_postgres.{type AppPg} as pg
 import app/types.{type Config, type PubSub} as _
+import app/types/err.{type Err} as _
+
+pub fn db(
+  app app: AppPg(t, Config, pubsub, user, Err),
+) -> App(t, Config, pubsub, user, Err) {
+  pg.db(
+    conn: fn(cfg: Config) { cfg.postgres_conn },
+    app:,
+  )
+}
 
 pub fn component(
   ctx ctx: Context(Config, PubSub, user),
@@ -32,7 +43,7 @@ pub fn component(
 
 fn selectors(
   model _model: Model,
-) -> List(App(Selector(Msg), config, pubsub, user)) {
+) -> List(App(Selector(Msg), config, pubsub, user, Err)) {
   []
 }
 
@@ -43,13 +54,14 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user) {
+fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user, Err) {
   Model(
     nil: Nil,
     msgs: [],
   )
   |> continue([
     msgs.list_all()
+    |> db
     |> eff(
       to_msg: GotMsgs,
       to_err: GotErr(err: _, origin: "postgres_demo.init"),
@@ -69,7 +81,7 @@ pub opaque type Msg {
   )
 
   GotErr(
-    err: err.Err,
+    err: err.Err(Err),
     origin: String,
   )
 }
@@ -77,7 +89,7 @@ pub opaque type Msg {
 fn update(
   model: Model,
   msg: Msg,
-) -> App(#(Model, Effect(Msg)), Config, pubsub, user) {
+) -> App(#(Model, Effect(Msg)), Config, pubsub, user, Err) {
   case msg {
     NoOp ->
       model
@@ -87,8 +99,8 @@ fn update(
       model
       |> continue([
         {
-          use _inserted <- do(msgs.insert(text:))
-          msgs.list_all()
+          use _inserted <- do(db(msgs.insert(text:)))
+          db(msgs.list_all())
         }
         |> eff(
           to_msg: GotMsgs,

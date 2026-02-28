@@ -30,7 +30,7 @@ pub fn component(
 
 fn selectors(
   model _model: Model,
-) -> List(App(Selector(Msg), config, PubSub, user)) {
+) -> List(App(Selector(Msg), config, PubSub, user, err)) {
   [
     app.subscribe(
       to: "msgs",
@@ -47,7 +47,7 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user) {
+fn init() -> App(#(Model, Effect(Msg)), Config, PubSub, user, err) {
   Model(
     nil: Nil,
     msgs: [],
@@ -64,7 +64,7 @@ pub opaque type Msg {
 fn update(
   model: Model,
   msg: Msg,
-) -> App(#(Model, Effect(Msg)), config, PubSub, user) {
+) -> App(#(Model, Effect(Msg)), config, PubSub, user, err) {
   case msg {
     NoOp ->
       model

@@ -16,7 +16,7 @@ pub type Message {
 }
 
 pub fn list_all(
-) -> App(List(Message), Config, pubsub, user) {
+) -> App(List(Message), Config, pubsub, user, err) {
   sql.list_all_msgs()
   |> db.many
   |> app.map(list.map(_, from_list_all_msgs_to_message))
@@ -24,7 +24,7 @@ pub fn list_all(
 
 pub fn insert(
   text msg: String,
-) -> App(List(Message), Config, pubsub, user) {
+) -> App(List(Message), Config, pubsub, user, err) {
   sql.insert_msg(msg:)
   |> db.many
   |> app.map(list.map(_, from_insert_msg_to_message))
@@ -32,7 +32,7 @@ pub fn insert(
 
 pub fn delete(
   id id: Int,
-) -> App(Nil, Config, pubsub, user) {
+) -> App(Nil, Config, pubsub, user, err) {
   sql.delete_msg(id:)
   |> parrot.from_exec
   |> db.many

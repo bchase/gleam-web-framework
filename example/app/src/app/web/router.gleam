@@ -1,6 +1,7 @@
 import gleam/bool
 import app/domain/users/sqlite as users
 import app/types.{type Config} as _
+import app/types/err.{type Err} as _
 import app/user.{type User}
 import app/web/components/server_component_elements as lscs
 import fpo/monad/app.{type App, do, pure}
@@ -23,7 +24,7 @@ import formal/form
 pub fn handler(
   req req: Request(wisp.Connection),
   ctx ctx: Context(Config, pubsub, User),
-) -> Result(Handler(Config, pubsub, User), Nil) {
+) -> Result(Handler(Config, pubsub, User, Err), Nil) {
   case req.method, req |> wisp.path_segments {
     _, [] ->
       Ok(home(ctx:))
@@ -76,7 +77,7 @@ pub fn handler(
 
 fn home(
   ctx ctx: Context(Config, pubsub, User),
-) -> Handler(Config, pubsub, User) {
+) -> Handler(Config, pubsub, User, Err) {
   spec.AppLustre(handle: fn(_req) {
     pure(spec.LustreResponse(
       status: 200,
@@ -143,7 +144,7 @@ fn home(
 
 fn server_component_handler(
   component component: lscs.ServerComponentElement,
-) -> Handler(config, pubsub, user) {
+) -> Handler(config, pubsub, user, err) {
   spec.AppLustre(handle: fn(_req) {
     pure(spec.LustreResponse(
       status: 200,
@@ -176,7 +177,7 @@ const good_password = "good_password"
 
 fn get_user(
   req req: Request(wisp.Connection)
-) -> App(User, Config, pubsub, User) {
+) -> App(User, Config, pubsub, User, Err) {
   let form = fpo_wisp.read_form(req:, form: form_login())
   use login <- guard.ok_(form, fn(_err) { app.redirect(to: "/") })
 

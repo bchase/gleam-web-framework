@@ -12,14 +12,20 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import lustre/server_component
+import app/types.{type Config, type Err} as _
 
-const route = "/ws/counter_app"
-
-pub fn element() -> Element(msg) {
-  server_component.element([
-    server_component.route(route),
-  ], [])
+pub fn server_component(
+) -> lsc.ServerComponent(Config, pubsub, user, Err) {
+  lsc.def(route: ["counter_app"], app: component)
 }
+
+// const route = "/ws/counter_app"
+
+// pub fn element() -> Element(msg) {
+//   server_component.element([
+//     server_component.route(route),
+//   ], [])
+// }
 
 pub fn component(
   ctx ctx: Context(config, pubsub, user),
@@ -37,7 +43,7 @@ pub fn component(
 
 fn selectors(
   model _model: Model,
-) -> List(App(Selector(Msg), config, pubsub, user)) {
+) -> List(App(Selector(Msg), config, pubsub, user, err)) {
   []
 }
 
@@ -48,7 +54,7 @@ pub opaque type Model {
   )
 }
 
-fn init() -> App(#(Model, Effect(Msg)), config, pubsub, user) {
+fn init() -> App(#(Model, Effect(Msg)), config, pubsub, user, err) {
   Model(
     nil: Nil,
     count: 0,
@@ -65,7 +71,7 @@ pub opaque type Msg {
 fn update(
   model: Model,
   msg: Msg,
-) -> App(#(Model, Effect(Msg)), config, pubsub, user) {
+) -> App(#(Model, Effect(Msg)), config, pubsub, user, err) {
   case msg {
     NoOp ->
       model
