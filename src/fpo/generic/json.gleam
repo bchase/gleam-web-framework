@@ -10,6 +10,13 @@ pub type Transcoders(t) {
   )
 }
 
+pub fn nil_transcoders() ->  Transcoders(Nil) {
+  Transcoders(
+    encode: fn(_) { json.null() },
+    decoder: fn() { decode.success(Nil) },
+  )
+}
+
 pub fn decoder_birl_day_from_date_string() -> Decoder(birl.Day) {
   decode.string
   |> decode.then(fn(str) {
