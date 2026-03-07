@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/option.{type Option, Some, None}
 import gleam/string
 import gleam/int
@@ -6,8 +7,9 @@ import gleam/time/timestamp as ts
 import gleam/time/duration as dur
 import gleam/time/calendar as cal
 import birl/duration
-import gleam/order
 import birl.{type Day}
+import gleam/order.{type Order, Gt, Lt, Eq}
+import gleam/yielder.{type Yielder}
 
 pub fn to_timestamp(
   time time: birl.Time,
@@ -85,6 +87,12 @@ pub fn date_range(
   }
 }
 
+pub fn compare_day(a: Day, b: Day) -> Order {
+  int.compare(a.year, b.year)
+  |> order.break_tie(int.compare(a.month, b.month))
+  |> order.break_tie(int.compare(a.date, b.date))
+}
+
 pub fn day_from_calendar_date(
   date date: cal.Date,
 ) -> Day {
@@ -119,6 +127,76 @@ pub fn day_adjust(
 pub fn zero_day() -> Day {
   birl.unix_epoch
   |> birl.get_day
+}
+
+pub type DayRange {
+  DayRange(
+    start: Day,
+    end: Day,
+  )
+}
+
+pub fn day_ranges_back(
+  from latest_day: Day,
+  until earliest_day: Day,
+  days_at_a_time days: Int,
+) -> Yielder(DayRange) {
+  use <- bool.guard(compare_day(latest_day, earliest_day) == order.Lt, yielder.empty())
+  use <- bool.guard(!{ days >= 1 }, yielder.empty())
+
+  let start =
+    birl.unix_epoch
+    |> birl.set_day(latest_day)
+    |> birl.subtract(duration.days(days - 1))
+    |> birl.get_day
+
+  let start =
+    case compare_day(start, earliest_day) {
+      Lt -> earliest_day
+      Eq | Gt -> start
+    }
+
+  let initial = DayRange(start:, end: latest_day)
+
+  let invalid_day = birl.Day(0, 0, -1)
+
+  yielder.unfold(from: initial, with: fn(range) {
+    use <- bool.guard(compare_day(range.start, invalid_day) == Eq, yielder.Done)
+
+    case range.start |> compare_day(earliest_day) {
+      Lt ->
+        yielder.Done
+
+      Eq ->
+        range
+        |> yielder.Next(DayRange(start: invalid_day, end: invalid_day))
+
+      Gt -> {
+        let end =
+          birl.unix_epoch
+          |> birl.set_day(range.start)
+          |> birl.subtract(duration.days(1))
+          |> birl.get_day
+
+        let start =
+          birl.unix_epoch
+          |> birl.set_day(end)
+          |> birl.subtract(duration.days(days))
+          |> birl.get_day
+
+        let start =
+          case compare_day(start, earliest_day) {
+            Gt | Eq -> start
+            Lt -> earliest_day
+          }
+
+        let next = DayRange(start:, end:)
+
+        range
+        |> yielder.Next(next)
+      }
+    }
+  })
 }
 
 // pub fn day_range(

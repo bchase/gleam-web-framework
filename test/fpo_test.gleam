@@ -1,9 +1,12 @@
+import gleam/yielder
+import birl/duration
+import gleam/bool
 import tempo/time
+import tempo.{type TimeZoneProvider}
 import gtz
 import tempo/datetime
 import gleam/option.{type Option, Some, None}
 import gleam/int
-import birl
 import gleeunit
 import gleeunit/should
 import sqlight
@@ -15,8 +18,9 @@ import cloak_wrapper/crypto/key
 import fpo/generic/crypto as fpo_crypto
 import fpo/generic/json.{Transcoders} as _
 import fpo/generic/birl as fbirl
-import tempo
 import fpo/generic/tempo as ftempo
+import birl.{Day}
+import gleam/order.{Gt, Lt, Eq}
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -106,6 +110,110 @@ pub fn tempo_start_end_of_day_test() {
   |> ftempo.end_of_day_instant_24
   |> datetime.to_string
   |> should.equal("2025-08-28T24:00:00.000000+09:00")
+}
+
+pub fn compare_day_test() {
+  let day_yesterday = Day(2026, 3, 5)
+  let day_today = Day(2026, 3, 6)
+  let day_tomorrow = Day(2026, 3, 7)
+
+  let last_month = Day(2026, 2, 6)
+  let last_year = Day(2025, 3, 6)
+
+  let next_month = Day(2026, 4, 6)
+  let next_year = Day(2027, 3, 6)
+
+  day_today
+  |> fbirl.compare_day(day_yesterday)
+  |> should.equal(Gt)
+
+  day_today
+  |> fbirl.compare_day(day_tomorrow)
+  |> should.equal(Lt)
+
+  day_today
+  |> fbirl.compare_day(day_today)
+  |> should.equal(Eq)
+
+  day_today
+  |> fbirl.compare_day(last_month)
+  |> should.equal(Gt)
+
+  day_today
+  |> fbirl.compare_day(last_year)
+  |> should.equal(Gt)
+
+  day_today
+  |> fbirl.compare_day(next_month)
+  |> should.equal(Lt)
+
+  day_today
+  |> fbirl.compare_day(next_year)
+  |> should.equal(Lt)
+}
+
+pub fn for_day_ranges_back_test() {
+  // test day range is less than `days_at_a_time`
+  fbirl.day_ranges_back(
+    from: Day(2026, 3, 6),
+    until: Day(2026, 3, 4),
+    days_at_a_time: 2,
+  )
+  |> yielder.take(3)
+  |> yielder.to_list
+  |> should.equal([
+    fbirl.DayRange(start: Day(2026, 3, 5), end: Day(2026, 3, 6)),
+    fbirl.DayRange(start: Day(2026, 3, 4), end: Day(2026, 3, 4)),
+  ])
+
+  // nonsensical from/until args yield empty list
+  fbirl.day_ranges_back(
+    from: Day(2025, 3, 6),
+    until: Day(2026, 3, 6),
+    days_at_a_time: 10,
+  )
+  |> yielder.take(2)
+  |> yielder.to_list
+  |> should.equal([])
+
+  // test taking a few elements
+  fbirl.day_ranges_back(
+    from: Day(2026, 3, 6),
+    until: Day(2025, 3, 6),
+    days_at_a_time: 10,
+  )
+  |> yielder.take(2)
+  |> yielder.to_list
+  |> should.equal([
+    fbirl.DayRange(start: Day(2026, 2, 25), end: Day(2026, 3, 6)),
+    fbirl.DayRange(start: Day(2026, 2, 14), end: Day(2026, 2, 24)),
+  ])
+
+  // test exhausting a yielder
+  fbirl.day_ranges_back(
+    from: Day(2026, 3, 6),
+    until: Day(2026, 2, 20),
+    days_at_a_time: 10,
+  )
+  |> yielder.take(3)
+  |> yielder.to_list
+  |> should.equal([
+    fbirl.DayRange(start: Day(2026, 2, 25), end: Day(2026, 3, 6)),
+    fbirl.DayRange(start: Day(2026, 2, 20), end: Day(2026, 2, 24)),
+  ])
+
+  // test hits `Eq` clause
+  fbirl.day_ranges_back(
+    from: Day(2015, 12, 31),
+    until: Day(2015, 11, 1),
+    days_at_a_time: 30,
+  )
+  |> yielder.take(3)
+  |> yielder.to_list
+  |> should.equal([
+    fbirl.DayRange(start: Day(2015, 12, 2), end: Day(2015, 12, 31)),
+    fbirl.DayRange(start: Day(2015, 11, 1), end: Day(2015, 12, 1)),
+  ])
 }
 
 // pub fn birl_offset_minutes_test() {
