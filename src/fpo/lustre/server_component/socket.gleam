@@ -18,7 +18,7 @@ pub fn start(
   mist.websocket(
     request: req,
     // on_init: init(ws_conn: _, app:, ctx:, build_selectors:),
-    on_init: init(ws_conn: _, app:, ctx:),
+    on_init: init(conn: _, app:, ctx:),
     handler: update,
     on_close: close,
   )
@@ -28,6 +28,7 @@ type Socket(msg) {
   Socket(
     component: lustre.Runtime(msg),
     self: Subject(server_component.ClientMessage(msg)),
+    conn: mist.WebsocketConnection,
   )
 }
 
@@ -40,7 +41,7 @@ type SocketInit(msg) =
   #(Socket(msg), Option(Selector(SocketMsg(msg))))
 
 fn init(
-  ws_conn _ws_conn,
+  conn conn: mist.WebsocketConnection,
   app app: lustre.App(Context(config, pubsub, user), model, msg),
   ctx ctx: Context(config, pubsub, user),
   // build_selectors: Option(App(List(Selector(msg)), config, user)),
@@ -79,7 +80,7 @@ fn init(
   server_component.register_subject(self)
   |> lustre.send(to: component)
 
-  #(Socket(component:, self:), Some(selector))
+  #(Socket(component:, self:, conn:), Some(selector))
 }
 
 fn update(

@@ -1,7 +1,10 @@
+import gleam/http/response.{type Response}
+import gleam/http/request.{type Request}
+import mist
 import gleam/option.{Some}
 import app/config.{add_pubsub_workers}
 import app/user.{type User, authenticate}
-import fpo/types.{type EnvVar, Features}
+import fpo/types.{type Context, type EnvVar, Features}
 import fpo/types/spec.{type Spec, Spec}
 import fpo/lustre/server_component as lsc
 import app/web/websockets
@@ -10,6 +13,7 @@ import cloak_wrapper/aes/gcm as aes_gcm
 import app/types.{type Config, type PubSub, type Err} as _
 //
 import app/web/components/counter_app
+import app/api/socket
 
 pub fn spec() -> Spec(Config, PubSub, User, Err) {
   // panic as "`register_server_components` needs to be fixed"
@@ -40,12 +44,39 @@ pub fn spec() -> Spec(Config, PubSub, User, Err) {
     authenticate:,
     //
     websockets_path_prefix: "ws",
-    websockets_router: websockets.lustre_server_component_router,
+    websockets_router:,
     //
     router: router.handler,
     //
     server_components:,
   )
+}
+
+fn websockets_router(
+  req req: Request(mist.Connection),
+  ctx ctx: Context(Config, PubSub, User),
+) -> Result(Response(mist.ResponseData), Nil) {
+  case websockets.lustre_server_component_router(req, ctx) {
+    Ok(resp) -> Ok(resp)
+    Error(Nil) -> other_websockets_router(req:, ctx:)
+  }
+}
+
+fn other_websockets_router(
+  req req: Request(mist.Connection),
+  ctx ctx: Context(Config, PubSub, User),
+) -> Result(Response(mist.ResponseData), Nil) {
+  case req |> request.path_segments {
+    ["ws", "api"] -> Ok(api_websocket(req:, ctx:))
+    _ -> Error(Nil)
+  }
+}
+
+fn api_websocket(
+  req req: Request(mist.Connection),
+  ctx ctx: Context(Config, PubSub, User),
+) -> Response(mist.ResponseData) {
+  socket.start(req:, ctx:)
 }
 
 fn register_server_components() {
