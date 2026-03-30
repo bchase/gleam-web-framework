@@ -1,9 +1,7 @@
-import gleam/option.{type Option, None}
-import gleam/json.{type Json}
+import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
-import gleam/time/timestamp.{type Timestamp}
-// import youid/uuid.{type Uuid}
-import api/id.{type Id, decoder_id, encode_id}
+import gleam/json.{type Json}
+import api/generic.{type CrudSimple, type Got, type SocketReq, type SocketResp, encode_socket_req, encode_socket_resp, decoder_socket_req, decoder_socket_resp, encode_crud_simple, decoder_crud_simple, encode_got, decoder_got}
 
 pub fn main() -> Nil {
   Nil
@@ -12,290 +10,114 @@ pub fn main() -> Nil {
 // domain
 
 pub type Item {
+  //$ derive json encode decode
   Item(
     name: String,
   )
 }
 
-fn item_to_json(item: Item) -> Json {
-  let Item(name:) = item
-  json.object([
-    #("name", json.string(name)),
-  ])
+pub fn encode_item(value: Item) -> Json {
+  case value {
+    Item(..) as value -> json.object([#("name", json.string(value.name))])
+  }
 }
 
-fn item_decoder() -> Decoder(Item) {
+pub fn decoder_item() -> Decoder(Item) {
+  decode.one_of(decoder_item_item(), [])
+}
+
+pub fn decoder_item_item() -> Decoder(Item) {
   use name <- decode.field("name", decode.string)
   decode.success(Item(name:))
 }
 
+
 // domain api
 
 pub type Req {
+  //$ derive json encode decode
   CrudItems(crud: CrudSimple(Item))
   ReqOther
 }
 
-fn req_to_json(req: Req) -> Json {
-  case req {
-    CrudItems(crud:) -> json.object([
-      #("type", json.string("req_items")),
-      #("crud", crud_to_json(crud:, create: item_to_json, update: item_to_json)),
-    ])
-    ReqOther -> json.object([
-      #("type", json.string("req_other")),
-    ])
-  }
-}
-
-// domain api json
-
-fn req_decoder() -> Decoder(Req) {
-  use variant <- decode.field("type", decode.string)
-  case variant {
-    "req_items" -> {
-      use crud <- decode.field("crud", crud_decoder(item_decoder(), item_decoder()))
-      decode.success(CrudItems(crud:))
-    }
-    "req_other" -> decode.success(ReqOther)
-    _ -> decode.failure(ReqOther, "Req")
-  }
-}
-
-pub fn socket_req_to_json(
-  socket_req socket_req: SocketReq(Req),
-) -> Json {
-  socket_req_to_json_(socket_req:, req: req_to_json)
-}
-
-pub fn socket_req_decoder() -> Decoder(SocketReq(Req)) {
-  socket_req_decoder_(req: req_decoder())
-}
-
-// generic req
-
-pub type SocketReq(req) {
-  SocketReq(
-    ref: String,
-    req: req,
-  )
-}
-
-pub type CrudCustom(resource, create, update, msg) {
-  Crud(Crud(resource, create, update))
-  Custom(msg)
-}
-
-pub type CrudSimple(resource) = Crud(resource, resource, resource)
-
-pub type Crud(resource, create, update) {
-  List(pagination: Option(Pagination))
-  Get(id: Id(resource))
-  Create(new: create)
-  Update(id: Id(resource), new: update)
-  Delete(id: Id(resource), confirm: ConfirmDelete)
-}
-
-pub type ConfirmDelete {
-  ConfirmDelete
-}
-
-pub type Pagination {
-  Pagination(
-    page: Int,
-    limit: Int,
-  )
-}
-
-// generic resp
-
-pub type SocketResp {
-  SocketResp(
-    ref: String,
-    result: Result(String, Err),
-  )
-}
-
-pub type Payload {
-  Payload(
-    resource: String,
-    json: String,
-  )
-}
-
-pub type Err {
-  Client(err: ClientErr)
-  Server(err: ServerErr)
-}
-
-pub type ClientErr {
-  ReqDecodeErr(err: String)
-  NotFound(id: String, detail: Option(String))
-  ClientErr(err: String)
-}
-
-pub type ServerErr {
-  ServerErr(err: String)
-}
-
 pub type Resp {
-  RespItems(
-    resp: Got(Item),
-  )
+  //$ derive json encode decode
+  RespItems(resp: Got(Item))
+  RespOther
 }
 
-pub type Got(resource) {
-  GotMany(
-    resources: List(Record(resource)),
-  )
-  GotOne(
-    resource: Record(resource),
-    action: Option(Action),
-  )
-}
-
-pub type Record(resource) {
-  Record(
-    id: Id(resource),
-    created_at: Timestamp,
-    updated_at: Timestamp,
-    resource: resource,
-  )
-}
-
-pub type Action {
-  Created
-  Updated
-  Deleted
-}
-
-fn action_to_json(action: Action) -> Json {
-  case action {
-    Created -> json.string("created")
-    Updated -> json.string("updated")
-    Deleted -> json.string("deleted")
-  }
-}
-
-fn action_decoder() -> Decoder(Action) {
-  use variant <- decode.then(decode.string)
-  case variant {
-    "created" -> decode.success(Created)
-    "updated" -> decode.success(Updated)
-    "deleted" -> decode.success(Deleted)
-    _ -> decode.failure(Created, "Action")
-  }
-}
-
-// req json
-
-fn socket_req_to_json_(
-  socket_req socket_req: SocketReq(req),
-  req encode_req: fn(req) -> Json,
+pub fn encode_socket_req_(
+  value: SocketReq(Req),
 ) -> Json {
-  let SocketReq(ref:, req:) = socket_req
-  json.object([
-    #("ref", json.string(ref)),
-    #("req", encode_req(req)),
-  ])
+  encode_socket_req(value, encode_req)
 }
 
-fn socket_req_decoder_(
-  req decoder_req: Decoder(req),
-) -> Decoder(SocketReq(req)) {
-  use ref <- decode.field("ref", decode.string)
-  use req <- decode.field("req", decoder_req)
-  decode.success(SocketReq(ref:, req:))
+pub fn decoder_socket_req_(
+) -> Decoder(SocketReq(Req)) {
+  decoder_socket_req(decoder_req())
 }
 
-fn crud_to_json(
-  crud crud: Crud(resource, create, update),
-  create encode_create: fn(create) -> Json,
-  update encode_update: fn(update) -> Json,
+pub fn encode_socket_resp_(
+  value: SocketResp(Resp),
 ) -> Json {
-  case crud {
-    List(pagination:) -> json.object([
-      #("type", json.string("list")),
-      #("pagination", case pagination {
-        option.None -> json.null()
-        option.Some(value) -> pagination_to_json(value)
-      }),
-    ])
-    Get(id:) -> json.object([
-      #("type", json.string("get")),
-      #("id", encode_id(id)),
-    ])
-    Create(new:) -> json.object([
-      #("type", json.string("create")),
-      #("new", encode_create(new)),
-    ])
-    Update(id:, new:) -> json.object([
-      #("type", json.string("update")),
-      #("id", encode_id(id)),
-      #("new", encode_update(new)),
-    ])
-    Delete(id:, confirm:) -> json.object([
-      #("type", json.string("delete")),
-      #("id", encode_id(id)),
-      #("confirm", confirm_delete_to_json(confirm)),
-    ])
+  encode_socket_resp(value, encode_resp)
+}
+
+pub fn decoder_socket_resp_(
+) -> Decoder(SocketResp(Resp)) {
+  decoder_socket_resp(decoder_resp())
+}
+
+// DERIVED DOMAIN
+
+pub fn encode_req(value: Req) -> Json {
+  case value {
+    CrudItems(..) as value ->
+      json.object([
+        #("_var", json.string("CrudItems")),
+        #("crud", encode_crud_simple(value.crud, encode_item)),
+      ])
+    ReqOther -> json.object([#("_var", json.string("ReqOther"))])
   }
 }
 
-fn crud_decoder(
-  create decoder_create: Decoder(create),
-  update decoder_update: Decoder(update),
-) -> Decoder(Crud(resource, create, update)) {
-  use variant <- decode.field("type", decode.string)
-  case variant {
-    "list" -> {
-      use pagination <- decode.field("pagination", decode.optional(pagination_decoder()))
-      decode.success(List(pagination:))
-    }
-    "get" -> {
-      use id <- decode.field("id", decoder_id())
-      decode.success(Get(id:))
-    }
-    "create" -> {
-      use new <- decode.field("new", decoder_create)
-      decode.success(Create(new:))
-    }
-    "update" -> {
-      use id <- decode.field("id", decoder_id())
-      use new <- decode.field("new", decoder_update)
-      decode.success(Update(id:, new:))
-    }
-    "delete" -> {
-      use id <- decode.field("id", decoder_id())
-      use confirm <- decode.field("confirm", confirm_delete_decoder())
-      decode.success(Delete(id:, confirm:))
-    }
-    _ -> decode.failure(List(None), "Crud")
+pub fn decoder_req() -> Decoder(Req) {
+  decode.one_of(decoder_req_crud_items(), [decoder_req_req_other()])
+}
+
+pub fn decoder_req_crud_items() -> Decoder(Req) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("CrudItems"))
+  use crud <- decode.field("crud", decoder_crud_simple(decoder_item()))
+  decode.success(CrudItems(crud:))
+}
+
+pub fn decoder_req_req_other() -> Decoder(Req) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("ReqOther"))
+  decode.success(ReqOther)
+}
+
+pub fn encode_resp(value: Resp) -> Json {
+  case value {
+    RespItems(..) as value ->
+      json.object([
+        #("_var", json.string("RespItems")),
+        #("resp", encode_got(value.resp, encode_item)),
+      ])
+    RespOther -> json.object([#("_var", json.string("RespOther"))])
   }
 }
 
-fn pagination_to_json(pagination: Pagination) -> Json {
-  let Pagination(page:, limit:) = pagination
-  json.object([
-    #("page", json.int(page)),
-    #("limit", json.int(limit)),
-  ])
+pub fn decoder_resp() -> Decoder(Resp) {
+  decode.one_of(decoder_resp_resp_items(), [decoder_resp_resp_other()])
 }
 
-fn pagination_decoder() -> Decoder(Pagination) {
-  use page <- decode.field("page", decode.int)
-  use limit <- decode.field("limit", decode.int)
-  decode.success(Pagination(page:, limit:))
+pub fn decoder_resp_resp_items() -> Decoder(Resp) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("RespItems"))
+  use resp <- decode.field("resp", decoder_got(decoder_item()))
+  decode.success(RespItems(resp:))
 }
 
-fn confirm_delete_to_json(_confirm_delete: ConfirmDelete) -> Json {
-  json.string("confirm_delete")
-}
-
-fn confirm_delete_decoder() -> Decoder(ConfirmDelete) {
-  use variant <- decode.then(decode.string)
-  case variant {
-    "confirm_delete" -> decode.success(ConfirmDelete)
-    _ -> decode.failure(ConfirmDelete, "ConfirmDelete")
-  }
+pub fn decoder_resp_resp_other() -> Decoder(Resp) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("RespOther"))
+  decode.success(RespOther)
 }
