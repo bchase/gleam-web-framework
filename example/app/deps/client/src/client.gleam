@@ -1,9 +1,12 @@
+import lustre/event
+import gleam/list
 import gleam/dict.{type Dict}
 import gleam/string
 import gleam/io
 import gleam/option.{type Option, Some, None}
 import gleam/json
 import lustre/component
+import lustre/attribute as attr
 import lustre/element.{type Element}
 import lustre/element/html
 import gleam/pair
@@ -11,7 +14,7 @@ import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
 import api.{type SocketResp}
-import api/generic.{List, type Record, type Records}
+import api/generic.{List, Create, type Record, type Records}
 import youid/uuid
 
 // gleam run -m lustre/dev build --no-html --minify
@@ -53,7 +56,9 @@ type ApiRespHandler {
 type Msg {
   NoOp
   GotWebSocketEvent(event: WebSocketEvent)
+  GotItemForm(values: List(#(String, String)))
   RecvItems(result: Result(Records(api.Item), api.Err))
+  RecvItemCreated(result: Result(Record(api.Item), api.Err))
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
@@ -110,7 +115,7 @@ fn send_msg(
 
           Error(Nil) -> {
             io.println_error("Failed to map api result: " <> result |> string.inspect)
-            NoOp
+            NoOp // TODO conv to `Result(Msg, Nil)`
           }
         }
     }
@@ -124,6 +129,58 @@ fn update(
   case msg {
     NoOp ->
       pure(model)
+
+    RecvItemCreated(result:) ->
+      case result {
+        Ok(item) ->
+          pure(Model(..model, items: {
+            case model.items {
+              NotAsked |
+              Loading |
+              Failure(err: _) -> {
+                []
+              }
+              Success(data:) -> data
+            }
+            |> list.append([item])
+            |> list.sort(fn(a, b) {
+              string.compare(a.resource.name, b.resource.name)
+            })
+            |> Success
+          }))
+
+        Error(err) -> {
+          io.println_error("`RecvItemCreated` err: " <> err |> string.inspect)
+          pure(model)
+        }
+      }
+
+    GotItemForm(values:) -> {
+      let assert Ok(name) = values |> list.key_find("name")
+
+      model
+      |> send(
+        req: api.CrudItems(Create(new: api.Item(name:))),
+        handler: send_msg(
+          msg: RecvItemCreated,
+          map: fn(resp) {
+            case resp {
+              api.GotItem(item:) -> Ok(item)
+              _ -> Error(Nil)
+            }
+          },
+        ),
+        // handler: set_remote_data(
+        //   set: fn(model, items) { Model(..model, items:) },
+        //   map: fn(resp) {
+        //     case resp {
+        //       api.GotItems(page:) -> Ok(page.resources)
+        //       _ -> Error(Nil)
+        //     }
+        //   },
+        // ),
+      )
+    }
 
     RecvItems(result:) ->
       case result {
@@ -254,9 +311,52 @@ fn view(
   model model: Model,
 ) -> Element(Msg) {
   html.div([], [
-    html.text(model.items |> string.inspect)
+    view_items(model:),
+    view_item_form(model:),
   ])
 }
+
+fn view_item_form(
+  model model: Model,
+) -> Element(Msg) {
+  html.form([
+    event.on_submit(GotItemForm),
+  ], [
+    html.p([], [
+      html.label([
+        attr.for("item-name"),
+      ], [
+        html.text("Item name: "),
+      ]),
+      // html.span([], [html.text(" ")]),
+      html.input([
+        attr.id("item-name"),
+        attr.name("name"),
+        attr.type_("text"),
+      ]),
+    ]),
+  ])
+}
+
+fn view_items(
+  model model: Model,
+) -> Element(Msg) {
+  html.ul([], {
+    case model.items {
+      NotAsked |
+      Loading |
+      Failure(err: _) ->
+        [html.text(model.items |> string.inspect)]
+
+      Success(data: items) ->
+        items
+        |> list.map(fn(item) {
+          html.li([], [html.text(item.resource.name)])
+        })
+    }
+  })
+}
+
 
 // lustre helpers
 

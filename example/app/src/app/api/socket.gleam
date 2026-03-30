@@ -110,9 +110,18 @@ fn init_items() -> List(generic.Record(api.Item)) {
       id: id.Id(uuid.v7_string()),
       created_at: ts,
       updated_at: ts,
-      resource: api.Item(name: "hi"),
+      resource: api.Item(name: "zzz"),
+    ),
+    generic.Record(
+      id: id.Id(uuid.v7_string()),
+      created_at: ts,
+      updated_at: ts,
+      resource: api.Item(name: "aaa"),
     ),
   ]
+  |> list.sort(fn(a, b) {
+    string.compare(a.resource.name, b.resource.name)
+  })
 }
 
 fn update(
@@ -176,20 +185,19 @@ fn process(
   state state: State,
   req req: Req,
 ) -> #(State, Result(Resp, api.Err)) {
-  let result =
     case req {
       api.CrudItems(crud:) ->
         case crud {
           generic.List(pagination: _) -> {
-            // let ts = timestamp.unix_epoch
-            // let items = state.items |> list.index_map(fn(x, i) {
-            //   generic.Record(id: i |> int.to_string |> id.Id, created_at: ts, updated_at: ts, resource: x)
-            // })
-            Ok(state.items |> generic.ManyRecords(None) |> api.GotItems)
+            #(state, Ok(state.items |> generic.ManyRecords(None) |> api.GotItems))
+          }
+
+          generic.Create(new:) -> {
+            let ts = timestamp.unix_epoch
+            #(state, Ok(generic.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new) |> api.GotItem))
           }
 
           generic.Get(id:) -> todo
-          generic.Create(new:) -> todo
           generic.Update(id:, new:) -> todo
           generic.Delete(id:, confirm: _) -> todo
         }
@@ -213,8 +221,6 @@ fn process(
     //     // RespPeople(ref, Ok(GotMany(state.people)))
     //     todo
     // }
-
-  #(state, result)
 }
 
 fn ws_send(
