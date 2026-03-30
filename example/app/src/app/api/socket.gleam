@@ -41,11 +41,9 @@ pub fn start(
   )
 }
 
-type Msg = mist.WebsocketMessage(Nil)
-// type Msg {
-//   WebsocketMsg(msg: mist.WebsocketMessage(SocketReq))
-//   ApiSocketMsg(msg: api.SocketReq)
-// }
+type Msg {
+  NoOp
+}
 
 type Socket {
   Socket(
@@ -113,7 +111,7 @@ fn init_items() -> List(generic.Record(api.Item)) {
       created_at: ts,
       updated_at: ts,
       resource: api.Item(name: "hi"),
-    )
+    ),
   ]
 }
 
@@ -149,26 +147,9 @@ fn update(
         }
       }
 
-
-    mist.Custom(msg) -> {
-      echo msg
+    mist.Custom(NoOp) -> {
       mist.continue(socket)
     }
-
-    // mist.Custom(msg) -> {
-    //   case msg {
-    //     SocketReq(ref:, req:) -> {
-    //       let #(state, result) = process(state: socket.state, req:)
-
-    //       api.socket_resp(ref:, result:)
-    //       |> api.encode_socket_resp
-    //       |> json.to_string
-    //       |> ws_send(conn: socket.conn, msg: _)
-
-    //       mist.continue(Socket(..socket, state:))
-    //     }
-    //   }
-    // }
 
     mist.Closed | mist.Shutdown -> {
       let _ = close(socket:)
@@ -204,7 +185,7 @@ fn process(
             // let items = state.items |> list.index_map(fn(x, i) {
             //   generic.Record(id: i |> int.to_string |> id.Id, created_at: ts, updated_at: ts, resource: x)
             // })
-            Ok(state.items |> generic.GotMany |> api.RespItems)
+            Ok(state.items |> generic.ManyRecords(None) |> api.GotItems)
           }
 
           generic.Get(id:) -> todo

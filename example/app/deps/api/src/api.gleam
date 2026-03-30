@@ -1,4 +1,4 @@
-import api/generic.{type CrudSimple, type Got, decoder_crud_simple, decoder_got, encode_crud_simple, encode_got}
+import api/generic.{type CrudSimple, type Got, type ManyRecords, type Record, decoder_crud_simple, decoder_got, decoder_many_records, decoder_record, encode_crud_simple, encode_got, encode_many_records, encode_record}
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
@@ -59,6 +59,7 @@ pub fn zero_item() -> Item {
   Item("")
 }
 
+
 // domain api
 
 pub type Req {
@@ -69,7 +70,8 @@ pub type Req {
 
 pub type Resp {
   //$ derive json encode decode
-  RespItems(resp: Got(Item))
+  GotItems(page: ManyRecords(Item))
+  GotItem(item: Record(Item))
   RespOther
 }
 
@@ -125,26 +127,42 @@ pub fn decoder_req_req_other() -> Decoder(Req) {
 
 pub fn encode_resp(value: Resp) -> Json {
   case value {
-    RespItems(..) as value ->
+    GotItems(..) as value ->
       json.object([
-        #("_var", json.string("RespItems")),
-        #("resp", encode_got(value.resp, encode_item)),
+        #("_var", json.string("GotItems")),
+        #("page", encode_many_records(value.page, encode_item)),
+      ])
+    GotItem(..) as value ->
+      json.object([
+        #("_var", json.string("GotItem")),
+        #("item", encode_record(value.item, encode_item)),
       ])
     RespOther -> json.object([#("_var", json.string("RespOther"))])
   }
 }
 
-pub fn decoder_resp() -> Decoder(Resp) {
-  decode.one_of(decoder_resp_resp_items(), [decoder_resp_resp_other()])
-}
-
-pub fn decoder_resp_resp_items() -> Decoder(Resp) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("RespItems"))
-  use resp <- decode.field("resp", decoder_got(decoder_item()))
-  decode.success(RespItems(resp:))
-}
-
 pub fn decoder_resp_resp_other() -> Decoder(Resp) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("RespOther"))
   decode.success(RespOther)
+}
+
+
+pub fn decoder_resp_got_items() -> Decoder(Resp) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("GotItems"))
+  use page <- decode.field("page", decoder_many_records(decoder_item()))
+  decode.success(GotItems(page:))
+}
+
+pub fn decoder_resp_got_item() -> Decoder(Resp) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("GotItem"))
+  use item <- decode.field("item", decoder_record(decoder_item()))
+  decode.success(GotItem(item:))
+}
+
+
+pub fn decoder_resp() -> Decoder(Resp) {
+  decode.one_of(decoder_resp_got_items(), [
+    decoder_resp_got_item(),
+    decoder_resp_resp_other(),
+  ])
 }

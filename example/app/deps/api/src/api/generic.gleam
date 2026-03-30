@@ -81,6 +81,14 @@ pub type ServerErr {
   ServerErr(err: String)
 }
 
+pub type ManyRecords(resource) {
+  //$ derive json encode decode
+  ManyRecords(
+    resources: List(Record(resource)),
+    pagination: Option(Pagination),
+  )
+}
+
 pub type Got(resource) {
   //$ derive json encode decode
   GotMany(
@@ -91,6 +99,8 @@ pub type Got(resource) {
     action: Option(Action),
   )
 }
+
+pub type Records(resource) = List(Record(resource))
 
 pub type Record(resource) {
   //$ derive json encode decode
@@ -685,4 +695,41 @@ pub fn decoder_socket_resp_socket_resp(
     decoder_result(decoder_resp, decoder_err()),
   )
   decode.success(SocketResp(ref:, result:))
+}
+
+pub fn encode_many_records(
+  value: ManyRecords(resource),
+  encode_resource: fn(resource) -> Json,
+) -> Json {
+  case value {
+    ManyRecords(..) as value ->
+      json.object([
+        #("pagination", json.nullable(value.pagination, encode_pagination)),
+        #(
+          "resources",
+          json.array(value.resources, encode_record(_, encode_resource)),
+        ),
+      ])
+  }
+}
+
+pub fn decoder_many_records(
+  decoder_resource: Decoder(resource),
+) -> Decoder(ManyRecords(resource)) {
+  decode.one_of(decoder_many_records_many_records(decoder_resource), [])
+}
+
+pub fn decoder_many_records_many_records(
+  decoder_resource: Decoder(resource),
+) -> Decoder(ManyRecords(resource)) {
+  use resources <- decode.field(
+    "resources",
+    decode.list(decoder_record(decoder_resource)),
+  )
+  use pagination <- decode.optional_field(
+    "pagination",
+    deriv.none,
+    decode.optional(decoder_pagination()),
+  )
+  decode.success(ManyRecords(resources:, pagination:))
 }

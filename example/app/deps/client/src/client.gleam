@@ -1,10 +1,8 @@
 import gleam/dict.{type Dict}
-import gleam/bit_array
 import gleam/string
 import gleam/io
 import gleam/option.{type Option, Some, None}
-import gleam/json.{type Json}
-import gleam/dynamic/decode.{type Decoder}
+import gleam/json
 import lustre/component
 import lustre/element.{type Element}
 import lustre/element/html
@@ -13,33 +11,8 @@ import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
 import api.{type SocketResp}
-import api/generic.{List}
-import youid/uuid.{type Uuid}
-
-fn send(
-  model model: Model,
-  req req: api.Req,
-  map map: fn(api.Resp) -> Result(t, Nil),
-  set set: fn(Model, RemoteData(t, api.Err)) -> Model,
-) -> #(Model, Effect(Msg)) {
-  case model.conn {
-    None ->
-      pure(model)
-
-    Some(conn) -> {
-      let ref = uuid.v7_string()
-
-      model
-      |> listen_for(ref:, map:, set:)
-      |> eff([
-        api.socket_req(ref:, req:)
-        |> api.encode_socket_req
-        |> json.to_string
-        |> ws.send(conn, _)
-      ])
-    }
-  }
-}
+import api/generic.{List, type Record, type Records}
+import youid/uuid
 
 // gleam run -m lustre/dev build --no-html --minify
 
@@ -66,9 +39,15 @@ fn decoders() -> List(component.Option(Msg)) {
 type Model {
   Model(
     conn: Option(ws.WebSocket),
-    items: RemoteData(List(generic.Record(api.Item)), api.Err),
-    reqs: Dict(String, fn(Model, Result(api.Resp, api.Err)) -> Model),
+    items: RemoteData(List(Record(api.Item)), api.Err),
+    //
+    reqs: Dict(String, ApiRespHandler),
   )
+}
+
+type ApiRespHandler {
+  SetRemoteData(set: fn(Model, Result(api.Resp, api.Err)) -> Model)
+  SendMsg(msg: fn(Result(api.Resp, api.Err)) -> Msg)
 }
 
 type Msg {
@@ -90,26 +69,52 @@ fn init(_) -> #(Model, Effect(Msg)) {
 
 const ws_url = "/ws/api"
 
+fn set_remote_data(
+  map map: fn(api.Resp) -> Result(t, Nil),
+  set set: fn(Model, RemoteData(t, api.Err)) -> Model,
+) -> ApiRespHandler {
+  SetRemoteData(set: fn(model, result) {
+    case result {
+      Error(err) -> {
+        model |> set(Failure(err:))
+      }
+
+      Ok(resp) ->
+        case map(resp) {
+          Ok(data) ->
+            model |> set(Success(data:))
+
+          Error(Nil) -> {
+            io.println_error("Failed to map api result: " <> result |> string.inspect)
+            model
+          }
+        }
+    }
+  })
+}
+
 fn update(
   model model: Model,
   msg msg: Msg,
 ) -> #(Model, Effect(Msg)) {
-  case msg |> echo {
+  case msg {
     NoOp ->
       pure(model)
 
     GotWebSocketEvent(event: ws.OnOpen(conn)) -> {
-      echo "WebSocket opened"
+      io.println("WebSocket opened: " <> ws_url)
       Model(..model, conn: Some(conn), items: Loading)
       |> send(
         req: api.CrudItems(List(None)),
-        map: fn(resp) {
-          case resp {
-            api.RespItems(resp: generic.GotMany(items)) -> Ok(items)
-            _ -> Error(Nil)
-          }
-        },
-        set: fn(model, items) { Model(..model, items:) },
+        handler: set_remote_data(
+          set: fn(model, items) { Model(..model, items:) },
+          map: fn(resp) {
+            case resp {
+              api.GotItems(page:) -> Ok(page.resources)
+              _ -> Error(Nil)
+            }
+          },
+        ),
       )
     }
 
@@ -136,76 +141,62 @@ fn update(
 type RemoteData(t, err) {
   NotAsked
   Loading
-  Success(t)
-  Failure(err)
+  Success(data: t)
+  Failure(err: err)
 }
 
-// fn req(
-//   req req: api.Req,
-//   msg msg: fn(api.Resp) -> msg,
-//   get get: fn(state) -> RemoteData(t, err),
-//   set set: fn(state, Result(t, err)) -> state,
-// ) -> Effect(msg) {
-// }
+fn pop(
+  reqs reqs: Dict(String, ApiRespHandler),
+  resp resp: SocketResp,
+) -> #(Dict(String, ApiRespHandler), Result(ApiRespHandler, Nil)) {
+  case dict.get(reqs, resp.ref) {
+    Ok(handler) ->
+      #(dict.delete(reqs, resp.ref), Ok(handler))
 
-fn listen_for(
-  model model: Model,
-  ref ref: String,
-  map map: fn(api.Resp) -> Result(t, Nil),
-  set set: fn(Model, RemoteData(t, api.Err)) -> Model,
-) -> Model {
-  Model(..model, reqs: {
-    model.reqs
-    |> dict.insert(ref, fn(model, result) {
-      case result {
-        Ok(resp) ->
-          case map(resp) {
-            Ok(data) ->
-              set(model, Success(data))
-
-            Error(Nil) -> {
-              // TODO
-              io.println_error("failed to map resp to resource")
-              model
-            }
-          }
-
-        Error(err) ->
-          set(model, Failure(err))
-      }
-    })
-  })
+    Error(Nil) ->
+      #(reqs, Error(Nil))
+  }
 }
 
 fn process(
   model model: Model,
   resp resp: SocketResp,
-) -> Model {
-  case dict.get(model.reqs, resp.ref) {
-    Ok(set) ->
-      set(model, resp.result)
+) -> #(Model, Effect(Msg)) {
+  let #(reqs, handler) = pop(model.reqs, resp)
 
-    Error(Nil) -> {
-      // TODO
-      io.println_error("WebSocket resp ref not found in reqs: " <> resp |> string.inspect)
-      model
+  let #(model, resp_eff) =
+    case handler {
+      Ok(SetRemoteData(set:)) ->
+        pure(model |> set(resp.result))
+
+      Ok(SendMsg(msg:)) ->
+        model
+        |> eff([
+          effect.from(fn(dispatch) {
+            dispatch(msg(resp.result))
+          }),
+        ])
+
+      Error(Nil) -> {
+        // TODO
+        io.println_error("WebSocket resp ref not found in reqs: " <> resp |> string.inspect)
+        pure(model)
+      }
     }
-  }
-}
 
-// fn handle_resp(
-//   pending pending: fn(state) -> Dict(String, fn(api.Resp) -> state),
-// ) {
-// }
+  Model(..model, reqs:)
+  |> eff([
+    resp_eff,
+  ])
+}
 
 fn handle_websocket_text(
   model model: Model,
   msg msg: String,
 ) -> #(Model, Effect(Msg)) {
-  echo "WebSocket msg: " <> msg
   case json.parse(msg, api.decoder_socket_resp()) {
     Ok(resp) -> {
-      pure(model |> process(resp:))
+      model |> process(resp:)
     }
 
     Error(err) -> {
@@ -225,7 +216,7 @@ fn view(
   ])
 }
 
-//
+// lustre helpers
 
 fn pure(
   model model: Model,
@@ -238,4 +229,41 @@ fn eff(
   effs effs: List(Effect(Msg))
 ) -> #(Model, Effect(Msg)) {
   model |> pair.new(effect.batch(effs))
+}
+
+// websockets helpers
+
+fn send(
+  model model: Model,
+  req req: api.Req,
+  handler handler: ApiRespHandler,
+) -> #(Model, Effect(Msg)) {
+  case model.conn {
+    None ->
+      pure(model)
+
+    Some(conn) -> {
+      let ref = uuid.v7_string()
+
+      model
+      |> listen_for(ref:, handler:)
+      |> eff([
+        api.socket_req(ref:, req:)
+        |> api.encode_socket_req
+        |> json.to_string
+        |> ws.send(conn, _)
+      ])
+    }
+  }
+}
+
+fn listen_for(
+  model model: Model,
+  ref ref: String,
+  handler handler: ApiRespHandler,
+) -> Model {
+  Model(..model, reqs: {
+    model.reqs
+    |> dict.insert(ref, handler)
+  })
 }
