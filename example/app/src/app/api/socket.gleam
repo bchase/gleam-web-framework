@@ -102,7 +102,19 @@ fn init(
   //   |> process.select_map(self, ApiSocketMsg)
   // #(Socket(ctx:, conn:, state: State(items: [])), Some(selector))
 
-  #(Socket(ctx:, conn:, state: State(items: [])), None)
+  #(Socket(ctx:, conn:, state: State(items: init_items())), None)
+}
+
+fn init_items() -> List(generic.Record(api.Item)) {
+  let ts = timestamp.unix_epoch
+  [
+    generic.Record(
+      id: id.Id(uuid.v7_string()),
+      created_at: ts,
+      updated_at: ts,
+      resource: api.Item(name: "hi"),
+    )
+  ]
 }
 
 fn update(
@@ -175,7 +187,7 @@ fn close(
 type State {
   State(
     // people: List(Person),
-    items: List(api.Item),
+    items: List(generic.Record(api.Item)),
   )
 }
 
@@ -188,11 +200,11 @@ fn process(
       api.CrudItems(crud:) ->
         case crud {
           generic.List(pagination: _) -> {
-            let ts = timestamp.unix_epoch
-            let items = state.items |> list.index_map(fn(x, i) {
-              generic.Record(id: i |> int.to_string |> id.Id, created_at: ts, updated_at: ts, resource: x)
-            })
-            Ok(items |>  generic.GotMany |> api.RespItems)
+            // let ts = timestamp.unix_epoch
+            // let items = state.items |> list.index_map(fn(x, i) {
+            //   generic.Record(id: i |> int.to_string |> id.Id, created_at: ts, updated_at: ts, resource: x)
+            // })
+            Ok(state.items |> generic.GotMany |> api.RespItems)
           }
 
           generic.Get(id:) -> todo

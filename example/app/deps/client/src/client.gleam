@@ -1,3 +1,4 @@
+import gleam/dict.{type Dict}
 import gleam/bit_array
 import gleam/string
 import gleam/io
@@ -11,47 +12,33 @@ import gleam/pair
 import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
-import api
+import api.{type SocketResp}
 import api/generic.{List}
 import youid/uuid.{type Uuid}
 
 fn send(
-  conn conn: ws.WebSocket,
+  model model: Model,
   req req: api.Req,
-) -> Effect(Msg) {
-  req
-  |> build_socket_req
-  |> api.encode_socket_req
-  |> json.to_string
-  |> ws.send(conn, _)
-}
+  map map: fn(api.Resp) -> Result(t, Nil),
+  set set: fn(Model, RemoteData(t, api.Err)) -> Model,
+) -> #(Model, Effect(Msg)) {
+  case model.conn {
+    None ->
+      pure(model)
 
-fn build_socket_req(
-  req req: api.Req,
-) -> api.SocketReq {
-  api.socket_req(ref: uuid.v7() |> uuid.to_string, req:)
-}
+    Some(conn) -> {
+      let ref = uuid.v7_string()
 
-type SocketResp {
-  SocketResp(
-    ref: Uuid,
-    result: Result(api.Resp, api.Err)
-  )
-}
-
-fn decoder_socket_resp(
-) -> Decoder(SocketResp) {
-  api.decoder_socket_resp()
-  |> decode.then(fn(sr) {
-    case sr.ref |> uuid.from_string {
-      Ok(ref) -> decode.success(SocketResp(ref:, result: sr.result))
-      Error(Nil) -> decode.failure(zero_socket_resp(), "Failed to parse UUID ref:" <> sr.ref)
+      model
+      |> listen_for(ref:, map:, set:)
+      |> eff([
+        api.socket_req(ref:, req:)
+        |> api.encode_socket_req
+        |> json.to_string
+        |> ws.send(conn, _)
+      ])
     }
-  })
-}
-
-fn zero_socket_resp() -> SocketResp {
-  SocketResp(ref: uuid.v7(), result: Error(api.zero_err()))
+  }
 }
 
 // gleam run -m lustre/dev build --no-html --minify
@@ -79,7 +66,8 @@ fn decoders() -> List(component.Option(Msg)) {
 type Model {
   Model(
     conn: Option(ws.WebSocket),
-    items: List(api.Item),
+    items: RemoteData(List(generic.Record(api.Item)), api.Err),
+    reqs: Dict(String, fn(Model, Result(api.Resp, api.Err)) -> Model),
   )
 }
 
@@ -91,7 +79,9 @@ type Msg {
 fn init(_) -> #(Model, Effect(Msg)) {
   Model(
     conn: None,
-    items: [],
+    items: NotAsked,
+    //
+    reqs: dict.new(),
   )
   |> pair.new(effect.batch([
     ws.init(ws_url, GotWebSocketEvent),
@@ -110,10 +100,17 @@ fn update(
 
     GotWebSocketEvent(event: ws.OnOpen(conn)) -> {
       echo "WebSocket opened"
-      Model(..model, conn: Some(conn))
-      |> eff([
-        send(conn, api.CrudItems(List(None))),
-      ])
+      Model(..model, conn: Some(conn), items: Loading)
+      |> send(
+        req: api.CrudItems(List(None)),
+        map: fn(resp) {
+          case resp {
+            api.RespItems(resp: generic.GotMany(items)) -> Ok(items)
+            _ -> Error(Nil)
+          }
+        },
+        set: fn(model, items) { Model(..model, items:) },
+      )
     }
 
     GotWebSocketEvent(event: ws.OnClose(reason)) -> {
@@ -136,20 +133,95 @@ fn update(
   }
 }
 
+type RemoteData(t, err) {
+  NotAsked
+  Loading
+  Success(t)
+  Failure(err)
+}
+
+// fn req(
+//   req req: api.Req,
+//   msg msg: fn(api.Resp) -> msg,
+//   get get: fn(state) -> RemoteData(t, err),
+//   set set: fn(state, Result(t, err)) -> state,
+// ) -> Effect(msg) {
+// }
+
+fn listen_for(
+  model model: Model,
+  ref ref: String,
+  map map: fn(api.Resp) -> Result(t, Nil),
+  set set: fn(Model, RemoteData(t, api.Err)) -> Model,
+) -> Model {
+  Model(..model, reqs: {
+    model.reqs
+    |> dict.insert(ref, fn(model, result) {
+      case result {
+        Ok(resp) ->
+          case map(resp) {
+            Ok(data) ->
+              set(model, Success(data))
+
+            Error(Nil) -> {
+              // TODO
+              io.println_error("failed to map resp to resource")
+              model
+            }
+          }
+
+        Error(err) ->
+          set(model, Failure(err))
+      }
+    })
+  })
+}
+
+fn process(
+  model model: Model,
+  resp resp: SocketResp,
+) -> Model {
+  case dict.get(model.reqs, resp.ref) {
+    Ok(set) ->
+      set(model, resp.result)
+
+    Error(Nil) -> {
+      // TODO
+      io.println_error("WebSocket resp ref not found in reqs: " <> resp |> string.inspect)
+      model
+    }
+  }
+}
+
+// fn handle_resp(
+//   pending pending: fn(state) -> Dict(String, fn(api.Resp) -> state),
+// ) {
+// }
+
 fn handle_websocket_text(
   model model: Model,
   msg msg: String,
 ) -> #(Model, Effect(Msg)) {
   echo "WebSocket msg: " <> msg
+  case json.parse(msg, api.decoder_socket_resp()) {
+    Ok(resp) -> {
+      pure(model |> process(resp:))
+    }
 
-  pure(model)
+    Error(err) -> {
+      io.println_error("WebSocket msg json parse failed:")
+      io.println_error(err |> string.inspect)
+      io.println_error(msg)
+      pure(model)
+    }
+  }
 }
 
 fn view(
   model model: Model,
 ) -> Element(Msg) {
   html.div([], [
-    html.text("hi"),
+    html.text(model.items |> string.inspect)
   ])
 }
 
