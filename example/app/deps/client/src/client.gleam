@@ -1,3 +1,4 @@
+import api/id.{type Id}
 import lustre/event
 import gleam/list
 import gleam/dict.{type Dict}
@@ -42,7 +43,7 @@ fn decoders() -> List(component.Option(Msg)) {
 type Model {
   Model(
     conn: Option(ws.WebSocket),
-    items: RemoteData(List(Record(api.Item)), api.Err),
+    items: RemoteData(Dict(Id(api.Item), Record(api.Item)), api.Err),
     //
     reqs: Dict(String, ApiRespHandler),
   )
@@ -132,8 +133,22 @@ fn update(
       pure(model)
 
     RecvSubscription(ref:, resp:) -> {
-      echo msg
-      pure(model)
+      case resp {
+        api.GotItems(page:) -> todo
+        api.SubscribedTo(all_subs:) -> todo
+        api.RespOther -> todo
+
+        api.GotItem(item:, action: generic.Created) |
+        api.GotItem(item:, action: generic.Updated) ->
+          pure(Model(..model, items: {
+            model.items |> map_success(dict.insert(_, item.id, item))
+          }))
+
+        api.GotItem(item:, action: generic.Deleted) ->
+          pure(Model(..model, items: {
+            model.items |> map_success(dict.delete(_, item.id))
+          }))
+      }
     }
 
     RecvItemCreated(result:) ->
@@ -141,18 +156,19 @@ fn update(
         Ok(item) ->
           pure(Model(..model, items: {
             case model.items {
-              NotAsked |
-              Loading |
-              Failure(err: _) -> {
-                []
-              }
-              Success(data:) -> data
+              NotAsked | Loading | Failure(err: _) ->
+                Success(dict.from_list([#(item.id, item)]))
+
+              Success(items) ->
+                Success(dict.insert(items, item.id, item))
             }
-            |> list.append([item])
-            |> list.sort(fn(a, b) {
-              string.compare(a.resource.name, b.resource.name)
-            })
-            |> Success
+                // // |> list.map(fn(item) { #(item.id, item) })
+                // // |> dict.from_list
+            // // |> list.append([item])
+            // // |> list.sort(fn(a, b) {
+            // //   string.compare(a.resource.name, b.resource.name)
+            // // })
+            // |> Success
           }))
 
         Error(err) -> {
@@ -190,8 +206,22 @@ fn update(
 
     RecvItems(result:) ->
       case result {
-        Ok(items) ->
-          pure(Model(..model, items: Success(items)))
+        Ok(new) ->
+          pure(Model(..model, items: {
+            case model.items {
+              NotAsked | Loading | Failure(err: _) -> dict.new()
+              Success(data: items) -> items
+            }
+            |> fn(old) {
+              new
+              |> list.map(fn(item: Record(api.Item)) {
+                #(item.id, item)
+              })
+              |> dict.from_list
+              |> dict.merge(old, _)
+              |> Success
+            }
+          }))
 
         Error(err) ->
           pure(Model(..model, items: Failure(err)))
@@ -274,6 +304,18 @@ type RemoteData(t, err) {
   Loading
   Success(data: t)
   Failure(err: err)
+}
+
+fn map_success(
+  data data: RemoteData(a, err),
+  apply f: fn(a) -> b,
+) -> RemoteData(b, err) {
+  case data {
+    NotAsked -> NotAsked
+    Loading -> Loading
+    Failure(err:) -> Failure(err:)
+    Success(data:) -> Success(data: f(data))
+  }
 }
 
 fn pop(
@@ -402,6 +444,11 @@ fn view_items(
 
       Success(data: items) ->
         items
+        |> dict.to_list
+        |> list.map(pair.second)
+        |> list.sort(fn(a: Record(api.Item), b: Record(api.Item)) {
+          string.compare(a.resource.name, b.resource.name)
+        })
         |> list.map(fn(item) {
           html.li([], [html.text(item.resource.name)])
         })
