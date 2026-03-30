@@ -59,6 +59,7 @@ type Msg {
   GotItemForm(values: List(#(String, String)))
   RecvItems(result: Result(Records(api.Item), api.Err))
   RecvItemCreated(result: Result(Record(api.Item), api.Err))
+  RecvSubscription(ref: String, resp: api.Resp)
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
@@ -130,6 +131,11 @@ fn update(
     NoOp ->
       pure(model)
 
+    RecvSubscription(ref:, resp:) -> {
+      echo msg
+      pure(model)
+    }
+
     RecvItemCreated(result:) ->
       case result {
         Ok(item) ->
@@ -165,7 +171,7 @@ fn update(
           msg: RecvItemCreated,
           map: fn(resp) {
             case resp {
-              api.GotItem(item:) -> Ok(item)
+              api.GotItem(item:, action: _) -> Ok(item)
               _ -> Error(Nil)
             }
           },
@@ -221,7 +227,7 @@ fn update(
       let #(model, sub_to_items_eff) =
         Model(..model, conn: Some(conn), items: Loading)
         |> send(
-          req: api.Subscribe(subs: [api.SubItems]),
+          req: api.Subscribe(subs: dict.from_list([#(uuid.v7_string(), api.SubItems)])),
           handler: send_msg(
             msg: fn(msg) {
               echo "Subscribed: " <> string.inspect(msg)
@@ -286,33 +292,53 @@ fn pop(
 fn process(
   model model: Model,
   resp resp: SocketResp,
+  msg msg: fn(String, api.Resp) -> Msg,
 ) -> #(Model, Effect(Msg)) {
   let #(reqs, handler) = pop(model.reqs, resp)
 
-  let #(model, resp_eff) =
-    case handler {
-      Ok(SetRemoteData(set:)) ->
-        pure(model |> set(resp.result))
-
-      Ok(SendMsg(msg:)) ->
-        model
-        |> eff([
-          effect.from(fn(dispatch) {
-            dispatch(msg(resp.result))
-          }),
-        ])
-
-      Error(Nil) -> {
-        // TODO
-        io.println_error("WebSocket resp ref not found in reqs: " <> resp |> string.inspect)
-        pure(model)
-      }
+  case resp.ref, resp.result {
+    "pubsub:" <> _ref, Error(err) -> {
+      io.println_error("Received pubsub err msg: " <> err |> string.inspect)
+      pure(model)
     }
 
-  Model(..model, reqs:)
-  |> eff([
-    resp_eff,
-  ])
+    "pubsub:" <> ref, Ok(resp) -> {
+      model
+      |> eff([
+        effect.from(fn(dispatch) {
+          dispatch(msg(ref, resp))
+        }),
+      ])
+    }
+
+    _ref, _ -> {
+      let #(model, resp_eff) =
+        case handler {
+          Ok(SetRemoteData(set:)) ->
+            pure(model |> set(resp.result))
+
+          Ok(SendMsg(msg:)) ->
+            model
+            |> eff([
+              effect.from(fn(dispatch) {
+                dispatch(msg(resp.result))
+              }),
+            ])
+
+          Error(Nil) -> {
+            // TODO
+            io.println_error("WebSocket resp ref not found in reqs: " <> resp |> string.inspect)
+            pure(model)
+          }
+        }
+
+      Model(..model, reqs:)
+      |> eff([
+        resp_eff,
+      ])
+    }
+  }
+
 }
 
 fn handle_websocket_text(
@@ -321,7 +347,7 @@ fn handle_websocket_text(
 ) -> #(Model, Effect(Msg)) {
   case json.parse(msg, api.decoder_socket_resp()) {
     Ok(resp) -> {
-      model |> process(resp:)
+      model |> process(resp:, msg: RecvSubscription)
     }
 
     Error(err) -> {

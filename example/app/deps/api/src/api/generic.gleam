@@ -494,6 +494,7 @@ pub fn decoder_record_record(
   decode.success(Record(id:, created_at:, updated_at:, resource:))
 }
 
+
 pub fn encode_err(value: Err) -> Json {
   case value {
     Client(..) as value ->

@@ -1,6 +1,7 @@
-import api/generic.{type CrudSimple, decoder_crud_simple, decoder_many_records, decoder_record, encode_crud_simple, encode_many_records, encode_record}
+import api/generic.{type Action, type CrudSimple, decoder_action, decoder_crud_simple, decoder_many_records, decoder_record, encode_action, encode_crud_simple, encode_many_records, encode_record}
 import api/id.{type Id}
 import deriv/util as deriv
+import gleam/dict.{type Dict}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
@@ -74,7 +75,7 @@ pub fn zero_item() -> Item {
 pub type Req {
   //$ derive json encode decode
   CrudItems(crud: CrudSimple(Item))
-  Subscribe(subs: List(Subscription))
+  Subscribe(subs: Dict(String, Subscription))
   ReqOther
 }
 
@@ -87,8 +88,8 @@ pub type Subscription {
 pub type Resp {
   //$ derive json encode decode
   GotItems(page: ManyRecords(Item))
-  GotItem(item: Record(Item))
-  SubscribedTo(all_subs: List(Subscription))
+  GotItem(item: Record(Item), action: Action)
+  SubscribedTo(all_subs: Dict(String, Subscription))
   RespOther
 }
 
@@ -126,7 +127,7 @@ pub fn encode_req(value: Req) -> Json {
     Subscribe(..) as value ->
       json.object([
         #("_var", json.string("Subscribe")),
-        #("subs", json.array(value.subs, encode_subscription)),
+        #("subs", json.dict(value.subs, fn(str) { str }, encode_subscription)),
       ])
     ReqOther -> json.object([#("_var", json.string("ReqOther"))])
   }
@@ -160,12 +161,16 @@ pub fn encode_resp(value: Resp) -> Json {
     GotItem(..) as value ->
       json.object([
         #("_var", json.string("GotItem")),
+        #("action", encode_action(value.action)),
         #("item", encode_record(value.item, encode_item)),
       ])
     SubscribedTo(..) as value ->
       json.object([
         #("_var", json.string("SubscribedTo")),
-        #("all_subs", json.array(value.all_subs, encode_subscription)),
+        #(
+          "all_subs",
+          json.dict(value.all_subs, fn(str) { str }, encode_subscription),
+        ),
       ])
     RespOther -> json.object([#("_var", json.string("RespOther"))])
   }
@@ -186,7 +191,8 @@ pub fn decoder_resp_got_items() -> Decoder(Resp) {
 pub fn decoder_resp_got_item() -> Decoder(Resp) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("GotItem"))
   use item <- decode.field("item", decoder_record(decoder_item()))
-  decode.success(GotItem(item:))
+  use action <- decode.field("action", decoder_action())
+  decode.success(GotItem(item:, action:))
 }
 
 
@@ -201,7 +207,10 @@ pub fn decoder_resp() -> Decoder(Resp) {
 
 pub fn decoder_req_subscribe() -> Decoder(Req) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Subscribe"))
-  use subs <- decode.field("subs", decode.list(decoder_subscription()))
+  use subs <- decode.field(
+    "subs",
+    decode.dict(decode.string, decoder_subscription()),
+  )
   decode.success(Subscribe(subs:))
 }
 
@@ -235,6 +244,9 @@ pub fn decoder_subscription_sub_item() -> Decoder(Subscription) {
 
 pub fn decoder_resp_subscribed_to() -> Decoder(Resp) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("SubscribedTo"))
-  use all_subs <- decode.field("all_subs", decode.list(decoder_subscription()))
+  use all_subs <- decode.field(
+    "all_subs",
+    decode.dict(decode.string, decoder_subscription()),
+  )
   decode.success(SubscribedTo(all_subs:))
 }

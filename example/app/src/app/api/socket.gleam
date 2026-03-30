@@ -44,14 +44,15 @@ pub fn start(
 
 type Msg {
   NoOp
+  Broadcast(ref: String, resp: api.Resp)
 }
 
 type Socket {
   Socket(
-    // self: Subject(Msg),
+    // self: Subject(mist.WebsocketMessage(Msg)),
     ctx: Context,
     conn: mist.WebsocketConnection,
-    subs: List(api.Subscription),
+    subs: Dict(String, api.Subscription),
     state: State,
   )
 }
@@ -96,13 +97,27 @@ fn init(
   conn conn: mist.WebsocketConnection,
   ctx ctx: Context,
 ) -> #(Socket, Option(Selector(Msg))) {
-  // let self = process.new_subject()
-  // let selector =
-  //   process.new_selector()
-  //   |> process.select_map(self, ApiSocketMsg)
-  // #(Socket(ctx:, conn:, state: State(items: [])), Some(selector))
+  let self = process.new_subject()
 
-  #(Socket(ctx:, conn:, subs: [], state: State(items: init_items())), None)
+  let selector: Selector(Msg) =
+    process.new_selector()
+    |> process.select(self)
+    // |> process.select_map(self, fn(msg) {
+    //   case msg {
+    //   }
+    // })
+    // |> process.select_map(self, fn(msg) {
+    //   case msg {
+    //     mist.Text(..) -> NoOp
+    //     mist.Binary(_) -> todo
+    //     mist.Closed -> todo
+    //     mist.Shutdown -> todo
+    //     mist.Custom(_) -> todo
+    //   }
+    // })
+    // |> process.select_map(self, ApiSocketMsg)
+
+  #(Socket(ctx:, conn:, subs: dict.new(), state: State(items: init_items())), Some(selector))
 }
 
 fn init_items() -> List(generic.Record(api.Item)) {
@@ -130,7 +145,7 @@ fn update(
   socket socket: Socket,
   msg msg: mist.WebsocketMessage(Msg),
   conn conn: mist.WebsocketConnection,
-) -> mist.Next(Socket, state) {
+) -> mist.Next(Socket, Msg) {
   case msg |> echo {
     mist.Binary(_) -> {
       io.println_error("WEBSOCKET IGNORING BINARY MSG")
@@ -147,7 +162,17 @@ fn update(
           |> json.to_string
           |> ws_send(conn, _)
 
-          mist.continue(socket)
+          socket
+          |> mist.continue
+          |> fn(next) {
+            case selector {
+              None ->
+                next
+
+              Some(selector) ->
+                next |> mist.with_selector(selector)
+            }
+          }
         }
 
         Error(err) -> {
@@ -157,6 +182,15 @@ fn update(
           mist.continue(socket)
         }
       }
+
+    mist.Custom(Broadcast(ref:, resp:)) -> {
+      api.socket_resp(ref: "pubsub:" <> ref, result: Ok(resp))
+      |> api.encode_socket_resp
+      |> json.to_string
+      |> ws_send(conn, _)
+
+      mist.continue(socket)
+    }
 
     mist.Custom(NoOp) -> {
       mist.continue(socket)
@@ -191,6 +225,9 @@ fn process(
   let ctx = socket.ctx
 
   case req {
+    api.ReqOther ->
+      todo
+
     api.CrudItems(crud:) ->
       case crud {
         generic.List(pagination: _) -> {
@@ -212,7 +249,7 @@ fn process(
             }
             |> run(socket.ctx, Nil)
 
-          #(Ok(api.GotItem(item)), socket, None)
+          #(Ok(api.GotItem(item:, action: generic.Created)), socket, None)
         }
 
         generic.Get(id:) -> todo
@@ -222,35 +259,39 @@ fn process(
 
     api.Subscribe(subs:) -> {
       let added =
-        case subs {
-          [] ->
+        case dict.is_empty(subs) {
+          True ->
             None
 
-          subs -> {
+          False -> {
             let selector =
               process.new_selector()
               |> process.select(process.new_subject())
+              // |> todo
 
             subs
-            |> list.fold(#([], selector), fn(acc, sub) {
+            |> dict.to_list
+            |> list.fold(#(dict.new(), selector), fn(acc, t) {
+              let #(ref, sub) = t
               let #(subs, selector) = acc
 
               let result =
                 case sub {
                   api.SubItem(id:) -> todo
                   api.SubItems -> {
-                    let selector =
-                      subscribe(
-                        to: "items",
-                        in: fn(rs: PubSub) { rs.items },
-                        wrap: fn(_) { NoOp })
-                      |> run(ctx, Nil)
-                      |> result.map(fn(selector) {
-                        selector
-                        // |> process.map_selector(fn(msg) {
-                        //   todo as "get `msg` this into the actor"
-                        // })
+                    subscribe(
+                      to: "items",
+                      in: fn(rs: PubSub) { rs.items },
+                      wrap: fn(item) {
+                        Broadcast(ref:, resp: api.GotItem(item:, action: generic.Created))
                       })
+                    |> run(ctx, Nil)
+                    // |> result.map(fn(selector) {
+                    //   selector
+                    //   // |> process.map_selector(fn(msg) {
+                    //   //   todo as "get `msg` this into the actor"
+                    //   // })
+                    // })
                   }
                 }
 
@@ -259,8 +300,9 @@ fn process(
                   let selector =
                     selector
                     |> process.merge_selector(new_selector)
+                    // |> todo
 
-                  #(list.append(subs, [sub]), selector)
+                  #(dict.insert(subs, ref, sub), selector)
                 }
 
                 Error(err) -> {
@@ -283,16 +325,14 @@ fn process(
           let socket =
             Socket(..socket, subs: {
               socket.subs
-              |> list.append(subs)
+              |> dict.merge(subs)
+              // |> list.append(subs)
             })
 
           #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, Some(selector))
         }
       }
     }
-
-    api.ReqOther ->
-      todo
   }
 }
 
