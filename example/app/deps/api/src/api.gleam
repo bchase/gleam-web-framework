@@ -1,16 +1,40 @@
+import api/generic.{type CrudSimple, type Got, decoder_crud_simple, decoder_got, encode_crud_simple, encode_got}
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import api/generic.{type CrudSimple, type Got, type SocketReq, type SocketResp, encode_socket_req, encode_socket_resp, decoder_socket_req, decoder_socket_resp, encode_crud_simple, decoder_crud_simple, encode_got, decoder_got}
 
 pub fn main() -> Nil {
   Nil
+}
+
+pub type SocketReq = generic.SocketReq(Req)
+pub type SocketResp = generic.SocketResp(Resp)
+pub type Err = generic.Err
+
+pub fn socket_req(
+  ref ref: String,
+  req req: Req,
+) -> generic.SocketReq(Req) {
+  generic.SocketReq(ref:, req:)
+}
+
+pub fn socket_resp(
+  ref ref: String,
+  result result: Result(Resp, Err),
+) -> generic.SocketResp(Resp) {
+  generic.SocketResp(ref:, result:)
+}
+
+pub fn zero_err(
+) -> Err {
+  generic.Server(err: generic.ServerErr(""))
 }
 
 // domain
 
 pub type Item {
   //$ derive json encode decode
+  //$ derive zero
   Item(
     name: String,
   )
@@ -31,6 +55,9 @@ pub fn decoder_item_item() -> Decoder(Item) {
   decode.success(Item(name:))
 }
 
+pub fn zero_item() -> Item {
+  Item("")
+}
 
 // domain api
 
@@ -46,29 +73,29 @@ pub type Resp {
   RespOther
 }
 
-pub fn encode_socket_req_(
-  value: SocketReq(Req),
+pub fn encode_socket_req(
+  value: generic.SocketReq(Req),
 ) -> Json {
-  encode_socket_req(value, encode_req)
+  generic.encode_socket_req(value, encode_req)
 }
 
-pub fn decoder_socket_req_(
-) -> Decoder(SocketReq(Req)) {
-  decoder_socket_req(decoder_req())
+pub fn decoder_socket_req(
+) -> Decoder(generic.SocketReq(Req)) {
+  generic.decoder_socket_req(decoder_req())
 }
 
-pub fn encode_socket_resp_(
-  value: SocketResp(Resp),
+pub fn encode_socket_resp(
+  value: generic.SocketResp(Resp),
 ) -> Json {
-  encode_socket_resp(value, encode_resp)
+  generic.encode_socket_resp(value, encode_resp)
 }
 
-pub fn decoder_socket_resp_(
-) -> Decoder(SocketResp(Resp)) {
-  decoder_socket_resp(decoder_resp())
+pub fn decoder_socket_resp(
+) -> Decoder(generic.SocketResp(Resp)) {
+  generic.decoder_socket_resp(decoder_resp())
 }
 
-// DERIVED DOMAIN
+// DERIVED
 
 pub fn encode_req(value: Req) -> Json {
   case value {

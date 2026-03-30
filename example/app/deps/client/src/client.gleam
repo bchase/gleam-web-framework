@@ -11,10 +11,50 @@ import gleam/pair
 import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
+import api
+import api/generic.{List}
+import youid/uuid.{type Uuid}
 
-// build-kohort-components:
-// 	(cd deps/kohort_components/ && \
-// 	  gleam run -m lustre/dev build --no-html --minify)
+fn send(
+  conn conn: ws.WebSocket,
+  req req: api.Req,
+) -> Effect(Msg) {
+  req
+  |> build_socket_req
+  |> api.encode_socket_req
+  |> json.to_string
+  |> ws.send(conn, _)
+}
+
+fn build_socket_req(
+  req req: api.Req,
+) -> api.SocketReq {
+  api.socket_req(ref: uuid.v7() |> uuid.to_string, req:)
+}
+
+type SocketResp {
+  SocketResp(
+    ref: Uuid,
+    result: Result(api.Resp, api.Err)
+  )
+}
+
+fn decoder_socket_resp(
+) -> Decoder(SocketResp) {
+  api.decoder_socket_resp()
+  |> decode.then(fn(sr) {
+    case sr.ref |> uuid.from_string {
+      Ok(ref) -> decode.success(SocketResp(ref:, result: sr.result))
+      Error(Nil) -> decode.failure(zero_socket_resp(), "Failed to parse UUID ref:" <> sr.ref)
+    }
+  })
+}
+
+fn zero_socket_resp() -> SocketResp {
+  SocketResp(ref: uuid.v7(), result: Error(api.zero_err()))
+}
+
+// gleam run -m lustre/dev build --no-html --minify
 
 pub fn main() -> Nil {
   register_web_component()
@@ -39,7 +79,7 @@ fn decoders() -> List(component.Option(Msg)) {
 type Model {
   Model(
     conn: Option(ws.WebSocket),
-    items: List(Item),
+    items: List(api.Item),
   )
 }
 
@@ -64,12 +104,17 @@ fn update(
   model model: Model,
   msg msg: Msg,
 ) -> #(Model, Effect(Msg)) {
-  case msg {
+  case msg |> echo {
     NoOp ->
       pure(model)
 
-    GotWebSocketEvent(event: ws.OnOpen(conn)) ->
-      pure(Model(..model, conn: Some(conn)))
+    GotWebSocketEvent(event: ws.OnOpen(conn)) -> {
+      echo "WebSocket opened"
+      Model(..model, conn: Some(conn))
+      |> eff([
+        send(conn, api.CrudItems(List(None))),
+      ])
+    }
 
     GotWebSocketEvent(event: ws.OnClose(reason)) -> {
       io.println_error("WebSocket closed: " <> reason |> string.inspect)
@@ -88,7 +133,6 @@ fn update(
 
     GotWebSocketEvent(event: ws.OnTextMessage(msg)) ->
       handle_websocket_text(model:, msg:)
-
   }
 }
 
@@ -96,25 +140,9 @@ fn handle_websocket_text(
   model model: Model,
   msg msg: String,
 ) -> #(Model, Effect(Msg)) {
-  todo
-}
+  echo "WebSocket msg: " <> msg
 
-//
-
-type Req
-
-fn send_msg(
-  conn conn: Option(ws.WebSocket),
-  req req: Req,
-) -> Nil {
-}
-
-//
-
-fn pure(
-  model model: Model,
-) -> #(Model, Effect(Msg)) {
-  model |> pair.new(effect.none())
+  pure(model)
 }
 
 fn view(
@@ -125,43 +153,17 @@ fn view(
   ])
 }
 
-// app shared
+//
 
-type Item {
-  Item(
-    id: Id(Item, String),
-    name: String,
-  )
+fn pure(
+  model model: Model,
+) -> #(Model, Effect(Msg)) {
+  model |> pair.new(effect.none())
 }
 
-// generic shared
-
-type IdString(resource) = Id(resource, String)
-
-fn decoder_id_string() -> Decoder(IdString(resource)) {
-  decoder_id(decoder: decode.string)
-}
-
-fn encode(
-  value value: IdString(resource),
-) {
-  encode_id(value:, encode: json.string)
-}
-
-type Id(resource, t) {
-  Id(id: t)
-}
-
-fn decoder_id(
-  decoder decoder: Decoder(t),
-) -> Decoder(Id(resource, t)) {
-  decoder
-  |> decode.map(Id)
-}
-
-fn encode_id(
-  value value: Id(resource, t),
-  encode encode: fn(t) -> Json
-) -> Json {
-  encode(value.id)
+fn eff(
+  model model: Model,
+  effs effs: List(Effect(Msg))
+) -> #(Model, Effect(Msg)) {
+  model |> pair.new(effect.batch(effs))
 }

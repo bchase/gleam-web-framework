@@ -195,7 +195,7 @@ fn encode_id(
   id.encode_id(id)
 }
 
-// DERIVED GENERIC
+// DERIVED
 
 pub fn encode_confirm_delete(value: ConfirmDelete) -> Json {
   case value {
