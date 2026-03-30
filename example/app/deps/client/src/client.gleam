@@ -53,6 +53,7 @@ type ApiRespHandler {
 type Msg {
   NoOp
   GotWebSocketEvent(event: WebSocketEvent)
+  RecvItems(result: Result(Records(api.Item), api.Err))
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
@@ -93,6 +94,29 @@ fn set_remote_data(
   })
 }
 
+fn send_msg(
+  map map: fn(api.Resp) -> Result(t, Nil),
+  msg msg: fn(Result(t, api.Err)) -> Msg,
+) -> ApiRespHandler {
+  SendMsg(msg: fn(result) {
+    case result {
+      Error(err) ->
+        msg(Error(err))
+
+      Ok(resp) ->
+        case map(resp) {
+          Ok(data) ->
+            msg(Ok(data))
+
+          Error(Nil) -> {
+            io.println_error("Failed to map api result: " <> result |> string.inspect)
+            NoOp
+          }
+        }
+    }
+  })
+}
+
 fn update(
   model model: Model,
   msg msg: Msg,
@@ -101,13 +125,22 @@ fn update(
     NoOp ->
       pure(model)
 
+    RecvItems(result:) ->
+      case result {
+        Ok(items) ->
+          pure(Model(..model, items: Success(items)))
+
+        Error(err) ->
+          pure(Model(..model, items: Failure(err)))
+      }
+
     GotWebSocketEvent(event: ws.OnOpen(conn)) -> {
       io.println("WebSocket opened: " <> ws_url)
       Model(..model, conn: Some(conn), items: Loading)
       |> send(
         req: api.CrudItems(List(None)),
-        handler: set_remote_data(
-          set: fn(model, items) { Model(..model, items:) },
+        handler: send_msg(
+          msg: RecvItems,
           map: fn(resp) {
             case resp {
               api.GotItems(page:) -> Ok(page.resources)
@@ -115,6 +148,15 @@ fn update(
             }
           },
         ),
+        // handler: set_remote_data(
+        //   set: fn(model, items) { Model(..model, items:) },
+        //   map: fn(resp) {
+        //     case resp {
+        //       api.GotItems(page:) -> Ok(page.resources)
+        //       _ -> Error(Nil)
+        //     }
+        //   },
+        // ),
       )
     }
 
