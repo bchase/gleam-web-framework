@@ -193,28 +193,54 @@ fn update(
 
     GotWebSocketEvent(event: ws.OnOpen(conn)) -> {
       io.println("WebSocket opened: " <> ws_url)
-      Model(..model, conn: Some(conn), items: Loading)
-      |> send(
-        req: api.CrudItems(List(None)),
-        handler: send_msg(
-          msg: RecvItems,
-          map: fn(resp) {
-            case resp {
-              api.GotItems(page:) -> Ok(page.resources)
-              _ -> Error(Nil)
-            }
-          },
-        ),
-        // handler: set_remote_data(
-        //   set: fn(model, items) { Model(..model, items:) },
-        //   map: fn(resp) {
-        //     case resp {
-        //       api.GotItems(page:) -> Ok(page.resources)
-        //       _ -> Error(Nil)
-        //     }
-        //   },
-        // ),
-      )
+
+      let #(model, list_items_eff) =
+        Model(..model, conn: Some(conn), items: Loading)
+        |> send(
+          req: api.CrudItems(List(None)),
+          handler: send_msg(
+            msg: RecvItems,
+            map: fn(resp) {
+              case resp {
+                api.GotItems(page:) -> Ok(page.resources)
+                _ -> Error(Nil)
+              }
+            },
+          ),
+          // handler: set_remote_data(
+          //   set: fn(model, items) { Model(..model, items:) },
+          //   map: fn(resp) {
+          //     case resp {
+          //       api.GotItems(page:) -> Ok(page.resources)
+          //       _ -> Error(Nil)
+          //     }
+          //   },
+          // ),
+        )
+
+      let #(model, sub_to_items_eff) =
+        Model(..model, conn: Some(conn), items: Loading)
+        |> send(
+          req: api.Subscribe(subs: [api.SubItems]),
+          handler: send_msg(
+            msg: fn(msg) {
+              echo "Subscribed: " <> string.inspect(msg)
+              NoOp
+            },
+            map: fn(resp) {
+              case resp {
+                api.SubscribedTo(all_subs:) -> Ok(all_subs)
+                _ -> Error(Nil)
+              }
+            },
+          ),
+        )
+
+      model
+      |> eff([
+        list_items_eff,
+        sub_to_items_eff,
+      ])
     }
 
     GotWebSocketEvent(event: ws.OnClose(reason)) -> {

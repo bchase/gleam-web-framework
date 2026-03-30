@@ -29,8 +29,9 @@ pub fn add_pubsub_workers(
   //   )
 
   let #(supervisor, text) = supervisor |> pubsub.add_local_node_only_worker(name: "text")
+  let #(supervisor, items) = supervisor |> pubsub.add_local_node_only_worker(name: "items")
 
-  let pubsub = PubSub(text:)
+  let pubsub = PubSub(text:, items:)
 
   #(supervisor, pubsub)
 }
@@ -40,8 +41,12 @@ pub fn pubsub_authz(
   ctx ctx: Context(Config, PubSub, User),
 ) -> Bool {
   let text = ctx.pubsub.text |> pubsub.name_str
+  let items = ctx.pubsub.items |> pubsub.name_str
 
   case ctx.user, join.pubsub, join.channel {
+    _user, pubsub, _channel if pubsub == items ->
+      True
+
     _user, pubsub, _channel if pubsub == text ->
       True
 

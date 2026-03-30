@@ -15,7 +15,7 @@ import gleam/http/response.{type Response}
 import gleam/json.{type Json}
 import gleam/time/timestamp.{type Timestamp}
 import fpo/types
-import app/types as app
+import app/types.{type PubSub} as app
 import lustre
 import lustre/runtime/server/runtime
 import lustre/server_component
@@ -26,6 +26,7 @@ import lustre/effect.{type Effect}
 import api.{type SocketReq, type SocketResp, type Req, type Resp}
 import api/generic.{SocketReq, SocketResp}
 import api/id
+import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 
 pub type Context = types.Context(app.Config, app.PubSub, user.User)
 
@@ -50,6 +51,7 @@ type Socket {
     // self: Subject(Msg),
     ctx: Context,
     conn: mist.WebsocketConnection,
+    subs: List(api.Subscription),
     state: State,
   )
 }
@@ -100,7 +102,7 @@ fn init(
   //   |> process.select_map(self, ApiSocketMsg)
   // #(Socket(ctx:, conn:, state: State(items: [])), Some(selector))
 
-  #(Socket(ctx:, conn:, state: State(items: init_items())), None)
+  #(Socket(ctx:, conn:, subs: [], state: State(items: init_items())), None)
 }
 
 fn init_items() -> List(generic.Record(api.Item)) {
@@ -138,14 +140,14 @@ fn update(
     mist.Text(json) ->
       case json.parse(json, api.decoder_socket_req()) {
         Ok(generic.SocketReq(ref:, req:)) -> {
-          let #(state, result) = process(state: socket.state, req:)
+          let #(result, socket, selector) = process(socket:, req:)
 
           api.socket_resp(ref:, result:)
           |> api.encode_socket_resp
           |> json.to_string
           |> ws_send(conn, _)
 
-          mist.continue(Socket(..socket, state:))
+          mist.continue(socket)
         }
 
         Error(err) -> {
@@ -182,45 +184,116 @@ type State {
 }
 
 fn process(
-  state state: State,
+  socket socket: Socket,
   req req: Req,
-) -> #(State, Result(Resp, api.Err)) {
-    case req {
-      api.CrudItems(crud:) ->
-        case crud {
-          generic.List(pagination: _) -> {
-            #(state, Ok(state.items |> generic.ManyRecords(None) |> api.GotItems))
-          }
+) -> #(Result(Resp, api.Err), Socket, Option(Selector(Msg))) {
+  let state = socket.state
+  let ctx = socket.ctx
 
-          generic.Create(new:) -> {
-            let ts = timestamp.unix_epoch
-            #(state, Ok(generic.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new) |> api.GotItem))
-          }
-
-          generic.Get(id:) -> todo
-          generic.Update(id:, new:) -> todo
-          generic.Delete(id:, confirm: _) -> todo
+  case req {
+    api.CrudItems(crud:) ->
+      case crud {
+        generic.List(pagination: _) -> {
+          #(Ok(state.items |> generic.ManyRecords(None) |> api.GotItems), socket, None)
         }
 
-      api.ReqOther ->
-        todo
+        generic.Create(new:) -> {
+          let ts = timestamp.unix_epoch
+          let item = generic.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new)
+
+          let _broadcasted =
+            {
+              use <- broadcast(
+                in: fn(rs: PubSub) { rs.items },
+                to: "items",
+                msg: item,
+              )
+              pure(Nil)
+            }
+            |> run(socket.ctx, Nil)
+
+          #(Ok(api.GotItem(item)), socket, None)
+        }
+
+        generic.Get(id:) -> todo
+        generic.Update(id:, new:) -> todo
+        generic.Delete(id:, confirm: _) -> todo
+      }
+
+    api.Subscribe(subs:) -> {
+      let added =
+        case subs {
+          [] ->
+            None
+
+          subs -> {
+            let selector =
+              process.new_selector()
+              |> process.select(process.new_subject())
+
+            subs
+            |> list.fold(#([], selector), fn(acc, sub) {
+              let #(subs, selector) = acc
+
+              let result =
+                case sub {
+                  api.SubItem(id:) -> todo
+                  api.SubItems -> {
+                    let selector =
+                      subscribe(
+                        to: "items",
+                        in: fn(rs: PubSub) { rs.items },
+                        wrap: fn(_) { NoOp })
+                      |> run(ctx, Nil)
+                      |> result.map(fn(selector) {
+                        selector
+                        // |> process.map_selector(fn(msg) {
+                        //   todo as "get `msg` this into the actor"
+                        // })
+                      })
+                  }
+                }
+
+              case result {
+                Ok(new_selector) -> {
+                  let selector =
+                    selector
+                    |> process.merge_selector(new_selector)
+
+                  #(list.append(subs, [sub]), selector)
+                }
+
+                Error(err) -> {
+                  io.println_error("Failed to subscribe:")
+                  io.println_error(sub |> string.inspect)
+                  io.println_error(err |> string.inspect)
+                  acc
+                }
+              }
+            })
+            |> Some
+          }
+        }
+
+      case added |> echo {
+        None ->
+          #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, None)
+
+        Some(#(subs, selector)) -> {
+          let socket =
+            Socket(..socket, subs: {
+              socket.subs
+              |> list.append(subs)
+            })
+
+          #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, Some(selector))
+        }
+      }
     }
-    // case req {
-    //   ReqPeople(req: Create(name:)) -> todo
-    //   ReqPeople(req: Update(id:, name:)) -> todo
-    //   ReqPeople(req: Delete(id:)) -> todo
 
-    //   ReqPeople(req: Get(id:)) ->
-    //     state.people
-    //     // |> list.find(fn(person: Person) { person.id == id})
-    //     // |> result.map(fn(person) { RespPeople(Ok(GotOne(person, None))) })
-    //     // |> result.unwrap(RespPeople(Error(NotFound(id: id.id))))
-    //     |> todo
-
-    //   ReqPeople(req: List) ->
-    //     // RespPeople(ref, Ok(GotMany(state.people)))
-    //     todo
-    // }
+    api.ReqOther ->
+      todo
+  }
 }
 
 fn ws_send(

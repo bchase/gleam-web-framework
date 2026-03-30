@@ -55,14 +55,6 @@ pub type SocketResp(resp) {
   )
 }
 
-//pub type Payload {
-//  //$ derive json encode decode
-//  Payload(
-//    resource: String,
-//    json: String,
-//  )
-//}
-
 pub type Err {
   //$ derive json encode decode
   Client(err: ClientErr)
@@ -86,17 +78,6 @@ pub type ManyRecords(resource) {
   ManyRecords(
     resources: List(Record(resource)),
     pagination: Option(Pagination),
-  )
-}
-
-pub type Got(resource) {
-  //$ derive json encode decode
-  GotMany(
-    resources: List(Record(resource)),
-  )
-  GotOne(
-    resource: Record(resource),
-    action: Option(Action),
   )
 }
 
@@ -512,62 +493,6 @@ pub fn decoder_record_record(
   use resource <- decode.field("resource", decoder_resource)
   decode.success(Record(id:, created_at:, updated_at:, resource:))
 }
-
-
-pub fn encode_got(
-  value: Got(resource),
-  encode_resource: fn(resource) -> Json,
-) -> Json {
-  case value {
-    GotMany(..) as value ->
-      json.object([
-        #("_var", json.string("GotMany")),
-        #(
-          "resources",
-          json.array(value.resources, encode_record(_, encode_resource)),
-        ),
-      ])
-    GotOne(..) as value ->
-      json.object([
-        #("_var", json.string("GotOne")),
-        #("action", json.nullable(value.action, encode_action)),
-        #("resource", encode_record(value.resource, encode_resource)),
-      ])
-  }
-}
-
-pub fn decoder_got(
-  decoder_resource: Decoder(resource),
-) -> Decoder(Got(resource)) {
-  decode.one_of(decoder_got_got_many(decoder_resource), [
-    decoder_got_got_one(decoder_resource),
-  ])
-}
-
-pub fn decoder_got_got_many(
-  decoder_resource: Decoder(resource),
-) -> Decoder(Got(resource)) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("GotMany"))
-  use resources <- decode.field(
-    "resources",
-    decode.list(decoder_record(decoder_resource)),
-  )
-  decode.success(GotMany(resources:))
-}
-
-pub fn decoder_got_got_one(
-  decoder_resource: Decoder(resource),
-) -> Decoder(Got(resource)) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("GotOne"))
-  use resource <- decode.field("resource", decoder_record(decoder_resource))
-  use action <- decode.optional_field(
-    "action",
-    deriv.none,
-    decode.optional(decoder_action()),
-  )
-  decode.success(GotOne(resource:, action:))
-}
-
 
 pub fn encode_err(value: Err) -> Json {
   case value {
