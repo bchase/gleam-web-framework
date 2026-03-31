@@ -1,3 +1,5 @@
+import bravo/uset
+import bravo
 import gleam/erlang/process
 import gleam/result
 import gleam/dynamic/decode
@@ -64,10 +66,13 @@ pub fn init(
   let postgres_conn = connect_to_postgres()
   // let postgres_conn = connect_to_postgres_and_migrate()
 
+  let assert Ok(items) = uset.new("api-items", bravo.Public)
+
   Config(
     cloak:,
     sqlite_conn:,
     postgres_conn:,
+    items:,
   )
 }
 

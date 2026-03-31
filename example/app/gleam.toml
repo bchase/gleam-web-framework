@@ -32,6 +32,7 @@ gleam_crypto = ">= 1.5.1 and < 2.0.0"
 formal = ">= 3.0.0 and < 4.0.0"
 api = { path = "deps/api" }
 gleam_time = ">= 1.8.0 and < 2.0.0"
+bravo = { git = "https://github.com/bchase/bravo", ref = "upgrade-gleam-erlang" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

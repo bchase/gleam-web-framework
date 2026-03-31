@@ -1,3 +1,5 @@
+import bravo/uset
+import gleam/pair
 import gleam/int
 import gleam/bool
 import gleam/dict.{type Dict}
@@ -24,8 +26,8 @@ import mist
 import lustre/effect.{type Effect}
 //
 import api.{type SocketReq, type SocketResp, type Req, type Resp}
-import api/generic.{SocketReq, SocketResp}
-import api/id
+import api/generic.{SocketReq, SocketResp, type Record}
+import api/id.{type Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 
 pub type Context = types.Context(app.Config, app.PubSub, user.User)
@@ -53,7 +55,7 @@ type Socket {
     ctx: Context,
     conn: mist.WebsocketConnection,
     subs: Dict(String, api.Subscription),
-    state: State,
+    // state: State,
   )
 }
 
@@ -117,10 +119,10 @@ fn init(
     // })
     // |> process.select_map(self, ApiSocketMsg)
 
-  #(Socket(ctx:, conn:, subs: dict.new(), state: State(items: init_items())), Some(selector))
+  #(Socket(ctx:, conn:, subs: dict.new()), Some(selector))
 }
 
-fn init_items() -> List(generic.Record(api.Item)) {
+fn init_items() -> Dict(Id(api.Item), Record(api.Item)) {
   let ts = timestamp.unix_epoch
   [
     generic.Record(
@@ -136,9 +138,13 @@ fn init_items() -> List(generic.Record(api.Item)) {
       resource: api.Item(name: "aaa"),
     ),
   ]
-  |> list.sort(fn(a, b) {
-    string.compare(a.resource.name, b.resource.name)
+  // |> list.sort(fn(a, b) {
+  //   string.compare(a.resource.name, b.resource.name)
+  // })
+  |> list.map(fn(item: Record(api.Item)) {
+    #(item.id, item)
   })
+  |> dict.from_list
 }
 
 fn update(
@@ -213,7 +219,7 @@ fn close(
 type State {
   State(
     // people: List(Person),
-    items: List(generic.Record(api.Item)),
+    items: Dict(Id(api.Item), Record(api.Item)),
   )
 }
 
@@ -221,7 +227,6 @@ fn process(
   socket socket: Socket,
   req req: Req,
 ) -> #(Result(Resp, api.Err), Socket, Option(Selector(Msg))) {
-  let state = socket.state
   let ctx = socket.ctx
 
   case req {
@@ -231,7 +236,16 @@ fn process(
     api.CrudItems(crud:) ->
       case crud {
         generic.List(pagination: _) -> {
-          #(Ok(state.items |> generic.ManyRecords(None) |> api.GotItems), socket, None)
+          let assert Ok(items) =
+            uset.tab2list(socket.ctx.cfg.items)
+
+          let items =
+            items
+            |> list.map(pair.second)
+            |> generic.ManyRecords(None)
+            |> api.GotItems
+
+          #(Ok(items), socket, None)
         }
 
         generic.Create(new:) -> {
@@ -248,6 +262,10 @@ fn process(
               pure(Nil)
             }
             |> run(socket.ctx, Nil)
+
+          let assert Ok(_inserted) =
+            socket.ctx.cfg.items
+            |> uset.insert(item.id, item)
 
           #(Ok(api.GotItem(item:, action: generic.Created)), socket, None)
         }
