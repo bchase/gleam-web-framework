@@ -1,3 +1,5 @@
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode.{type Decoder}
 import plinth/browser/shadow
 import plinth/javascript/global
 import plinth/browser/document
@@ -11,7 +13,7 @@ import gleam/dict.{type Dict}
 import gleam/string
 import gleam/io
 import gleam/option.{type Option, Some, None}
-import gleam/json
+import gleam/json.{type Json}
 import lustre/component
 import lustre/attribute as attr
 import lustre/element.{type Element}
@@ -21,7 +23,7 @@ import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
 import api.{type SocketResp}
-import api/generic.{List, Create, Update, Delete, type Record, type Records, type Action, Created, Updated, Deleted}
+import api/generic.{List, Create, Update, Delete, type Record, type Records, type Action, Created, Updated, Deleted, type Pagination}
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
 
@@ -79,17 +81,17 @@ type Msg {
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
-  Model(
-    conn: None,
-    items: NotAsked,
-    item: None,
-    uuid: uuid.v7(),
-    //
-    reqs: dict.new(),
-  )
-  |> pair.new(effect.batch([
-    ws.init(ws_url, RecvWebSocketEvent),
-  ]))
+  // Model(
+  //   conn: None,
+  //   items: NotAsked,
+  //   item: None,
+  //   uuid: uuid.v7(),
+  //   //
+  //   reqs: dict.new(),
+  // )
+  // |> pair.new(effect.batch([
+  //   ws.init(ws_url, RecvWebSocketEvent),
+  // ]))
 }
 
 const ws_url = "/ws/api"
@@ -162,212 +164,212 @@ fn update(
   model model: Model,
   msg msg: Msg,
 ) -> #(Model, Effect(Msg)) {
-  case msg {
-    NoOp ->
-      pure(model)
+  // case msg {
+  //   NoOp ->
+  //     pure(model)
 
-    DeleteItem(id: item_id) -> {
-      model
-      |> send(
-        req: api.CrudItems(Delete(item_id, generic.ConfirmDelete)),
-        handler: send_msg(
-          msg: RecvItem,
-          map: fn(resp) {
-            case resp {
-              api.GotItem(item:, action:) -> Ok(#(item, action))
-              _ -> Error(Nil)
-            }
-          },
-        )
-      )
-    }
+  //   DeleteItem(id: item_id) -> {
+  //     model
+  //     |> send(
+  //       req: api.CrudItems(Delete(item_id, generic.ConfirmDelete)),
+  //       handler: send_msg(
+  //         msg: RecvItem,
+  //         map: fn(resp) {
+  //           case resp {
+  //             api.GotItem(item:, action:) -> Ok(#(item, action))
+  //             _ -> Error(Nil)
+  //           }
+  //         },
+  //       )
+  //     )
+  //   }
 
-    SetItem(item:) -> {
-      pure(Model(..model, item:))
-    }
+  //   SetItem(item:) -> {
+  //     pure(Model(..model, item:))
+  //   }
 
-    RecvSubscription(ref:, resp:) -> {
-      case resp {
-        api.GotItems(page:) -> todo
-        api.SubscribedTo(all_subs:) -> todo
-        api.RespOther -> todo
+  //   RecvSubscription(ref:, resp:) -> {
+  //     case resp {
+  //       api.GotItems(page:) -> todo
+  //       api.SubscribedTo(all_subs:) -> todo
+  //       api.RespOther -> todo
 
-        api.GotItem(item:, action: Created) |
-        api.GotItem(item:, action: Updated) ->
-          pure(Model(..model, items: {
-            model.items |> map_success(dict.insert(_, item.id, item))
-          }))
+  //       api.GotItem(item:, action: Created) |
+  //       api.GotItem(item:, action: Updated) ->
+  //         pure(Model(..model, items: {
+  //           model.items |> map_success(dict.insert(_, item.id, item))
+  //         }))
 
-        api.GotItem(item:, action: Deleted) ->
-          pure(Model(..model, items: {
-            model.items |> map_success(dict.delete(_, item.id))
-          }))
-      }
-    }
+  //       api.GotItem(item:, action: Deleted) ->
+  //         pure(Model(..model, items: {
+  //           model.items |> map_success(dict.delete(_, item.id))
+  //         }))
+  //     }
+  //   }
 
-    RecvItem(Error(err)) -> {
-      io.println_error("`RecvItem` err: " <> err |> string.inspect)
-      pure(model)
-    }
+  //   RecvItem(Error(err)) -> {
+  //     io.println_error("`RecvItem` err: " <> err |> string.inspect)
+  //     pure(model)
+  //   }
 
-    RecvItem(Ok(#(item, Deleted))) -> {
-      Model(..model, uuid: uuid.v7(), item: None, items: {
-        model.items
-        |> map_success(dict.delete(_, item.id))
-      })
-      |> eff([
-        set_focus("item-name"),
-      ])
-    }
+  //   RecvItem(Ok(#(item, Deleted))) -> {
+  //     Model(..model, uuid: uuid.v7(), item: None, items: {
+  //       model.items
+  //       |> map_success(dict.delete(_, item.id))
+  //     })
+  //     |> eff([
+  //       set_focus("item-name"),
+  //     ])
+  //   }
 
-    RecvItem(Ok(#(item, Created))) |
-    RecvItem(Ok(#(item, Updated))) -> {
-      let items =
-        case model.items {
-          NotAsked | Loading | Failure(err: _) ->
-            Success(dict.new())
+  //   RecvItem(Ok(#(item, Created))) |
+  //   RecvItem(Ok(#(item, Updated))) -> {
+  //     let items =
+  //       case model.items {
+  //         NotAsked | Loading | Failure(err: _) ->
+  //           Success(dict.new())
 
-          Success(items) ->
-            Success(items)
-        }
-        |> map_success(dict.insert(_, item.id, item))
+  //         Success(items) ->
+  //           Success(items)
+  //       }
+  //       |> map_success(dict.insert(_, item.id, item))
 
-      Model(..model, uuid: uuid.v7(), item: None, items:)
-      |> eff([
-        set_focus("item-name"),
-      ])
-    }
+  //     Model(..model, uuid: uuid.v7(), item: None, items:)
+  //     |> eff([
+  //       set_focus("item-name"),
+  //     ])
+  //   }
 
-    GotItemForm(values:) -> {
-      let assert Ok(name) = values |> list.key_find("name")
+  //   GotItemForm(values:) -> {
+  //     let assert Ok(name) = values |> list.key_find("name")
 
-      let action =
-        case model.item {
-          Some(item) -> Update(id: item.id, new: api.Item(name:))
-          None -> Create(new: api.Item(name:))
-        }
+  //     let action =
+  //       case model.item {
+  //         Some(item) -> Update(id: item.id, new: api.Item(name:))
+  //         None -> Create(new: api.Item(name:))
+  //       }
 
-      model
-      |> send(
-        req: api.CrudItems(action),
-        handler: send_msg(
-          msg: fn(result) {
-            result
-            |> result.map(fn(record) { #(record, Created) })
-            |> RecvItem
-          },
-          map: fn(resp) {
-            case resp {
-              api.GotItem(item:, action: _) -> Ok(item)
-              _ -> Error(Nil)
-            }
-          },
-        ),
-        // handler: set_remote_data(
-        //   set: fn(model, items) { Model(..model, items:) },
-        //   map: fn(resp) {
-        //     case resp {
-        //       api.GotItems(page:) -> Ok(page.resources)
-        //       _ -> Error(Nil)
-        //     }
-        //   },
-        // ),
-      )
-    }
+  //     model
+  //     |> send(
+  //       req: api.CrudItems(action),
+  //       handler: send_msg(
+  //         msg: fn(result) {
+  //           result
+  //           |> result.map(fn(record) { #(record, Created) })
+  //           |> RecvItem
+  //         },
+  //         map: fn(resp) {
+  //           case resp {
+  //             api.GotItem(item:, action: _) -> Ok(item)
+  //             _ -> Error(Nil)
+  //           }
+  //         },
+  //       ),
+  //       // handler: set_remote_data(
+  //       //   set: fn(model, items) { Model(..model, items:) },
+  //       //   map: fn(resp) {
+  //       //     case resp {
+  //       //       api.GotItems(page:) -> Ok(page.resources)
+  //       //       _ -> Error(Nil)
+  //       //     }
+  //       //   },
+  //       // ),
+  //     )
+  //   }
 
-    RecvItems(result:) ->
-      case result {
-        Ok(new) ->
-          pure(Model(..model, items: {
-            case model.items {
-              NotAsked | Loading | Failure(err: _) -> dict.new()
-              Success(data: items) -> items
-            }
-            |> fn(old) {
-              new
-              |> list.map(fn(item: Record(api.Item)) {
-                #(item.id, item)
-              })
-              |> dict.from_list
-              |> dict.merge(old, _)
-              |> Success
-            }
-          }))
+  //   RecvItems(result:) ->
+  //     case result {
+  //       Ok(new) ->
+  //         pure(Model(..model, items: {
+  //           case model.items {
+  //             NotAsked | Loading | Failure(err: _) -> dict.new()
+  //             Success(data: items) -> items
+  //           }
+  //           |> fn(old) {
+  //             new
+  //             |> list.map(fn(item: Record(api.Item)) {
+  //               #(item.id, item)
+  //             })
+  //             |> dict.from_list
+  //             |> dict.merge(old, _)
+  //             |> Success
+  //           }
+  //         }))
 
-        Error(err) ->
-          pure(Model(..model, items: Failure(err)))
-      }
+  //       Error(err) ->
+  //         pure(Model(..model, items: Failure(err)))
+  //     }
 
-    RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
-      io.println("WebSocket opened: " <> ws_url)
+  //   RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
+  //     io.println("WebSocket opened: " <> ws_url)
 
-      let #(model, list_items_eff) =
-        Model(..model, conn: Some(conn), items: Loading)
-        |> send(
-          req: api.CrudItems(List(None)),
-          handler: send_msg(
-            msg: RecvItems,
-            map: fn(resp) {
-              case resp {
-                api.GotItems(page:) -> Ok(page.resources)
-                _ -> Error(Nil)
-              }
-            },
-          ),
-          // handler: set_remote_data(
-          //   set: fn(model, items) { Model(..model, items:) },
-          //   map: fn(resp) {
-          //     case resp {
-          //       api.GotItems(page:) -> Ok(page.resources)
-          //       _ -> Error(Nil)
-          //     }
-          //   },
-          // ),
-        )
+  //     let #(model, list_items_eff) =
+  //       Model(..model, conn: Some(conn), items: Loading)
+  //       |> send(
+  //         req: api.CrudItems(List(None)),
+  //         handler: send_msg(
+  //           msg: RecvItems,
+  //           map: fn(resp) {
+  //             case resp {
+  //               api.GotItems(page:) -> Ok(page.resources)
+  //               _ -> Error(Nil)
+  //             }
+  //           },
+  //         ),
+  //         // handler: set_remote_data(
+  //         //   set: fn(model, items) { Model(..model, items:) },
+  //         //   map: fn(resp) {
+  //         //     case resp {
+  //         //       api.GotItems(page:) -> Ok(page.resources)
+  //         //       _ -> Error(Nil)
+  //         //     }
+  //         //   },
+  //         // ),
+  //       )
 
-      let #(model, sub_to_items_eff) =
-        Model(..model, conn: Some(conn), items: Loading)
-        |> send(
-          req: api.Subscribe(subs: dict.from_list([#(uuid.v7_string(), api.SubItems)])),
-          handler: send_msg(
-            msg: fn(msg) {
-              io.println("Subscribed: " <> string.inspect(msg))
-              NoOp
-            },
-            map: fn(resp) {
-              case resp {
-                api.SubscribedTo(all_subs:) -> Ok(all_subs)
-                _ -> Error(Nil)
-              }
-            },
-          ),
-        )
+  //     let #(model, sub_to_items_eff) =
+  //       Model(..model, conn: Some(conn), items: Loading)
+  //       |> send(
+  //         req: api.Subscribe(subs: dict.from_list([#(uuid.v7_string(), api.SubItems)])),
+  //         handler: send_msg(
+  //           msg: fn(msg) {
+  //             io.println("Subscribed: " <> string.inspect(msg))
+  //             NoOp
+  //           },
+  //           map: fn(resp) {
+  //             case resp {
+  //               api.SubscribedTo(all_subs:) -> Ok(all_subs)
+  //               _ -> Error(Nil)
+  //             }
+  //           },
+  //         ),
+  //       )
 
-      model
-      |> eff([
-        list_items_eff,
-        sub_to_items_eff,
-      ])
-    }
+  //     model
+  //     |> eff([
+  //       list_items_eff,
+  //       sub_to_items_eff,
+  //     ])
+  //   }
 
-    RecvWebSocketEvent(event: ws.OnClose(reason)) -> {
-      io.println_error("WebSocket closed: " <> reason |> string.inspect)
-      pure(Model(..model, conn: None))
-    }
+  //   RecvWebSocketEvent(event: ws.OnClose(reason)) -> {
+  //     io.println_error("WebSocket closed: " <> reason |> string.inspect)
+  //     pure(Model(..model, conn: None))
+  //   }
 
-    RecvWebSocketEvent(event: ws.InvalidUrl) -> {
-      io.println_error("Invalid URL: " <> ws_url)
-      pure(model)
-    }
+  //   RecvWebSocketEvent(event: ws.InvalidUrl) -> {
+  //     io.println_error("Invalid URL: " <> ws_url)
+  //     pure(model)
+  //   }
 
-    RecvWebSocketEvent(event: ws.OnBinaryMessage(ba)) -> {
-      io.println_error("Ignoring WebSocket binary msg: " <> ba |> string.inspect)
-      pure(Model(..model, conn: None))
-    }
+  //   RecvWebSocketEvent(event: ws.OnBinaryMessage(ba)) -> {
+  //     io.println_error("Ignoring WebSocket binary msg: " <> ba |> string.inspect)
+  //     pure(Model(..model, conn: None))
+  //   }
 
-    RecvWebSocketEvent(event: ws.OnTextMessage(msg)) ->
-      handle_websocket_text(model:, msg:)
-  }
+  //   RecvWebSocketEvent(event: ws.OnTextMessage(msg)) ->
+  //     handle_websocket_text(model:, msg:)
+  // }
 }
 
 type RemoteData(t, err) {
@@ -643,3 +645,257 @@ fn listen_for(
     |> dict.insert(ref, handler)
   })
 }
+
+// //
+
+// type NewMsg {
+//   NewGotItems(items: List(Record(api.Item)))
+// }
+
+// type NewSocket {
+//   NewSocket(
+//     reqs: Reqs,
+//     conn: Option(ws.WebSocket),
+//   )
+// }
+
+// type Reqs = Dict(Uuid, fn(Dynamic) -> Result(NewMsg, RecvErr))
+
+// type NoConn {
+//   NoConn
+// }
+
+// type NewReq(msg) {
+//   NewReq(
+//     ref: Uuid,
+//     req: api.Req,
+//     resp: fn(Dynamic) -> Result(msg, RecvErr)
+//   )
+// }
+
+// fn pop_req(
+//   reqs reqs: Reqs,
+//   ref ref: Uuid,
+// ) -> Result(#(Reqs, fn(Dynamic) -> Result(NewMsg, RecvErr)), Nil) {
+//   reqs
+//   |> dict.get(ref)
+//   |> result.map(pair.new(dict.delete(reqs, ref), _)) // TODO lazy
+// }
+
+// fn build_req(
+//   req req: api.Req,
+//   decoder decoder: Decoder(t),
+//   msg msg: fn(t) -> msg,
+// ) -> NewReq(msg) {
+//   let ref = uuid.v7()
+
+//   let resp =
+//     fn(dyn) {
+//       dyn
+//       |> decode.run(decoder)
+//       |> result.map(msg)
+//       |> result.map_error(DecodeErrs(ref:, errs: _))
+//     }
+
+//   NewReq(ref:, req:, resp:)
+// }
+
+// fn socket_listen(
+//   socket socket: NewSocket,
+//   req req: NewReq(NewMsg)
+// ) -> Result(NewSocket, NoConn) {
+//   socket.reqs
+//   |> generic_listen(conn: socket.conn, req:)
+//   |> result.map(fn(reqs) {
+//     NewSocket(..socket, reqs:)
+//   })
+// }
+
+// fn generic_listen(
+//   reqs reqs: Reqs,
+//   conn conn: Option(ws.WebSocket),
+//   req req: NewReq(NewMsg)
+// ) -> Result(Reqs, NoConn) {
+//   case conn {
+//     None ->
+//       Error(NoConn)
+
+//     Some(conn) -> {
+//       api.socket_req(ref: req.ref |> uuid.to_string(), req: req.req)
+//       |> api.encode_socket_req
+//       |> json.to_string
+//       |> ws.send(conn, _)
+
+//       Ok(reqs |> dict.insert(req.ref, req.resp))
+//     }
+//   }
+// }
+
+// type ApiErr
+
+// type RecvErr {
+//   NoRef(
+//     json: String,
+//   )
+//   UuidParseFailure(
+//     ref: String,
+//   )
+//   ReqNotFound(
+//     ref: Uuid,
+//     json: String,
+//   )
+//   RespNotFound(
+//     ref: Uuid,
+//     json: String,
+//   )
+//   JsonDecodeErr(
+//     ref: Uuid,
+//     err: json.DecodeError,
+//   )
+//   DecodeErrs(
+//     ref: Uuid,
+//     errs: List(decode.DecodeError),
+//   )
+// }
+
+// // impl server
+
+// fn exp_api_resp(
+//   ref ref: String,
+//   req req: api.ExpReq,
+// ) -> Result(Json, ApiErr) {
+//   case req {
+//     api.Items(generic.C(req:)) -> todo
+//     api.Items(generic.R(req:)) -> todo
+//     api.Items(generic.U(req:)) -> todo
+//     api.Items(generic.D(req:)) -> todo
+//     api.Items(generic.X(req:)) -> todo
+
+//     api.Items(generic.L(req:)) ->
+//       req
+//       |> list_items_exp_api_resp // process
+//       |> result.map(json_list_items.encode) // encode json
+//   }
+//   |> result.map(fn(json) {
+//     json.object([
+//       #("ref", json.string(ref)),
+//       #("resp", json),
+//     ])
+//   })
+// }
+
+// // json
+
+// type Transcoders(t) {
+//   Transcoders(
+//     decoder: fn() -> Decoder(t),
+//     encode: fn(t) -> Json,
+//   )
+// }
+
+// const json_list_items: Transcoders(Paginated(api.Item)) =
+//   Transcoders(
+//     decoder: decoder_list_items,
+//     encode: encode_list_items,
+//   )
+
+// // const json_read_item: Transcoders(Record(api.Item)) =
+// //   Transcoders(
+// //     decoder: decoder_list_items,
+// //     encode: encode_list_items,
+// //   )
+
+// type Paginated(t) {
+//   Paginated(
+//     resources: Records(t),
+//     pagination: Pagination,
+//   )
+// }
+
+// fn decoder_list_items() -> Decoder(Paginated(api.Item)) {
+//   decoder_paginated(api.decoder_item())
+// }
+
+// fn encode_list_items(
+//   value value: Paginated(api.Item)
+// ) -> Json {
+//   encode_paginated(value, api.encode_item)
+// }
+
+// fn decoder_paginated(
+//   decoder decoder: Decoder(t),
+// ) -> Decoder(Records(t)) {
+//   decode.list(generic.decoder_record(decoder))
+// }
+
+// fn encode_paginated(
+//   value value: Paginated(t),
+//   encode encode: fn(t) -> Json,
+// ) -> Json {
+//   json.array(value, generic.encode_record(_, encode))
+// }
+
+// // server
+
+// fn list_items_exp_api_resp(
+//   req req: generic.ListReq(api.Item),
+// ) -> Result(Records(api.Item), ApiErr) {
+//   todo
+// }
+
+// // client
+
+// type ClientReq(t) {
+//   ClientReq(
+//     ref: String,
+//     req: api.ExpReq,
+//     decoder: Decoder(t),
+//   )
+// }
+
+// fn client_recv(
+//   reqs reqs: Reqs,
+//   json json: String,
+// ) -> Result(#(Reqs, NewMsg), RecvErr) {
+//   use ref <- result.try(
+//     decode.at(["ref"], decode.string)
+//     |> json.parse(json, _)
+//     |> result.replace_error(NoRef(json:))
+//   )
+//   use ref <- result.try(
+//     uuid.from_string(ref)
+//     |> result.replace_error(UuidParseFailure(ref:))
+//   )
+//   use resp <- result.try(
+//     decode.at(["resp"], decode.dynamic)
+//     |> json.parse(json, _)
+//     |> result.replace_error(RespNotFound(ref:, json:))
+//   )
+//   use #(reqs, to_msg) <- result.try(
+//     pop_req(reqs, ref)
+//     |> result.replace_error(ReqNotFound(ref:, json:))
+//   )
+
+//   use msg <- result.try(resp |> to_msg)
+
+//   Ok(#(reqs, msg))
+// }
+
+// fn list_items_exp_api_req(
+//   pagination pagination: Option(Pagination),
+// ) -> fn(String) -> ClientReq(Records(api.Item)) {
+//   ClientReq(
+//     ref: _,
+//     req: api.Items(generic.L(generic.ListReq(pagination:))),
+//     decoder: json_list_items.decoder(),
+//   )
+// }
+
+// fn decoder_exp_api_resp(
+//   decoder decoder: Decoder(t),
+// ) -> Decoder(#(String, t)) {
+//   use ref <- decode.field("ref", decode.string)
+//   use resp <- decode.field("resp", decoder)
+
+//   decode.success(#(ref, resp))
+// }

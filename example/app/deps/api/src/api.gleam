@@ -1,4 +1,4 @@
-import api/generic.{type Action, type CrudSimple, decoder_action, decoder_crud_simple, decoder_many_records, decoder_record, encode_action, encode_crud_simple, encode_many_records, encode_record}
+import api/generic.{type Action, type Crud, type Paginated, decoder_action, decoder_crud, decoder_paginated, decoder_record, encode_action, encode_crud, encode_paginated, encode_record}
 import api/id.{type Id}
 import deriv/util as deriv
 import gleam/dict.{type Dict}
@@ -14,7 +14,6 @@ fn encode_id(value, _) { id.encode_id(value) }
 fn decoder_id(_) { id.decoder_id() }
 // TODO detect phantom types in `deriv`
 
-pub type ManyRecords(t) = generic.ManyRecords(t)
 pub type Record(t) = generic.Record(t)
 
 pub type SocketReq = generic.SocketReq(Req)
@@ -70,11 +69,18 @@ pub fn zero_item() -> Item {
 }
 
 
+// experimental api
+
+  //$ derive json encode decode
+pub type ExpReq {
+  Items(crud: Crud(Item, Item, Item))
+}
+
 // domain api
 
 pub type Req {
   //$ derive json encode decode
-  CrudItems(crud: CrudSimple(Item))
+  CrudItems(crud: Crud(Item, Item, Item))
   Subscribe(subs: Dict(String, Subscription))
   ReqOther
 }
@@ -87,7 +93,7 @@ pub type Subscription {
 
 pub type Resp {
   //$ derive json encode decode
-  GotItems(page: ManyRecords(Item))
+  GotItems(page: Paginated(Item))
   GotItem(item: Record(Item), action: Action)
   SubscribedTo(all_subs: Dict(String, Subscription))
   RespOther
@@ -122,7 +128,10 @@ pub fn encode_req(value: Req) -> Json {
     CrudItems(..) as value ->
       json.object([
         #("_var", json.string("CrudItems")),
-        #("crud", encode_crud_simple(value.crud, encode_item)),
+        #(
+          "crud",
+          encode_crud(value.crud, encode_item, encode_item, encode_item),
+        ),
       ])
     Subscribe(..) as value ->
       json.object([
@@ -142,68 +151,12 @@ pub fn decoder_req() -> Decoder(Req) {
 
 pub fn decoder_req_crud_items() -> Decoder(Req) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("CrudItems"))
-  use crud <- decode.field("crud", decoder_crud_simple(decoder_item()))
+  use crud <- decode.field(
+    "crud",
+    decoder_crud(decoder_item(), decoder_item(), decoder_item()),
+  )
   decode.success(CrudItems(crud:))
 }
-
-pub fn decoder_req_req_other() -> Decoder(Req) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("ReqOther"))
-  decode.success(ReqOther)
-}
-
-pub fn encode_resp(value: Resp) -> Json {
-  case value {
-    GotItems(..) as value ->
-      json.object([
-        #("_var", json.string("GotItems")),
-        #("page", encode_many_records(value.page, encode_item)),
-      ])
-    GotItem(..) as value ->
-      json.object([
-        #("_var", json.string("GotItem")),
-        #("action", encode_action(value.action)),
-        #("item", encode_record(value.item, encode_item)),
-      ])
-    SubscribedTo(..) as value ->
-      json.object([
-        #("_var", json.string("SubscribedTo")),
-        #(
-          "all_subs",
-          json.dict(value.all_subs, fn(str) { str }, encode_subscription),
-        ),
-      ])
-    RespOther -> json.object([#("_var", json.string("RespOther"))])
-  }
-}
-
-pub fn decoder_resp_resp_other() -> Decoder(Resp) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("RespOther"))
-  decode.success(RespOther)
-}
-
-
-pub fn decoder_resp_got_items() -> Decoder(Resp) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("GotItems"))
-  use page <- decode.field("page", decoder_many_records(decoder_item()))
-  decode.success(GotItems(page:))
-}
-
-pub fn decoder_resp_got_item() -> Decoder(Resp) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("GotItem"))
-  use item <- decode.field("item", decoder_record(decoder_item()))
-  use action <- decode.field("action", decoder_action())
-  decode.success(GotItem(item:, action:))
-}
-
-
-pub fn decoder_resp() -> Decoder(Resp) {
-  decode.one_of(decoder_resp_got_items(), [
-    decoder_resp_got_item(),
-    decoder_resp_subscribed_to(),
-    decoder_resp_resp_other(),
-  ])
-}
-
 
 pub fn decoder_req_subscribe() -> Decoder(Req) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Subscribe"))
@@ -212,6 +165,11 @@ pub fn decoder_req_subscribe() -> Decoder(Req) {
     decode.dict(decode.string, decoder_subscription()),
   )
   decode.success(Subscribe(subs:))
+}
+
+pub fn decoder_req_req_other() -> Decoder(Req) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("ReqOther"))
+  decode.success(ReqOther)
 }
 
 pub fn encode_subscription(value: Subscription) -> Json {
@@ -242,6 +200,52 @@ pub fn decoder_subscription_sub_item() -> Decoder(Subscription) {
   decode.success(SubItem(id:))
 }
 
+pub fn encode_resp(value: Resp) -> Json {
+  case value {
+    GotItems(..) as value ->
+      json.object([
+        #("_var", json.string("GotItems")),
+        #("page", encode_paginated(value.page, encode_item)),
+      ])
+    GotItem(..) as value ->
+      json.object([
+        #("_var", json.string("GotItem")),
+        #("action", encode_action(value.action)),
+        #("item", encode_record(value.item, encode_item)),
+      ])
+    SubscribedTo(..) as value ->
+      json.object([
+        #("_var", json.string("SubscribedTo")),
+        #(
+          "all_subs",
+          json.dict(value.all_subs, fn(str) { str }, encode_subscription),
+        ),
+      ])
+    RespOther -> json.object([#("_var", json.string("RespOther"))])
+  }
+}
+
+pub fn decoder_resp() -> Decoder(Resp) {
+  decode.one_of(decoder_resp_got_items(), [
+    decoder_resp_got_item(),
+    decoder_resp_subscribed_to(),
+    decoder_resp_resp_other(),
+  ])
+}
+
+pub fn decoder_resp_got_items() -> Decoder(Resp) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("GotItems"))
+  use page <- decode.field("page", decoder_paginated(decoder_item()))
+  decode.success(GotItems(page:))
+}
+
+pub fn decoder_resp_got_item() -> Decoder(Resp) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("GotItem"))
+  use item <- decode.field("item", decoder_record(decoder_item()))
+  use action <- decode.field("action", decoder_action())
+  decode.success(GotItem(item:, action:))
+}
+
 pub fn decoder_resp_subscribed_to() -> Decoder(Resp) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("SubscribedTo"))
   use all_subs <- decode.field(
@@ -249,4 +253,9 @@ pub fn decoder_resp_subscribed_to() -> Decoder(Resp) {
     decode.dict(decode.string, decoder_subscription()),
   )
   decode.success(SubscribedTo(all_subs:))
+}
+
+pub fn decoder_resp_resp_other() -> Decoder(Resp) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("RespOther"))
+  decode.success(RespOther)
 }
