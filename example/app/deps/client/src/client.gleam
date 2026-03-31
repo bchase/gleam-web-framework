@@ -1,6 +1,12 @@
+import plinth/browser/shadow
+import plinth/javascript/global
+import plinth/browser/document
+import plinth/browser/element as dom_element
+import lustre/element/keyed
 import api/id.{type Id}
 import lustre/event
 import gleam/list
+import gleam/result
 import gleam/dict.{type Dict}
 import gleam/string
 import gleam/io
@@ -15,8 +21,9 @@ import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
 import api.{type SocketResp}
-import api/generic.{List, Create, type Record, type Records}
-import youid/uuid
+import api/generic.{List, Create, Update, Delete, type Record, type Records, type Action, Created, Updated, Deleted}
+import youid/uuid.{type Uuid}
+import gleam/javascript/array
 
 // gleam run -m lustre/dev build --no-html --minify
 
@@ -44,6 +51,8 @@ type Model {
   Model(
     conn: Option(ws.WebSocket),
     items: RemoteData(Dict(Id(api.Item), Record(api.Item)), api.Err),
+    item: Option(Record(api.Item)),
+    uuid: Uuid,
     //
     reqs: Dict(String, ApiRespHandler),
   )
@@ -56,10 +65,16 @@ type ApiRespHandler {
 
 type Msg {
   NoOp
-  GotWebSocketEvent(event: WebSocketEvent)
+  // ui
+  DeleteItem(id: Id(api.Item))
+  SetItem(item: Option(Record(api.Item)))
   GotItemForm(values: List(#(String, String)))
+  // api resps
+  RecvItem(result: Result(#(Record(api.Item), Action), api.Err))
+  // websockets
+  RecvWebSocketEvent(event: WebSocketEvent)
+  // subs
   RecvItems(result: Result(Records(api.Item), api.Err))
-  RecvItemCreated(result: Result(Record(api.Item), api.Err))
   RecvSubscription(ref: String, resp: api.Resp)
 }
 
@@ -67,11 +82,13 @@ fn init(_) -> #(Model, Effect(Msg)) {
   Model(
     conn: None,
     items: NotAsked,
+    item: None,
+    uuid: uuid.v7(),
     //
     reqs: dict.new(),
   )
   |> pair.new(effect.batch([
-    ws.init(ws_url, GotWebSocketEvent),
+    ws.init(ws_url, RecvWebSocketEvent),
   ]))
 }
 
@@ -124,6 +141,23 @@ fn send_msg(
   })
 }
 
+fn set_focus(
+  id id: String,
+) -> Effect(Msg) {
+  effect.from(fn(_) {
+    global.set_timeout(100, fn() {
+      {
+        use wc <- result.try(document.get_elements_by_tag_name(tag_name) |> array.to_list |> list.first)
+        use sr <- result.try(shadow.shadow_root(wc))
+        use el <- result.try(shadow.query_selector(sr, "#" <> id))
+        Ok(dom_element.focus(el))
+      }
+      |> result.unwrap(Nil)
+    })
+    Nil
+  })
+}
+
 fn update(
   model model: Model,
   msg msg: Msg,
@@ -132,59 +166,96 @@ fn update(
     NoOp ->
       pure(model)
 
+    DeleteItem(id: item_id) -> {
+      model
+      |> send(
+        req: api.CrudItems(Delete(item_id, generic.ConfirmDelete)),
+        handler: send_msg(
+          msg: RecvItem,
+          map: fn(resp) {
+            case resp {
+              api.GotItem(item:, action:) -> Ok(#(item, action))
+              _ -> Error(Nil)
+            }
+          },
+        )
+      )
+    }
+
+    SetItem(item:) -> {
+      pure(Model(..model, item:))
+    }
+
     RecvSubscription(ref:, resp:) -> {
       case resp {
         api.GotItems(page:) -> todo
         api.SubscribedTo(all_subs:) -> todo
         api.RespOther -> todo
 
-        api.GotItem(item:, action: generic.Created) |
-        api.GotItem(item:, action: generic.Updated) ->
+        api.GotItem(item:, action: Created) |
+        api.GotItem(item:, action: Updated) ->
           pure(Model(..model, items: {
             model.items |> map_success(dict.insert(_, item.id, item))
           }))
 
-        api.GotItem(item:, action: generic.Deleted) ->
+        api.GotItem(item:, action: Deleted) ->
           pure(Model(..model, items: {
             model.items |> map_success(dict.delete(_, item.id))
           }))
       }
     }
 
-    RecvItemCreated(result:) ->
-      case result {
-        Ok(item) ->
-          pure(Model(..model, items: {
-            case model.items {
-              NotAsked | Loading | Failure(err: _) ->
-                Success(dict.from_list([#(item.id, item)]))
+    RecvItem(Error(err)) -> {
+      io.println_error("`RecvItem` err: " <> err |> string.inspect)
+      pure(model)
+    }
 
-              Success(items) ->
-                Success(dict.insert(items, item.id, item))
-            }
-                // // |> list.map(fn(item) { #(item.id, item) })
-                // // |> dict.from_list
-            // // |> list.append([item])
-            // // |> list.sort(fn(a, b) {
-            // //   string.compare(a.resource.name, b.resource.name)
-            // // })
-            // |> Success
-          }))
+    RecvItem(Ok(#(item, Deleted))) -> {
+      Model(..model, uuid: uuid.v7(), item: None, items: {
+        model.items
+        |> map_success(dict.delete(_, item.id))
+      })
+      |> eff([
+        set_focus("item-name"),
+      ])
+    }
 
-        Error(err) -> {
-          io.println_error("`RecvItemCreated` err: " <> err |> string.inspect)
-          pure(model)
+    RecvItem(Ok(#(item, Created))) |
+    RecvItem(Ok(#(item, Updated))) -> {
+      let items =
+        case model.items {
+          NotAsked | Loading | Failure(err: _) ->
+            Success(dict.new())
+
+          Success(items) ->
+            Success(items)
         }
-      }
+        |> map_success(dict.insert(_, item.id, item))
+
+      Model(..model, uuid: uuid.v7(), item: None, items:)
+      |> eff([
+        set_focus("item-name"),
+      ])
+    }
 
     GotItemForm(values:) -> {
       let assert Ok(name) = values |> list.key_find("name")
 
+      let action =
+        case model.item {
+          Some(item) -> Update(id: item.id, new: api.Item(name:))
+          None -> Create(new: api.Item(name:))
+        }
+
       model
       |> send(
-        req: api.CrudItems(Create(new: api.Item(name:))),
+        req: api.CrudItems(action),
         handler: send_msg(
-          msg: RecvItemCreated,
+          msg: fn(result) {
+            result
+            |> result.map(fn(record) { #(record, Created) })
+            |> RecvItem
+          },
           map: fn(resp) {
             case resp {
               api.GotItem(item:, action: _) -> Ok(item)
@@ -227,7 +298,7 @@ fn update(
           pure(Model(..model, items: Failure(err)))
       }
 
-    GotWebSocketEvent(event: ws.OnOpen(conn)) -> {
+    RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
       io.println("WebSocket opened: " <> ws_url)
 
       let #(model, list_items_eff) =
@@ -260,7 +331,7 @@ fn update(
           req: api.Subscribe(subs: dict.from_list([#(uuid.v7_string(), api.SubItems)])),
           handler: send_msg(
             msg: fn(msg) {
-              echo "Subscribed: " <> string.inspect(msg)
+              io.println("Subscribed: " <> string.inspect(msg))
               NoOp
             },
             map: fn(resp) {
@@ -279,22 +350,22 @@ fn update(
       ])
     }
 
-    GotWebSocketEvent(event: ws.OnClose(reason)) -> {
+    RecvWebSocketEvent(event: ws.OnClose(reason)) -> {
       io.println_error("WebSocket closed: " <> reason |> string.inspect)
       pure(Model(..model, conn: None))
     }
 
-    GotWebSocketEvent(event: ws.InvalidUrl) -> {
+    RecvWebSocketEvent(event: ws.InvalidUrl) -> {
       io.println_error("Invalid URL: " <> ws_url)
       pure(model)
     }
 
-    GotWebSocketEvent(event: ws.OnBinaryMessage(ba)) -> {
+    RecvWebSocketEvent(event: ws.OnBinaryMessage(ba)) -> {
       io.println_error("Ignoring WebSocket binary msg: " <> ba |> string.inspect)
       pure(Model(..model, conn: None))
     }
 
-    GotWebSocketEvent(event: ws.OnTextMessage(msg)) ->
+    RecvWebSocketEvent(event: ws.OnTextMessage(msg)) ->
       handle_websocket_text(model:, msg:)
   }
 }
@@ -413,22 +484,77 @@ fn view(
 fn view_item_form(
   model model: Model,
 ) -> Element(Msg) {
-  html.form([
-    event.on_submit(GotItemForm),
-  ], [
-    html.p([], [
-      html.label([
-        attr.for("item-name"),
+  let item_id: String =
+    model.item
+    |> option.map(fn(item) { item.id.id })
+    |> option.unwrap(model.uuid |> uuid.to_string)
+
+  html.div([], [
+    keyed.div([], [#(item_id,
+      html.form([
+        event.on_submit(GotItemForm),
       ], [
-        html.text("Item name: "),
+        html.p([], [
+          html.label([
+            attr.for("item-id"),
+          ], [
+            html.text("Item ID: "),
+          ]),
+          // html.span([], [html.text(" ")]),
+          html.input([
+            attr.disabled(True),
+            attr.id("item-id"),
+            attr.name("id"),
+            attr.type_("text"),
+            case model.item {
+              Some(item) -> attr.value(item.id.id)
+              None -> attr.none()
+            },
+          ]),
+        ]),
+        html.p([], [
+          html.label([
+            attr.for("item-name"),
+          ], [
+            html.text("Item name: "),
+          ]),
+          // html.span([], [html.text(" ")]),
+          html.input([
+            attr.id("item-name"),
+            attr.name("name"),
+            attr.type_("text"),
+            case model.item {
+              Some(item) -> attr.value(item.resource.name)
+              None -> attr.none()
+            },
+          ]),
+        ]),
+        html.button([
+          attr.type_("submit"),
+        ], [
+          html.text("Submit"),
+        ]),
       ]),
-      // html.span([], [html.text(" ")]),
-      html.input([
-        attr.id("item-name"),
-        attr.name("name"),
-        attr.type_("text"),
-      ]),
+    )
     ]),
+    case model.item {
+      None ->
+        element.none()
+
+      Some(item) ->
+        html.div([], [
+          html.button([
+            event.on_click(SetItem(None)),
+          ], [
+            html.text("Cancel"),
+          ]),
+          html.button([
+            event.on_click(DeleteItem(id: item.id)),
+          ], [
+            html.text("Delete"),
+          ]),
+        ])
+    }
   ])
 }
 
@@ -450,7 +576,16 @@ fn view_items(
           string.compare(a.resource.name, b.resource.name)
         })
         |> list.map(fn(item) {
-          html.li([], [html.text(item.resource.name)])
+          html.li([
+            event.on_click(SetItem(item: Some(item))),
+          ], [
+            html.code([], [
+              html.text("(" <> item.id.id <> ") "),
+            ]),
+            html.span([], [
+              html.text(item.resource.name),
+            ]),
+          ])
         })
     }
   })

@@ -1,3 +1,4 @@
+import bravo
 import bravo/uset
 import gleam/pair
 import gleam/int
@@ -16,6 +17,7 @@ import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import gleam/json.{type Json}
 import gleam/time/timestamp.{type Timestamp}
+import fpo/types/err.{type Err}
 import fpo/types
 import app/types.{type PubSub} as app
 import lustre
@@ -26,7 +28,7 @@ import mist
 import lustre/effect.{type Effect}
 //
 import api.{type SocketReq, type SocketResp, type Req, type Resp}
-import api/generic.{SocketReq, SocketResp, type Record}
+import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
 import api/id.{type Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 
@@ -152,7 +154,7 @@ fn update(
   msg msg: mist.WebsocketMessage(Msg),
   conn conn: mist.WebsocketConnection,
 ) -> mist.Next(Socket, Msg) {
-  case msg |> echo {
+  case msg {
     mist.Binary(_) -> {
       io.println_error("WEBSOCKET IGNORING BINARY MSG")
       mist.continue(socket)
@@ -249,30 +251,58 @@ fn process(
         }
 
         generic.Create(new:) -> {
-          let ts = timestamp.unix_epoch
+          let ts = timestamp.system_time()
           let item = generic.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new)
 
           let _broadcasted =
-            {
-              use <- broadcast(
-                in: fn(rs: PubSub) { rs.items },
-                to: "items",
-                msg: item,
-              )
-              pure(Nil)
-            }
-            |> run(socket.ctx, Nil)
+            broadcast_item(item:, action: Created, ctx: socket.ctx)
 
           let assert Ok(_inserted) =
             socket.ctx.cfg.items
             |> uset.insert(item.id, item)
 
-          #(Ok(api.GotItem(item:, action: generic.Created)), socket, None)
+          #(Ok(api.GotItem(item:, action: Created)), socket, None)
+        }
+
+        generic.Update(id:, new:) -> {
+          case uset.lookup(socket.ctx.cfg.items, id) {
+            Error(err) ->
+              case err {
+                bravo.Empty ->
+                  #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
+                _ ->
+                  todo
+              }
+
+            Ok(generic.Record(resource: item, ..) as record) -> {
+              let updated_at = timestamp.system_time()
+              let item = api.Item(..item, name: new.name)
+              let record = generic.Record(..record, resource: item, updated_at:)
+              let _broadcasted = broadcast_item(item: record, action: Updated, ctx: socket.ctx)
+              #(Ok(api.GotItem(item: record, action: Updated)), socket, None)
+            }
+          }
+        }
+
+        generic.Delete(id:, confirm: _) -> {
+          case uset.lookup(socket.ctx.cfg.items, id) {
+            Error(err) ->
+              case err {
+                bravo.Empty ->
+                  #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
+                _ ->
+                  todo
+              }
+
+            Ok(item) -> {
+              let assert Ok(_deleted) = uset.delete_key(socket.ctx.cfg.items, item.id)
+              let _broadcasted = broadcast_item(item:, action: Deleted, ctx: socket.ctx)
+              #(Ok(api.GotItem(item:, action: Deleted)), socket, None)
+            }
+          }
         }
 
         generic.Get(id:) -> todo
-        generic.Update(id:, new:) -> todo
-        generic.Delete(id:, confirm: _) -> todo
       }
 
     api.Subscribe(subs:) -> {
@@ -300,8 +330,9 @@ fn process(
                     subscribe(
                       to: "items",
                       in: fn(rs: PubSub) { rs.items },
-                      wrap: fn(item) {
-                        Broadcast(ref:, resp: api.GotItem(item:, action: generic.Created))
+                      wrap: fn(t) {
+                        let #(item, action) = t
+                        Broadcast(ref:, resp: api.GotItem(item:, action:))
                       })
                     |> run(ctx, Nil)
                     // |> result.map(fn(selector) {
@@ -335,7 +366,7 @@ fn process(
           }
         }
 
-      case added |> echo {
+      case added {
         None ->
           #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, None)
 
@@ -352,6 +383,22 @@ fn process(
       }
     }
   }
+}
+
+fn broadcast_item(
+  item item: Record(api.Item),
+  action action: Action,
+  ctx ctx: Context,
+) -> Result(Nil, Err(err)) {
+  {
+    use <- broadcast(
+      in: fn(rs: PubSub) { rs.items },
+      to: "items",
+      msg: #(item, action),
+    )
+    pure(Nil)
+  }
+  |> run(ctx, Nil)
 }
 
 fn ws_send(
