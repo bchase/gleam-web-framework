@@ -50,21 +50,20 @@ pub type NoConn {
 
 //
 
-pub type ApiClient(req, model, msg) {
+pub opaque type ApiClient(req, model, msg) {
   ApiClient(
+    reqs: Reqs(msg),
     send: fn(model, Req(req, msg)) -> Result(Reqs(msg), NoConn),
     recv: fn(model, String) -> #(model, Effect(msg)),
   )
 }
 
-fn send_and_recv(
-  get_reqs get_reqs: fn(model) -> Reqs(msg),
-  set_reqs set_reqs: fn(model, Reqs(msg)) -> model,
+pub fn init(
+  get_client get_client: fn(model) -> ApiClient(req, model, msg),
+  set_client set_client: fn(model, ApiClient(req, model, msg)) -> model,
   //
   get_send get_send: fn(model) -> Option(fn(String) -> Nil),
   // recv
-  json json: String,
-  parse parse: fn(String) -> Result(Uuid, String),
   err to_err_msg: fn(RecvErr) -> Option(msg),
   // send
   encode encode: fn(req) -> Json,
@@ -72,47 +71,29 @@ fn send_and_recv(
 ) -> ApiClient(req, model, msg) {
   let send =
     fn(model, req) {
-      let reqs = get_reqs(model)
+      let reqs = get_client(model).reqs
       let send = get_send(model)
       generic_send(req:, reqs:, send:, encode:)
     }
 
   let recv =
     fn(model, json) {
-      let reqs = get_reqs(model)
-      case generic_recv(json:, reqs:, parse:) {
+      let client = get_client(model)
+      case generic_recv(json:, reqs: client.reqs) {
         Ok(#(reqs, msg)) ->
           model
-          |> set_reqs(reqs)
+          |> set_client(ApiClient(..client, reqs:))
           |> pair.new(effect.from(fn(dispatch) {
             dispatch(msg)
           }))
 
         Error(err) -> {
-          io.println_error("`RecvErr`:\n" <> err |> string.inspect)
-
-          let reqs =
-            case err {
-              NoRef(..) |
-              RefParseFailure(..) ->
-                reqs
-
-              ReqNotFound(ref:, ..) |
-              RespNotFound(ref:, ..) |
-              DecodeErrs(ref:, ..) ->
-              // JsonDecodeErr(ref:, ..) ->
-                case pop_req(reqs, ref) {
-                  Error(Nil) ->
-                    reqs
-
-                  Ok(#(reqs, _req)) ->
-                    reqs
-                }
-            }
-
           let model =
             model
-            |> set_reqs(reqs)
+            |> set_client(ApiClient(..client, reqs: {
+              client.reqs
+              |> clear_req_and_log_err(err:)
+            }))
 
           case to_err_msg(err) {
             Some(msg) ->
@@ -128,7 +109,7 @@ fn send_and_recv(
       }
     }
 
-  ApiClient(send:, recv:)
+  ApiClient(reqs: Reqs(dict: dict.new()), send:, recv:)
 }
 
 // RECEIVE
@@ -136,9 +117,8 @@ fn send_and_recv(
 fn generic_recv(
   reqs reqs: Reqs(msg),
   json json: String,
-  parse parse: fn(String) -> Result(Uuid, String),
 ) -> Result(#(Reqs(msg), msg), RecvErr) {
-  use #(ref, resp) <- result.try(recv_(json:, parse:))
+  use #(ref, resp) <- result.try(recv_(json:))
 
   use #(reqs, to_msg) <- result.try(
     pop_req(reqs, ref)
@@ -169,9 +149,33 @@ fn insert_req(
   Reqs(dict: reqs.dict |> dict.insert(ref, handler))
 }
 
+fn clear_req_and_log_err(
+  reqs reqs: Reqs(msg),
+  err err: RecvErr,
+) -> Reqs(msg) {
+  io.println_error("`RecvErr`:\n" <> err |> string.inspect)
+
+  case err {
+    NoRef(..) |
+    RefParseFailure(..) ->
+      reqs
+
+    ReqNotFound(ref:, ..) |
+    RespNotFound(ref:, ..) |
+    DecodeErrs(ref:, ..) ->
+    // JsonDecodeErr(ref:, ..) ->
+      case pop_req(reqs, ref) {
+        Error(Nil) ->
+          reqs
+
+        Ok(#(reqs, _req)) ->
+          reqs
+      }
+  }
+}
+
 fn recv_(
   json json: String,
-  parse parse: fn(String) -> Result(Uuid, String)
 ) -> Result(#(Uuid, Dynamic), RecvErr) {
   use ref <- result.try(
     decode.at(["ref"], decode.string)
@@ -180,7 +184,7 @@ fn recv_(
   )
 
   use ref <- result.try(
-    parse(ref)
+    uuid.from_string(ref)
     |> result.map_error(fn(err) {
       RefParseFailure(ref:, err: err |> string.inspect)
     })
@@ -231,19 +235,47 @@ fn generic_send(
 
 type Model {
   Model(
-    reqs: Reqs(Msg)
+    conn: Option(Conn),
+    client: ApiClient(Api, Model, Msg),
   )
 }
 
 type Msg {
   NoOp
+  GotApiClientErr(err: RecvErr)
+}
+
+type Conn {
+  Conn
+}
+
+fn emulate_ws_send(
+  conn conn: Conn,
+  msg msg: String,
+) -> Nil {
+  io.println("EMULATING WS SEND: " <> msg)
 }
 
 fn dummy_model(
-  reqs reqs: Reqs(Msg),
-  msg msg: Msg,
 ) -> Model {
-  todo
+  let client =
+    init(
+      get_client: fn(model: Model) { model.client },
+      set_client: fn(model: Model, client) { Model(..model, client:) },
+      get_send: fn(model: Model) {
+        case model.conn {
+          None -> None
+          Some(conn) -> Some(emulate_ws_send(conn, _))
+        }
+      },
+      err: fn(err) { Some(GotApiClientErr(err:)) },
+      encode: encode_api,
+    )
+
+  Model(
+    conn: None,
+    client:,
+  )
 }
 
 fn dummy_update(
@@ -252,6 +284,7 @@ fn dummy_update(
 ) -> #(Reqs(Msg), Msg) {
   case msg {
     NoOp -> todo
+    GotApiClientErr(err:) -> todo
   }
 }
 
