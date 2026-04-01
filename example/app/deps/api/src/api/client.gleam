@@ -1,15 +1,15 @@
-import gleam/io
-import lustre/effect.{type Effect}
 import api/generic.{type ConfirmDelete, type Crud, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_record, encode_crud, encode_record}
 import api/id.{type Id}
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
+import gleam/io
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import gleam/pair
 import gleam/result
 import gleam/string
+import lustre/effect.{type Effect}
 import youid/uuid.{type Uuid}
 
 pub type RecvErr {
@@ -228,7 +228,7 @@ fn generic_send(
 
     Some(send) -> {
       req.req
-      |> SocketReq(ref: req.ref |> uuid.to_string)
+      |> SocketReq(ref: req.ref)
       |> generic.encode_socket_req(encode)
       |> json.to_string
       |> send

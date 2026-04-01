@@ -5,15 +5,34 @@ import gleam/json.{type Json}
 import gleam/option.{type Option}
 import gleam/order.{type Order}
 import gleam/time/timestamp.{type Timestamp}
+import youid/uuid.{type Uuid}
 
 // generic req
 
 pub type SocketReq(req) {
   //$ derive json encode decode
   SocketReq(
-    ref: String,
+    ref: Uuid,
     req: req,
   )
+}
+
+pub fn encode_uuid(
+  value value: Uuid,
+) -> Json {
+  value
+  |> uuid.to_string
+  |> json.string
+}
+
+pub fn decoder_uuid() -> Decoder(Uuid) {
+  decode.string
+  |> decode.then(fn(str) {
+    case uuid.from_string(str) {
+      Ok(uuid) -> decode.success(uuid)
+      Error(Nil) -> decode.failure(uuid.v7_from_millisec(0), "Uuid")
+    }
+  })
 }
 
 pub type CrudCustom(resource, create, update, key, custom) {
@@ -270,7 +289,7 @@ pub fn encode_socket_req(
   case value {
     SocketReq(..) as value ->
       json.object([
-        #("ref", json.string(value.ref)),
+        #("ref", encode_uuid(value.ref)),
         #("req", encode_req(value.req)),
       ])
   }
@@ -283,7 +302,7 @@ pub fn decoder_socket_req(decoder_req: Decoder(req)) -> Decoder(SocketReq(req)) 
 pub fn decoder_socket_req_socket_req(
   decoder_req: Decoder(req),
 ) -> Decoder(SocketReq(req)) {
-  use ref <- decode.field("ref", decode.string)
+  use ref <- decode.field("ref", decoder_uuid())
   use req <- decode.field("req", decoder_req)
   decode.success(SocketReq(ref:, req:))
 }
