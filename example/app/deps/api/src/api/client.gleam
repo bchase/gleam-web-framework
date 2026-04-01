@@ -78,13 +78,8 @@ pub type ApiData(t) {
 pub fn init(
   get_client get_client: fn(model) -> ApiClient(req, model, msg),
   set_client set_client: fn(model, ApiClient(req, model, msg)) -> model,
-  //
   get_send get_send: fn(model) -> Option(fn(String) -> Nil),
-  // recv
-  err to_err_msg: fn(RecvErr) -> Option(msg),
-  // send
   encode encode: fn(req) -> Json,
-// ) -> ApiClient(req, model, msg) {
 ) -> ApiClient(req, model, msg) {
   let send =
     fn(model, req) {
@@ -104,25 +99,13 @@ pub fn init(
             dispatch(msg)
           }))
 
-        Error(err) -> {
-          let model =
-            model
-            |> set_client(ApiClient(..client, reqs: {
-              client.reqs
-              |> clear_req_and_log_err(err:)
-            }))
-
-          case to_err_msg(err) {
-            Some(msg) ->
-              model
-              |> pair.new(effect.from(fn(dispatch) {
-                dispatch(msg)
-              }))
-
-            None ->
-              #(model, effect.none())
-          }
-        }
+        Error(err) ->
+          model
+          |> set_client(ApiClient(..client, reqs: {
+            client.reqs
+            |> clear_req_and_log_err(err:)
+          }))
+          |> pair.new(effect.none())
       }
     }
 
@@ -268,8 +251,7 @@ type Model {
 
 type Msg {
   NoOp
-  // GotPeople(result: Result(Paginated(Person), RecvErr))
-  GotApiClientErr(err: RecvErr)
+  GotPeople(result: Result(Paginated(Person), RecvErr))
 }
 
 type Conn {
@@ -295,7 +277,6 @@ fn dummy_model(
           Some(conn) -> Some(emulate_ws_send(conn, _))
         }
       },
-      err: fn(err) { Some(GotApiClientErr(err:)) },
       encode: encode_api,
     )
 
@@ -308,12 +289,22 @@ fn dummy_model(
 }
 
 fn dummy_update(
-  reqs reqs: Reqs(Msg),
+  model model: Model,
   msg msg: Msg,
-) -> #(Reqs(Msg), Msg) {
+) -> #(Model, Effect(Msg)) {
   case msg {
-    NoOp -> todo
-    GotApiClientErr(err:) -> todo
+    NoOp ->
+      todo
+
+    GotPeople(result:) ->
+      case result {
+        Ok(data) ->
+          Model(..model, people: Success(data: data.resources))
+          |> pair.new(effect.none())
+
+        Error(_) ->
+          todo
+      }
   }
 }
 
