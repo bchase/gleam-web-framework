@@ -28,17 +28,21 @@ pub type RecvErr {
     ref: Uuid,
     json: String,
   )
-  JsonDecodeErr(
-    ref: Uuid,
-    err: json.DecodeError,
-  )
-  // DecodeErrs(
+  // JsonDecodeErr(
   //   ref: Uuid,
-  //   errs: List(decode.DecodeError),
+  //   err: json.DecodeError,
   // )
+  DecodeErrs(
+    ref: Uuid,
+    errs: List(decode.DecodeError),
+  )
 }
 
-type Reqs(msg) = Dict(Uuid, fn(Dynamic) -> Result(msg, RecvErr))
+pub opaque type Reqs(msg) {
+  Reqs(
+    dict: Dict(Uuid, fn(Dynamic) -> Result(msg, RecvErr)),
+  )
+}
 
 pub type NoConn {
   NoConn
@@ -48,7 +52,7 @@ pub type NoConn {
 
 pub type ApiClient(req, model, msg) {
   ApiClient(
-    send: fn(model, Req(req, msg)) -> Result(Dict(Uuid, fn(Dynamic) -> Result(msg, RecvErr)), NoConn),
+    send: fn(model, Req(req, msg)) -> Result(Reqs(msg), NoConn),
     recv: fn(model, String) -> #(model, Effect(msg)),
   )
 }
@@ -95,7 +99,8 @@ fn send_and_recv(
 
               ReqNotFound(ref:, ..) |
               RespNotFound(ref:, ..) |
-              JsonDecodeErr(ref:, ..) ->
+              DecodeErrs(ref:, ..) ->
+              // JsonDecodeErr(ref:, ..) ->
                 case pop_req(reqs, ref) {
                   Error(Nil) ->
                     reqs
@@ -149,9 +154,19 @@ fn pop_req(
   reqs reqs: Reqs(msg),
   ref ref: Uuid,
 ) -> Result(#(Reqs(msg), fn(Dynamic) -> Result(msg, RecvErr)), Nil) {
-  reqs
-  |> dict.get(ref)
-  |> result.map(pair.new(dict.delete(reqs, ref), _)) // TODO lazy
+  use f <- result.try(dict.get(reqs.dict, ref))
+
+  let reqs = Reqs(dict: dict.delete(reqs.dict, ref))
+
+  Ok(#(reqs, f))
+}
+
+fn insert_req(
+  reqs reqs: Reqs(msg),
+  ref ref: Uuid,
+  handler handler: fn(Dynamic) -> Result(msg, RecvErr),
+) -> Reqs(msg) {
+  Reqs(dict: reqs.dict |> dict.insert(ref, handler))
 }
 
 fn recv_(
@@ -186,8 +201,7 @@ pub type Req(req, msg) {
   Req(
     ref: Uuid,
     req: req,
-    // resp: fn(Dynamic) -> Result(msg, RecvErr(ref)),
-    resp: fn(Dynamic) -> Result(msg, List(decode.DecodeError)),
+    resp: fn(Dynamic) -> Result(msg, RecvErr),
   )
 }
 
@@ -208,7 +222,7 @@ fn generic_send(
       |> json.to_string
       |> send
 
-      Ok(dict.insert(reqs, req.ref, todo))
+      Ok(insert_req(reqs, req.ref, req.resp))
     }
   }
 }
@@ -343,6 +357,7 @@ fn build_req(
     dyn
     |> decode.run(decoder)
     |> result.map(msg)
+    |> result.map_error(DecodeErrs(ref:, errs: _))
   })
 }
 
