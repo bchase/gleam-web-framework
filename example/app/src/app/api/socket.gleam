@@ -31,6 +31,9 @@ import api.{type SocketReq, type SocketResp, type Req, type Resp}
 import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
 import api/id.{type Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
+//
+import api/server
+import api/client
 
 pub type Context = types.Context(app.Config, app.PubSub, user.User)
 
@@ -160,42 +163,97 @@ fn update(
       mist.continue(socket)
     }
 
-    mist.Text(json) ->
-      case json.parse(json, api.decoder_socket_req()) {
-        Ok(generic.SocketReq(ref:, req:)) -> {
-          let #(result, socket, selector) = process(socket:, req:)
+    mist.Text(json) -> {
+      echo json
 
-          api.socket_resp(ref:, result:)
-          |> api.encode_socket_resp
-          |> json.to_string
-          |> ws_send(conn, _)
+      let parse_socket_req = fn(decoder) {
+        use ref <- result.try(
+          decode.at(["ref"], decode.string)
+          |> json.parse(json, _)
+          // |> result.replace_error(NoRef(json:))
+          |> result.replace_error(Nil)
+        )
 
-          socket
-          |> mist.continue
-          |> fn(next) {
-            case selector {
-              None ->
-                next
+        use ref <- result.try(
+          uuid.from_string(ref)
+          |> result.map_error(fn(err) {
+            // RefParseFailure(ref:, err: err |> string.inspect)
+            Nil
+          })
+        )
 
-              Some(selector) ->
-                next |> mist.with_selector(selector)
+        use req <- result.try(
+          decode.at(["req"], decode.dynamic)
+          |> json.parse(json, _)
+          // |> result.replace_error(RespNotFound(ref:, json:))
+          |> result.replace_error(Nil)
+        )
+
+        Ok(#(ref, req))
+      }
+
+      case parse_socket_req(json) {
+        Ok(#(ref, dyn)) -> {
+          let assert Ok(req) = decode.run(dyn, client.decoder_api())
+          SocketReq(ref:, req:)
+          |> server.api_server(server.Context)
+          |> fn(result) {
+            case result {
+              Ok(resp) ->
+                resp
+                |> generic.encode_socket_resp
+                |> json.to_string
+                |> ws_send(conn, _)
+
+              Error(_err) ->
+                panic as "err"
             }
           }
         }
 
-        Error(err) -> {
-          // TODO send err to client
-          io.println_error("WEBSOCKET REQ DECODE ERR:")
-          io.println_error(err |> string.inspect)
-          mist.continue(socket)
-        }
+        Error(Nil) ->
+          panic as "err"
       }
 
+      mist.continue(socket)
+
+      // case json.parse(json, api.decoder_socket_req()) {
+      //   Ok(generic.SocketReq(ref:, req:)) -> {
+      //     let #(result, socket, selector) = process(socket:, req:)
+
+      //     api.socket_resp(ref:, result:)
+      //     |> api.encode_socket_resp
+      //     |> json.to_string
+      //     |> ws_send(conn, _)
+
+      //     socket
+      //     |> mist.continue
+      //     |> fn(next) {
+      //       case selector {
+      //         None ->
+      //           next
+
+      //         Some(selector) ->
+      //           next |> mist.with_selector(selector)
+      //       }
+      //     }
+      //   }
+
+      //   Error(err) -> {
+      //     // TODO send err to client
+      //     io.println_error("WEBSOCKET REQ DECODE ERR:")
+      //     io.println_error(err |> string.inspect)
+      //     mist.continue(socket)
+      //   }
+      // }
+    }
+
     mist.Custom(Broadcast(ref:, resp:)) -> {
-      api.socket_resp(ref: "pubsub:" <> ref, result: Ok(resp))
-      |> api.encode_socket_resp
-      |> json.to_string
-      |> ws_send(conn, _)
+      todo "reimpl `Broadcast`"
+      // api.socket_resp(ref: "pubsub:" <> ref, result: Ok(resp))
+      // |> api.encode_socket_resp
+      // |> json.to_string
+      // |> ws_send(conn, _)
 
       mist.continue(socket)
     }
@@ -225,165 +283,165 @@ type State {
   )
 }
 
-fn process(
-  socket socket: Socket,
-  req req: Req,
-) -> #(Result(Resp, api.Err), Socket, Option(Selector(Msg))) {
-  let ctx = socket.ctx
+// fn process(
+//   socket socket: Socket,
+//   req req: Req,
+// ) -> #(Result(Resp, api.Err), Socket, Option(Selector(Msg))) {
+//   let ctx = socket.ctx
 
-  case req {
-    api.ReqOther ->
-      todo
+//   case req {
+//     api.ReqOther ->
+//       todo
 
-    api.CrudItems(crud:) ->
-      case crud {
-        generic.List(pagination: _) -> {
-          let assert Ok(items) =
-            uset.tab2list(socket.ctx.cfg.items)
+//     api.CrudItems(crud:) ->
+//       case crud {
+//         generic.List(pagination: _) -> {
+//           let assert Ok(items) =
+//             uset.tab2list(socket.ctx.cfg.items)
 
-          let items =
-            items
-            |> list.map(pair.second)
-            |> generic.ManyRecords(None)
-            |> api.GotItems
+//           let items =
+//             items
+//             |> list.map(pair.second)
+//             |> generic.ManyRecords(None)
+//             |> api.GotItems
 
-          #(Ok(items), socket, None)
-        }
+//           #(Ok(items), socket, None)
+//         }
 
-        generic.Create(new:) -> {
-          let ts = timestamp.system_time()
-          let item = generic.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new)
+//         generic.Create(new:) -> {
+//           let ts = timestamp.system_time()
+//           let item = generic.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new)
 
-          let _broadcasted =
-            broadcast_item(item:, action: Created, ctx: socket.ctx)
+//           let _broadcasted =
+//             broadcast_item(item:, action: Created, ctx: socket.ctx)
 
-          let assert Ok(_inserted) =
-            socket.ctx.cfg.items
-            |> uset.insert(item.id, item)
+//           let assert Ok(_inserted) =
+//             socket.ctx.cfg.items
+//             |> uset.insert(item.id, item)
 
-          #(Ok(api.GotItem(item:, action: Created)), socket, None)
-        }
+//           #(Ok(api.GotItem(item:, action: Created)), socket, None)
+//         }
 
-        generic.Update(id:, new:) -> {
-          case uset.lookup(socket.ctx.cfg.items, id) {
-            Error(err) ->
-              case err {
-                bravo.Empty ->
-                  #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
-                _ ->
-                  todo
-              }
+//         generic.Update(id:, new:) -> {
+//           case uset.lookup(socket.ctx.cfg.items, id) {
+//             Error(err) ->
+//               case err {
+//                 bravo.Empty ->
+//                   #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
+//                 _ ->
+//                   todo
+//               }
 
-            Ok(generic.Record(resource: item, ..) as record) -> {
-              let updated_at = timestamp.system_time()
-              let item = api.Item(..item, name: new.name)
-              let record = generic.Record(..record, resource: item, updated_at:)
-              let _broadcasted = broadcast_item(item: record, action: Updated, ctx: socket.ctx)
-              #(Ok(api.GotItem(item: record, action: Updated)), socket, None)
-            }
-          }
-        }
+//             Ok(generic.Record(resource: item, ..) as record) -> {
+//               let updated_at = timestamp.system_time()
+//               let item = api.Item(..item, name: new.name)
+//               let record = generic.Record(..record, resource: item, updated_at:)
+//               let _broadcasted = broadcast_item(item: record, action: Updated, ctx: socket.ctx)
+//               #(Ok(api.GotItem(item: record, action: Updated)), socket, None)
+//             }
+//           }
+//         }
 
-        generic.Delete(id:, confirm: _) -> {
-          case uset.lookup(socket.ctx.cfg.items, id) {
-            Error(err) ->
-              case err {
-                bravo.Empty ->
-                  #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
-                _ ->
-                  todo
-              }
+//         generic.Delete(id:, confirm: _) -> {
+//           case uset.lookup(socket.ctx.cfg.items, id) {
+//             Error(err) ->
+//               case err {
+//                 bravo.Empty ->
+//                   #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
+//                 _ ->
+//                   todo
+//               }
 
-            Ok(item) -> {
-              let assert Ok(_deleted) = uset.delete_key(socket.ctx.cfg.items, item.id)
-              let _broadcasted = broadcast_item(item:, action: Deleted, ctx: socket.ctx)
-              #(Ok(api.GotItem(item:, action: Deleted)), socket, None)
-            }
-          }
-        }
+//             Ok(item) -> {
+//               let assert Ok(_deleted) = uset.delete_key(socket.ctx.cfg.items, item.id)
+//               let _broadcasted = broadcast_item(item:, action: Deleted, ctx: socket.ctx)
+//               #(Ok(api.GotItem(item:, action: Deleted)), socket, None)
+//             }
+//           }
+//         }
 
-        generic.Get(id:) -> todo
-      }
+//         generic.Get(id:) -> todo
+//       }
 
-    api.Subscribe(subs:) -> {
-      let added =
-        case dict.is_empty(subs) {
-          True ->
-            None
+//     api.Subscribe(subs:) -> {
+//       let added =
+//         case dict.is_empty(subs) {
+//           True ->
+//             None
 
-          False -> {
-            let selector =
-              process.new_selector()
-              |> process.select(process.new_subject())
-              // |> todo
+//           False -> {
+//             let selector =
+//               process.new_selector()
+//               |> process.select(process.new_subject())
+//               // |> todo
 
-            subs
-            |> dict.to_list
-            |> list.fold(#(dict.new(), selector), fn(acc, t) {
-              let #(ref, sub) = t
-              let #(subs, selector) = acc
+//             subs
+//             |> dict.to_list
+//             |> list.fold(#(dict.new(), selector), fn(acc, t) {
+//               let #(ref, sub) = t
+//               let #(subs, selector) = acc
 
-              let result =
-                case sub {
-                  api.SubItem(id:) -> todo
-                  api.SubItems -> {
-                    subscribe(
-                      to: "items",
-                      in: fn(rs: PubSub) { rs.items },
-                      wrap: fn(t) {
-                        let #(item, action) = t
-                        Broadcast(ref:, resp: api.GotItem(item:, action:))
-                      })
-                    |> run(ctx, Nil)
-                    // |> result.map(fn(selector) {
-                    //   selector
-                    //   // |> process.map_selector(fn(msg) {
-                    //   //   todo as "get `msg` this into the actor"
-                    //   // })
-                    // })
-                  }
-                }
+//               let result =
+//                 case sub {
+//                   api.SubItem(id:) -> todo
+//                   api.SubItems -> {
+//                     subscribe(
+//                       to: "items",
+//                       in: fn(rs: PubSub) { rs.items },
+//                       wrap: fn(t) {
+//                         let #(item, action) = t
+//                         Broadcast(ref:, resp: api.GotItem(item:, action:))
+//                       })
+//                     |> run(ctx, Nil)
+//                     // |> result.map(fn(selector) {
+//                     //   selector
+//                     //   // |> process.map_selector(fn(msg) {
+//                     //   //   todo as "get `msg` this into the actor"
+//                     //   // })
+//                     // })
+//                   }
+//                 }
 
-              case result {
-                Ok(new_selector) -> {
-                  let selector =
-                    selector
-                    |> process.merge_selector(new_selector)
-                    // |> todo
+//               case result {
+//                 Ok(new_selector) -> {
+//                   let selector =
+//                     selector
+//                     |> process.merge_selector(new_selector)
+//                     // |> todo
 
-                  #(dict.insert(subs, ref, sub), selector)
-                }
+//                   #(dict.insert(subs, ref, sub), selector)
+//                 }
 
-                Error(err) -> {
-                  io.println_error("Failed to subscribe:")
-                  io.println_error(sub |> string.inspect)
-                  io.println_error(err |> string.inspect)
-                  acc
-                }
-              }
-            })
-            |> Some
-          }
-        }
+//                 Error(err) -> {
+//                   io.println_error("Failed to subscribe:")
+//                   io.println_error(sub |> string.inspect)
+//                   io.println_error(err |> string.inspect)
+//                   acc
+//                 }
+//               }
+//             })
+//             |> Some
+//           }
+//         }
 
-      case added {
-        None ->
-          #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, None)
+//       case added {
+//         None ->
+//           #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, None)
 
-        Some(#(subs, selector)) -> {
-          let socket =
-            Socket(..socket, subs: {
-              socket.subs
-              |> dict.merge(subs)
-              // |> list.append(subs)
-            })
+//         Some(#(subs, selector)) -> {
+//           let socket =
+//             Socket(..socket, subs: {
+//               socket.subs
+//               |> dict.merge(subs)
+//               // |> list.append(subs)
+//             })
 
-          #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, Some(selector))
-        }
-      }
-    }
-  }
-}
+//           #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, Some(selector))
+//         }
+//       }
+//     }
+//   }
+// }
 
 fn broadcast_item(
   item item: Record(api.Item),
