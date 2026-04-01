@@ -6,7 +6,7 @@ import gleam/option.{type Option}
 import gleam/io
 import gleam/string
 import gleam/json.{type Json}
-import api/client.{type Api, type Person, type PersonAttr, decoder_api, encode_person}
+import api/client.{type Api, type Item, type ItemAttr, decoder_api, encode_item}
 import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func}
 
 // codegen server
@@ -17,8 +17,8 @@ pub fn api_server(
   let generic.SocketReq(ref:, req:) = req
 
   case req {
-    client.People(crud:) ->
-      crud_people
+    client.Items(crud:) ->
+      crud_items
       |> process_crud(crud:, ref:)
 
     client.IntToString(func:) ->
@@ -42,45 +42,44 @@ fn int_to_string(
   Ok(int.to_string(num))
 }
 
-pub const crud_people =
+pub const crud_items =
   ServerCrudHandler(
-    list: list_people,
-    create: create_people,
-    update: update_people,
-    read: read_people,
-    delete: delete_people,
+    list: list_items,
+    create: create_items,
+    update: update_items,
+    read: read_items,
+    delete: delete_items,
     //
-    encode: encode_person,
+    encode: encode_item,
   )
 
-fn list_people(
+fn list_items(
   req req: ListReq(resource, key),
 ) -> Result(Paginated(resource), Err) {
   todo
 }
-fn create_people(
+fn create_items(
   req req: CreateReq(resource, create),
 ) -> Result(Record(resource), Err) {
   todo
 }
-fn update_people(
+fn update_items(
   req req: UpdateReq(resource, update),
 ) -> Result(Record(resource), Err) {
   todo
 }
-fn read_people(
+fn read_items(
   req req: ReadReq(resource),
 ) -> Result(Record(resource), Err) {
   todo
 }
-fn delete_people(
+fn delete_items(
   req req: DeleteReq(resource),
 ) -> Result(Record(resource), Err) {
   todo
 }
 
 // generic
-
 
 pub type ServerCrudHandler(resource, create, update, key) {
   ServerCrudHandler(

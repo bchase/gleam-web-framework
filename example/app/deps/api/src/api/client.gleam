@@ -41,7 +41,6 @@ pub type RecvErr {
 
 pub opaque type Reqs(msg) {
   Reqs(
-    // dict: Dict(Uuid, fn(Dynamic) -> Result(msg, RecvErr)),
     dict: Dict(Uuid, HandlerFunc(msg)),
   )
 }
@@ -246,13 +245,13 @@ type Model {
     conn: Option(Conn),
     client: ApiClient(Api, Model, Msg),
     //
-    people: ApiData(List(Record(Person))),
+    items: ApiData(List(Record(Item))),
   )
 }
 
 type Msg {
   NoOp
-  GotPeople(result: Result(Paginated(Person), RecvErr))
+  GotItems(result: Result(Paginated(Item), RecvErr))
 }
 
 type Conn {
@@ -285,7 +284,7 @@ fn dummy_model(
     conn: None,
     client:,
     //
-    people: NotAsked,
+    items: NotAsked,
   )
 }
 
@@ -297,10 +296,10 @@ fn dummy_update(
     NoOp ->
       todo
 
-    GotPeople(result:) ->
+    GotItems(result:) ->
       case result {
         Ok(data) ->
-          Model(..model, people: Success(data: data.resources))
+          Model(..model, items: Success(data: data.resources))
           |> pair.new(effect.none())
 
         Error(_) ->
@@ -311,22 +310,22 @@ fn dummy_update(
 
 // dummy api
 
-pub type PersonAttr {
-  //$ derive json encode decode
-  PersonName
-}
-
 pub type Api {
   //$ derive json encode decode
-  People(crud: Crud(Person, Person, Person, PersonAttr))
+  Items(crud: Crud(Item, Item, Item, ItemAttr))
   IntToString(func: Func(Int, String))
 }
 
-pub type Person {
+pub type Item {
   //$ derive json encode decode
-  Person(
+  Item(
     name: String,
   )
+}
+
+pub type ItemAttr {
+  //$ derive json encode decode
+  ItemName
 }
 
 type Transcoders(t) {
@@ -438,121 +437,121 @@ pub fn send(
   generic_send(reqs:, req:, send:, encode: encode_api)
 }
 
-pub fn list_people(
-  params params: Option(Params(PersonAttr)),
+pub fn list_items(
+  params params: Option(Params(ItemAttr)),
   ref ref: Uuid,
-  msg msg: fn(Result(Paginated(Person), RecvErr)) -> msg,
+  msg msg: fn(Result(Paginated(Item), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
-  let req = People
-  let decoder = json_paginated_people.decoder()
+  let req = Items
+  let decoder = json_paginated_items.decoder()
   list(params:, ref:, msg:, req:, decoder:)
 }
 
-pub fn read_people(
-  id id: Id(Person),
+pub fn read_items(
+  id id: Id(Item),
   ref ref: Uuid,
-  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
+  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
-  let req = People
-  let decoder = json_people_scalar.decoder()
+  let req = Items
+  let decoder = json_items_scalar.decoder()
   read(id:, ref:, msg:, req:, decoder:)
 }
 
-pub fn create_people(
-  data data: Person,
+pub fn create_items(
+  data data: Item,
   ref ref: Uuid,
-  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
+  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
-  let req = People
-  let decoder = json_people_scalar.decoder()
+  let req = Items
+  let decoder = json_items_scalar.decoder()
   create(data:, ref:, msg:, req:, decoder:)
 }
 
-pub fn update_people(
-  id id: Id(Person),
-  data data: Person,
+pub fn update_items(
+  id id: Id(Item),
+  data data: Item,
   ref ref: Uuid,
-  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
+  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
-  let req = People
-  let decoder = json_people_scalar.decoder()
+  let req = Items
+  let decoder = json_items_scalar.decoder()
   update(id:, data:, ref:, msg:, req:, decoder:)
 }
 
-pub fn delete_people(
-  id id: Id(Person),
+pub fn delete_items(
+  id id: Id(Item),
   confirm confirm: ConfirmDelete,
   ref ref: Uuid,
-  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
+  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
-  let req = People
-  let decoder = json_people_scalar.decoder()
+  let req = Items
+  let decoder = json_items_scalar.decoder()
   delete(id:, confirm:, ref:, msg:, req:, decoder:)
 }
 
 // codegen json
 
-const json_paginated_people: Transcoders(Paginated(Person)) =
+const json_paginated_items: Transcoders(Paginated(Item)) =
   Transcoders(
-    decoder: decoder_paginated_people,
-    encode: encode_paginated_people,
+    decoder: decoder_paginated_items,
+    encode: encode_paginated_items,
   )
 
-const json_people_scalar: Transcoders(Person) =
+const json_items_scalar: Transcoders(Item) =
   Transcoders(
-    decoder: decoder_people_scalar,
-    encode: encode_people_scalar,
+    decoder: decoder_items_scalar,
+    encode: encode_items_scalar,
   )
 
-fn decoder_paginated_people() -> Decoder(Paginated(Person)) {
+fn decoder_paginated_items() -> Decoder(Paginated(Item)) {
   todo
 }
 
-fn encode_paginated_people(
-  value value: Paginated(Person),
+fn encode_paginated_items(
+  value value: Paginated(Item),
 ) -> Json {
   todo
 }
 
-fn decoder_people_scalar() -> Decoder(Person) {
+fn decoder_items_scalar() -> Decoder(Item) {
   todo
 }
 
-fn encode_people_scalar(
-  value value: Person,
+fn encode_items_scalar(
+  value value: Item,
 ) -> Json {
   todo
 }
 
 // DERIVED
 
-pub fn encode_person_attr(value: PersonAttr) -> Json {
+pub fn encode_item_attr(value: ItemAttr) -> Json {
   case value {
-    PersonName -> json.object([])
+    ItemName -> json.object([])
   }
 }
 
-pub fn decoder_person_attr() -> Decoder(PersonAttr) {
-  decode.one_of(decoder_person_attr_person_name(), [])
+pub fn decoder_item_attr() -> Decoder(ItemAttr) {
+  decode.one_of(decoder_item_attr_item_name(), [])
 }
 
-pub fn decoder_person_attr_person_name() -> Decoder(PersonAttr) {
-  decode.success(PersonName)
+pub fn decoder_item_attr_item_name() -> Decoder(ItemAttr) {
+  decode.success(ItemName)
 }
 
 pub fn encode_api(value: Api) -> Json {
   case value {
-    People(..) as value ->
+    Items(..) as value ->
       json.object([
-        #("_var", json.string("People")),
+        #("_var", json.string("Items")),
         #(
           "crud",
           encode_crud(
             value.crud,
-            encode_person,
-            encode_person,
-            encode_person,
-            encode_person_attr,
+            encode_item,
+            encode_item,
+            encode_item,
+            encode_item_attr,
           ),
         ),
       ])
@@ -565,36 +564,36 @@ pub fn encode_api(value: Api) -> Json {
 }
 
 pub fn decoder_api() -> Decoder(Api) {
-  decode.one_of(decoder_api_people(), [decoder_api_int_to_string()])
+  decode.one_of(decoder_api_items(), [decoder_api_int_to_string()])
 }
 
-pub fn decoder_api_people() -> Decoder(Api) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("People"))
+pub fn decoder_api_items() -> Decoder(Api) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Items"))
   use crud <- decode.field(
     "crud",
     decoder_crud(
-      decoder_person(),
-      decoder_person(),
-      decoder_person(),
-      decoder_person_attr(),
+      decoder_item(),
+      decoder_item(),
+      decoder_item(),
+      decoder_item_attr(),
     ),
   )
-  decode.success(People(crud:))
+  decode.success(Items(crud:))
 }
 
-pub fn encode_person(value: Person) -> Json {
+pub fn encode_item(value: Item) -> Json {
   case value {
-    Person(..) as value -> json.object([#("name", json.string(value.name))])
+    Item(..) as value -> json.object([#("name", json.string(value.name))])
   }
 }
 
-pub fn decoder_person() -> Decoder(Person) {
-  decode.one_of(decoder_person_person(), [])
+pub fn decoder_item() -> Decoder(Item) {
+  decode.one_of(decoder_item_item(), [])
 }
 
-pub fn decoder_person_person() -> Decoder(Person) {
+pub fn decoder_item_item() -> Decoder(Item) {
   use name <- decode.field("name", decode.string)
-  decode.success(Person(name:))
+  decode.success(Item(name:))
 }
 
 
