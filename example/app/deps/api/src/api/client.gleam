@@ -40,7 +40,17 @@ pub type RecvErr {
 
 pub opaque type Reqs(msg) {
   Reqs(
-    dict: Dict(Uuid, fn(Dynamic) -> Result(msg, RecvErr)),
+    // dict: Dict(Uuid, fn(Dynamic) -> Result(msg, RecvErr)),
+    dict: Dict(Uuid, HandlerFunc(msg)),
+  )
+}
+
+pub type HandlerFunc(msg) = fn(Dynamic) -> HandlerResult(msg)
+
+pub opaque type HandlerResult(msg) {
+  HandlerResult(
+    result: Result(msg, RecvErr),
+    err: fn(RecvErr) -> msg,
   )
 }
 
@@ -56,6 +66,13 @@ pub opaque type ApiClient(req, model, msg) {
     send: fn(model, Req(req, msg)) -> Result(Reqs(msg), NoConn),
     recv: fn(model, String) -> #(model, Effect(msg)),
   )
+}
+
+pub type ApiData(t) {
+  NotAsked
+  Loading
+  Failure(err: RecvErr)
+  Success(data: t)
 }
 
 pub fn init(
@@ -120,12 +137,19 @@ fn generic_recv(
 ) -> Result(#(Reqs(msg), msg), RecvErr) {
   use #(ref, resp) <- result.try(recv_(json:))
 
-  use #(reqs, to_msg) <- result.try(
+  use #(reqs, handle_resp) <- result.try(
     pop_req(reqs, ref)
     |> result.replace_error(ReqNotFound(ref:, json:))
   )
 
-  use msg <- result.try(resp |> to_msg)
+  let HandlerResult(result:, err: to_err_msg) =
+    handle_resp(resp)
+
+  let msg =
+    case result {
+      Ok(msg) -> msg
+      Error(err) -> err |> to_err_msg
+    }
 
   Ok(#(reqs, msg))
 }
@@ -133,7 +157,7 @@ fn generic_recv(
 fn pop_req(
   reqs reqs: Reqs(msg),
   ref ref: Uuid,
-) -> Result(#(Reqs(msg), fn(Dynamic) -> Result(msg, RecvErr)), Nil) {
+) -> Result(#(Reqs(msg), HandlerFunc(msg)), Nil) {
   use f <- result.try(dict.get(reqs.dict, ref))
 
   let reqs = Reqs(dict: dict.delete(reqs.dict, ref))
@@ -144,7 +168,7 @@ fn pop_req(
 fn insert_req(
   reqs reqs: Reqs(msg),
   ref ref: Uuid,
-  handler handler: fn(Dynamic) -> Result(msg, RecvErr),
+  handler handler: HandlerFunc(msg),
 ) -> Reqs(msg) {
   Reqs(dict: reqs.dict |> dict.insert(ref, handler))
 }
@@ -205,7 +229,7 @@ pub type Req(req, msg) {
   Req(
     ref: Uuid,
     req: req,
-    resp: fn(Dynamic) -> Result(msg, RecvErr),
+    resp: HandlerFunc(msg),
   )
 }
 
@@ -237,11 +261,14 @@ type Model {
   Model(
     conn: Option(Conn),
     client: ApiClient(Api, Model, Msg),
+    //
+    people: ApiData(List(Record(Person))),
   )
 }
 
 type Msg {
   NoOp
+  // GotPeople(result: Result(Paginated(Person), RecvErr))
   GotApiClientErr(err: RecvErr)
 }
 
@@ -275,6 +302,8 @@ fn dummy_model(
   Model(
     conn: None,
     client:,
+    //
+    people: NotAsked,
   )
 }
 
@@ -317,80 +346,92 @@ type Transcoders(t) {
 fn list(
   params params: Option(Params(key)),
   ref ref: Uuid,
-  msg msg: fn(Paginated(t)) -> msg,
+  msg to_msg: fn(Result(Paginated(t), RecvErr)) -> msg,
   //
   req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(Paginated(t)),
 ) -> Req(req, msg) {
   let req = req(List(ListReq(params:)))
-  build_req(req:, decoder:, msg:, ref:)
+  let msg = fn(x) { to_msg(Ok(x)) }
+  let err = fn(err) { to_msg(Error(err)) }
+  build_req(req:, decoder:, msg:, ref:, err:)
 }
 
 fn read(
   id id: Id(t),
   ref ref: Uuid,
-  msg msg: fn(Record(t)) -> msg,
+  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
   //
   req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(t),
 ) -> Req(req, msg) {
   let req = req(Read(ReadReq(id:)))
   let decoder = decoder_record(decoder)
-  build_req(req:, decoder:, msg:, ref:)
+  let msg = fn(x) { to_msg(Ok(x)) }
+  let err = fn(err) { to_msg(Error(err)) }
+  build_req(req:, decoder:, msg:, ref:, err:)
 }
 
 fn create(
   data data: create,
   ref ref: Uuid,
-  msg msg: fn(Record(t)) -> msg,
+  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
   //
   req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(t),
 ) -> Req(req, msg) {
   let req = req(Create(CreateReq(data:)))
   let decoder = decoder_record(decoder)
-  build_req(req:, decoder:, msg:, ref:)
+  let msg = fn(x) { to_msg(Ok(x)) }
+  let err = fn(err) { to_msg(Error(err)) }
+  build_req(req:, decoder:, msg:, ref:, err:)
 }
 
 fn update(
   id id: Id(t),
   data data: update,
   ref ref: Uuid,
-  msg msg: fn(Record(t)) -> msg,
+  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
   //
   req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(t),
 ) -> Req(req, msg) {
   let req = req(Update(UpdateReq(id:, data:)))
   let decoder = decoder_record(decoder)
-  build_req(req:, decoder:, msg:, ref:)
+  let msg = fn(x) { to_msg(Ok(x)) }
+  let err = fn(err) { to_msg(Error(err)) }
+  build_req(req:, decoder:, msg:, ref:, err:)
 }
 
 fn delete(
   id id: Id(t),
   confirm confirm: ConfirmDelete,
   ref ref: Uuid,
-  msg msg: fn(Record(t)) -> msg,
+  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
   //
   req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(t),
 ) -> Req(req, msg) {
   let req = req(Delete(DeleteReq(id:, confirm:)))
   let decoder = decoder_record(decoder)
-  build_req(req:, decoder:, msg:, ref:)
+  let msg = fn(x) { to_msg(Ok(x)) }
+  let err = fn(err) { to_msg(Error(err)) }
+  build_req(req:, decoder:, msg:, ref:, err:)
 }
 
 fn build_req(
   req req: req,
+  ref ref: Uuid,
   decoder decoder: Decoder(t),
   msg msg: fn(t) -> msg,
-  ref ref: Uuid,
+  err err: fn(RecvErr) -> msg
 ) -> Req(req, msg) {
   Req(ref:, req:, resp: fn(dyn) {
     dyn
     |> decode.run(decoder)
     |> result.map(msg)
     |> result.map_error(DecodeErrs(ref:, errs: _))
+    |> HandlerResult(result: _, err:)
   })
 }
 
@@ -407,7 +448,7 @@ pub fn send(
 pub fn list_people(
   params params: Option(Params(PersonAttr)),
   ref ref: Uuid,
-  msg msg: fn(Paginated(Person)) -> msg,
+  msg msg: fn(Result(Paginated(Person), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
   let req = People
   let decoder = json_paginated_people.decoder()
@@ -417,7 +458,7 @@ pub fn list_people(
 pub fn read_people(
   id id: Id(Person),
   ref ref: Uuid,
-  msg msg: fn(Record(Person)) -> msg,
+  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
   let req = People
   let decoder = json_people_scalar.decoder()
@@ -427,7 +468,7 @@ pub fn read_people(
 pub fn create_people(
   data data: Person,
   ref ref: Uuid,
-  msg msg: fn(Record(Person)) -> msg,
+  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
   let req = People
   let decoder = json_people_scalar.decoder()
@@ -438,7 +479,7 @@ pub fn update_people(
   id id: Id(Person),
   data data: Person,
   ref ref: Uuid,
-  msg msg: fn(Record(Person)) -> msg,
+  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
   let req = People
   let decoder = json_people_scalar.decoder()
@@ -449,7 +490,7 @@ pub fn delete_people(
   id id: Id(Person),
   confirm confirm: ConfirmDelete,
   ref ref: Uuid,
-  msg msg: fn(Record(Person)) -> msg,
+  msg msg: fn(Result(Record(Person), RecvErr)) -> msg,
 ) -> Req(Api, msg) {
   let req = People
   let decoder = json_people_scalar.decoder()
