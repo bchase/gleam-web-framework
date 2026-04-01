@@ -404,7 +404,6 @@ fn update(
     }
 
     RecvWebSocketEvent(event: ws.OnTextMessage(msg)) -> {
-      echo model.client.reqs
       echo msg
 
       model.client.recv(model, msg)

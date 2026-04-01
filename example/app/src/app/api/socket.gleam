@@ -163,89 +163,13 @@ fn update(
       mist.continue(socket)
     }
 
-    mist.Text(json) -> {
-      echo json
+    mist.Text(msg) -> {
+      let ctx = server.Context
 
-      let parse_socket_req = fn(decoder) {
-        use ref <- result.try(
-          decode.at(["ref"], decode.string)
-          |> json.parse(json, _)
-          // |> result.replace_error(NoRef(json:))
-          |> result.replace_error(Nil)
-        )
-
-        use ref <- result.try(
-          uuid.from_string(ref)
-          |> result.map_error(fn(err) {
-            // RefParseFailure(ref:, err: err |> string.inspect)
-            Nil
-          })
-        )
-
-        use req <- result.try(
-          decode.at(["req"], decode.dynamic)
-          |> json.parse(json, _)
-          // |> result.replace_error(RespNotFound(ref:, json:))
-          |> result.replace_error(Nil)
-        )
-
-        Ok(#(ref, req))
-      }
-
-      case parse_socket_req(json) {
-        Ok(#(ref, dyn)) -> {
-          let assert Ok(req) = decode.run(dyn, client.decoder_api())
-          SocketReq(ref:, req:)
-          |> server.api_server(server.Context)
-          |> fn(result) {
-            case result {
-              Ok(resp) ->
-                resp
-                |> generic.encode_socket_resp
-                |> json.to_string
-                |> ws_send(conn, _)
-
-              Error(_err) ->
-                panic as "err"
-            }
-          }
-        }
-
-        Error(Nil) ->
-          panic as "err"
-      }
-
-      mist.continue(socket)
-
-      // case json.parse(json, api.decoder_socket_req()) {
-      //   Ok(generic.SocketReq(ref:, req:)) -> {
-      //     let #(result, socket, selector) = process(socket:, req:)
-
-      //     api.socket_resp(ref:, result:)
-      //     |> api.encode_socket_resp
-      //     |> json.to_string
-      //     |> ws_send(conn, _)
-
-      //     socket
-      //     |> mist.continue
-      //     |> fn(next) {
-      //       case selector {
-      //         None ->
-      //           next
-
-      //         Some(selector) ->
-      //           next |> mist.with_selector(selector)
-      //       }
-      //     }
-      //   }
-
-      //   Error(err) -> {
-      //     // TODO send err to client
-      //     io.println_error("WEBSOCKET REQ DECODE ERR:")
-      //     io.println_error(err |> string.inspect)
-      //     mist.continue(socket)
-      //   }
-      // }
+      serve(socket:, msg:, send:, ctx:, server: Server(
+        call: server.api_server,
+        decoder: client.decoder_api(),
+      ))
     }
 
     mist.Custom(Broadcast(ref:, resp:)) -> {
@@ -459,11 +383,11 @@ fn broadcast_item(
   |> run(ctx, Nil)
 }
 
-fn ws_send(
-  conn conn: mist.WebsocketConnection,
+fn send(
   msg msg: String,
-) -> Nil {
-  case mist.send_text_frame(conn, msg) {
+  socket socket: Socket,
+) -> mist.Next(Socket, Msg) {
+  case mist.send_text_frame(socket.conn, msg) {
     Ok(Nil) ->
       Nil
 
@@ -472,6 +396,8 @@ fn ws_send(
       io.println_error(err |> string.inspect)
     }
   }
+
+  mist.continue(socket)
 }
 
 // fn decoder_socket_req() -> Decoder(SocketReq) {
@@ -741,3 +667,89 @@ fn ws_send(
 // //       Ok(Error(err))
 // //   }
 // // }
+
+
+
+// TODO mv `server`
+
+type ApiServer(req, context) =
+  fn(generic.SocketReq(req), context) -> Result(SocketResp, generic.Err)
+
+type Server(req, context) {
+  Server(
+    call: fn(generic.SocketReq(req), context) -> Result(SocketResp, generic.Err),
+    decoder: Decoder(req),
+  )
+}
+
+fn serve(
+  socket socket: socket,
+  msg msg: String,
+  ctx ctx: context,
+  server server: Server(req, context),
+  send send: fn(String, socket) -> mist.Next(socket, msg),
+) -> mist.Next(socket, msg) {
+  case parse_socket_req(msg, server.decoder) {
+    Ok(req) ->
+      case server.call(req, ctx) {
+        Ok(resp) ->
+          resp
+          |> generic.encode_socket_resp
+          |> json.to_string
+          |> send(socket)
+
+        Error(_err) ->
+          todo as "encode this as socket resp?"
+      }
+
+    Error(ParseErr) ->
+      todo as "ParseErr"
+  }
+}
+
+type ParseErr {
+  ParseErr
+}
+fn parse_socket_req(
+  json json: String,
+  decoder decoder: Decoder(req),
+) -> Result(generic.SocketReq(req), ParseErr) {
+  {
+    let parse = fn(decoder) {
+      use ref <- result.try(
+        decode.at(["ref"], decode.string)
+        |> json.parse(json, _)
+        // |> result.replace_error(NoRef(json:))
+        |> result.replace_error(Nil)
+      )
+
+      use ref <- result.try(
+        uuid.from_string(ref)
+        |> result.map_error(fn(err) {
+          // RefParseFailure(ref:, err: err |> string.inspect)
+          Nil
+        })
+      )
+
+      use req <- result.try(
+        decode.at(["req"], decode.dynamic)
+        |> json.parse(json, _)
+        // |> result.replace_error(RespNotFound(ref:, json:))
+        |> result.replace_error(Nil)
+      )
+
+      Ok(#(ref, req))
+    }
+
+    case parse(json) {
+      Ok(#(ref, dyn)) -> {
+        let assert Ok(req) = decode.run(dyn, decoder)
+        Ok(SocketReq(ref:, req:))
+      }
+
+      Error(_) -> todo
+    }
+  }
+  |> result.replace_error(ParseErr)
+}
+

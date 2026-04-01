@@ -20,9 +20,9 @@ pub fn api_server(
   let generic.SocketReq(ref:, req:) = req
 
   case req {
-    // client.Items(crud:) ->
-    //   crud_items()
-    //   |> process_crud(crud:, ref:, ctx:)
+    client.Items(crud:) ->
+      crud_items()
+      |> process_crud(crud:, ref:, ctx:)
 
     client.IntToString(func:) ->
       func_int_to_string()
