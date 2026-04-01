@@ -73,14 +73,14 @@ pub fn zero_item() -> Item {
 
   //$ derive json encode decode
 pub type ExpReq {
-  Items(crud: Crud(Item, Item, Item))
+  Items(crud: Crud(Item, Item, Item, Nil))
 }
 
 // domain api
 
 pub type Req {
   //$ derive json encode decode
-  CrudItems(crud: Crud(Item, Item, Item))
+  CrudItems(crud: Crud(Item, Item, Item, Nil))
   Subscribe(subs: Dict(String, Subscription))
   ReqOther
 }
@@ -121,6 +121,16 @@ pub fn decoder_socket_resp(
   generic.decoder_socket_resp(decoder_resp())
 }
 
+fn encode_nil(
+  value _value: Nil,
+) -> Json {
+  json.null()
+}
+
+fn decoder_nil() -> Decoder(Nil) {
+  decode.success(Nil)
+}
+
 // DERIVED
 
 pub fn encode_req(value: Req) -> Json {
@@ -130,7 +140,13 @@ pub fn encode_req(value: Req) -> Json {
         #("_var", json.string("CrudItems")),
         #(
           "crud",
-          encode_crud(value.crud, encode_item, encode_item, encode_item),
+          encode_crud(
+            value.crud,
+            encode_item,
+            encode_item,
+            encode_item,
+            encode_nil,
+          ),
         ),
       ])
     Subscribe(..) as value ->
@@ -153,7 +169,7 @@ pub fn decoder_req_crud_items() -> Decoder(Req) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("CrudItems"))
   use crud <- decode.field(
     "crud",
-    decoder_crud(decoder_item(), decoder_item(), decoder_item()),
+    decoder_crud(decoder_item(), decoder_item(), decoder_item(), decoder_nil()),
   )
   decode.success(CrudItems(crud:))
 }

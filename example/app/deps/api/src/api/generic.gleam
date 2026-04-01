@@ -3,6 +3,7 @@ import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{type Option}
+import gleam/order.{type Order}
 import gleam/time/timestamp.{type Timestamp}
 
 // generic req
@@ -15,31 +16,83 @@ pub type SocketReq(req) {
   )
 }
 
-pub type CrudCustom(resource, create, update, msg) {
+pub type CrudCustom(resource, create, update, key, custom) {
   //$ derive json encode decode
-  Crud(crud: Crud(resource, create, update))
-  Custom(custom: msg)
+  Crud(crud: Crud(resource, create, update, key))
+  Custom(custom: custom)
 }
 
-pub type Crud(resource, create, update, ) {
+pub type Crud(resource, create, update, key) {
   //$ derive json encode decode
-  List(req: ListReq(resource))
+  List(req: ListReq(resource, key))
   Create(req: CreateReq(resource, create))
   Read(req: ReadReq(resource))
   Update(req: UpdateReq(resource, update))
   Delete(req: DeleteReq(resource))
 }
 
-pub type ListReq(resource) {
+pub type Params(key) {
   //$ derive json encode decode
-  ListReq(
+  Params(
+    // filter: Option(AndOr(Filter(key))),
+    sort: List(Sort(key)),
+    params: List(Param),
     pagination: Option(Pagination),
-    // params:
   )
+}
+
+pub type Param {
+  //$ derive json encode decode
+  Param(
+    key: String,
+    val: String,
+  )
+}
+
+pub type Sort(key) {
+  //$ derive json encode decode
+  Sort(
+    key: key,
+    dir: Dir,
+  )
+}
+
+pub type Dir {
+  //$ derive json encode decode
+  Asc
+  Desc
+}
+
+//pub type Filter(key) {
+//  //$ derive json encode decode
+//  Filter(
+//    key: key,
+//    ord: Order,
+//    val: GleamType,
+//  )
+//}
+
+//pub type AndOr(t) {
+//  And(left: AndOr(t), right: AndOr(t))
+//  Or(left: AndOr(t), right: AndOr(t))
+//  Just(val: t)
+//}
+
+//pub type GleamType {
+//  String(str: String)
+//  Int(int: Int)
+//  Float(float: Float)
+//  Bool(bool: Bool)
+//  BitArray(ba: BitArray)
+//}
+
+pub type ListReq(resource, key) {
+  //$ derive json encode decode
+  ListReq(params: Option(Params(key)))
 }
 pub type CreateReq(resource, create) {
   //$ derive json encode decode
-  CreateReq(new: create)
+  CreateReq(data: create)
 }
 pub type ReadReq(resource) {
   //$ derive json encode decode
@@ -47,7 +100,7 @@ pub type ReadReq(resource) {
 }
 pub type UpdateReq(resource, update) {
   //$ derive json encode decode
-  UpdateReq(new: update)
+  UpdateReq(id: Id(resource), data: update)
 }
 pub type DeleteReq(resource) {
   //$ derive json encode decode
@@ -236,11 +289,12 @@ pub fn decoder_socket_req_socket_req(
 }
 
 pub fn encode_crud_custom(
-  value: CrudCustom(resource, create, update, msg),
+  value: CrudCustom(resource, create, update, key, custom),
   encode_resource: fn(resource) -> Json,
   encode_create: fn(create) -> Json,
   encode_update: fn(update) -> Json,
-  encode_msg: fn(msg) -> Json,
+  encode_key: fn(key) -> Json,
+  encode_custom: fn(custom) -> Json,
 ) -> Json {
   case value {
     Crud(..) as value ->
@@ -248,13 +302,19 @@ pub fn encode_crud_custom(
         #("_var", json.string("Crud")),
         #(
           "crud",
-          encode_crud(value.crud, encode_resource, encode_create, encode_update),
+          encode_crud(
+            value.crud,
+            encode_resource,
+            encode_create,
+            encode_update,
+            encode_key,
+          ),
         ),
       ])
     Custom(..) as value ->
       json.object([
         #("_var", json.string("Custom")),
-        #("custom", encode_msg(value.custom)),
+        #("custom", encode_custom(value.custom)),
       ])
   }
 }
@@ -263,21 +323,24 @@ pub fn decoder_crud_custom(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-  decoder_msg: Decoder(msg),
-) -> Decoder(CrudCustom(resource, create, update, msg)) {
+  decoder_key: Decoder(key),
+  decoder_custom: Decoder(custom),
+) -> Decoder(CrudCustom(resource, create, update, key, custom)) {
   decode.one_of(
     decoder_crud_custom_crud(
       decoder_resource,
       decoder_create,
       decoder_update,
-      decoder_msg,
+      decoder_key,
+      decoder_custom,
     ),
     [
       decoder_crud_custom_custom(
         decoder_resource,
         decoder_create,
         decoder_update,
-        decoder_msg,
+        decoder_key,
+        decoder_custom,
       ),
     ],
   )
@@ -287,12 +350,13 @@ pub fn decoder_crud_custom_crud(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-  decoder_msg: Decoder(msg),
-) -> Decoder(CrudCustom(resource, create, update, msg)) {
+  decoder_key: Decoder(key),
+  decoder_custom: Decoder(custom),
+) -> Decoder(CrudCustom(resource, create, update, key, custom)) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Crud"))
   use crud <- decode.field(
     "crud",
-    decoder_crud(decoder_resource, decoder_create, decoder_update),
+    decoder_crud(decoder_resource, decoder_create, decoder_update, decoder_key),
   )
   decode.success(Crud(crud:))
 }
@@ -301,24 +365,26 @@ pub fn decoder_crud_custom_custom(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-  decoder_msg: Decoder(msg),
-) -> Decoder(CrudCustom(resource, create, update, msg)) {
+  decoder_key: Decoder(key),
+  decoder_custom: Decoder(custom),
+) -> Decoder(CrudCustom(resource, create, update, key, custom)) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Custom"))
-  use custom <- decode.field("custom", decoder_msg)
+  use custom <- decode.field("custom", decoder_custom)
   decode.success(Custom(custom:))
 }
 
 pub fn encode_crud(
-  value: Crud(resource, create, update),
+  value: Crud(resource, create, update, key),
   encode_resource: fn(resource) -> Json,
   encode_create: fn(create) -> Json,
   encode_update: fn(update) -> Json,
+  encode_key: fn(key) -> Json,
 ) -> Json {
   case value {
     List(..) as value ->
       json.object([
         #("_var", json.string("List")),
-        #("req", encode_list_req(value.req)),
+        #("req", encode_list_req(value.req, encode_key)),
       ])
     Create(..) as value ->
       json.object([
@@ -333,7 +399,7 @@ pub fn encode_crud(
     Update(..) as value ->
       json.object([
         #("_var", json.string("Update")),
-        #("req", encode_update_req(value.req, encode_update)),
+        #("req", encode_update_req(value.req, encode_resource, encode_update)),
       ])
     Delete(..) as value ->
       json.object([
@@ -347,14 +413,40 @@ pub fn decoder_crud(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-) -> Decoder(Crud(resource, create, update)) {
+  decoder_key: Decoder(key),
+) -> Decoder(Crud(resource, create, update, key)) {
   decode.one_of(
-    decoder_crud_list(decoder_resource, decoder_create, decoder_update),
+    decoder_crud_list(
+      decoder_resource,
+      decoder_create,
+      decoder_update,
+      decoder_key,
+    ),
     [
-      decoder_crud_create(decoder_resource, decoder_create, decoder_update),
-      decoder_crud_read(decoder_resource, decoder_create, decoder_update),
-      decoder_crud_update(decoder_resource, decoder_create, decoder_update),
-      decoder_crud_delete(decoder_resource, decoder_create, decoder_update),
+      decoder_crud_create(
+        decoder_resource,
+        decoder_create,
+        decoder_update,
+        decoder_key,
+      ),
+      decoder_crud_read(
+        decoder_resource,
+        decoder_create,
+        decoder_update,
+        decoder_key,
+      ),
+      decoder_crud_update(
+        decoder_resource,
+        decoder_create,
+        decoder_update,
+        decoder_key,
+      ),
+      decoder_crud_delete(
+        decoder_resource,
+        decoder_create,
+        decoder_update,
+        decoder_key,
+      ),
     ],
   )
 }
@@ -363,9 +455,10 @@ pub fn decoder_crud_list(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-) -> Decoder(Crud(resource, create, update)) {
+  decoder_key: Decoder(key),
+) -> Decoder(Crud(resource, create, update, key)) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("List"))
-  use req <- decode.field("req", decoder_list_req())
+  use req <- decode.field("req", decoder_list_req(decoder_key))
   decode.success(List(req:))
 }
 
@@ -373,7 +466,8 @@ pub fn decoder_crud_create(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-) -> Decoder(Crud(resource, create, update)) {
+  decoder_key: Decoder(key),
+) -> Decoder(Crud(resource, create, update, key)) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Create"))
   use req <- decode.field("req", decoder_create_req(decoder_create))
   decode.success(Create(req:))
@@ -383,7 +477,8 @@ pub fn decoder_crud_read(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-) -> Decoder(Crud(resource, create, update)) {
+  decoder_key: Decoder(key),
+) -> Decoder(Crud(resource, create, update, key)) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Read"))
   use req <- decode.field("req", decoder_read_req(decoder_resource))
   decode.success(Read(req:))
@@ -393,9 +488,13 @@ pub fn decoder_crud_update(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-) -> Decoder(Crud(resource, create, update)) {
+  decoder_key: Decoder(key),
+) -> Decoder(Crud(resource, create, update, key)) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Update"))
-  use req <- decode.field("req", decoder_update_req(decoder_update))
+  use req <- decode.field(
+    "req",
+    decoder_update_req(decoder_resource, decoder_update),
+  )
   decode.success(Update(req:))
 }
 
@@ -403,32 +502,40 @@ pub fn decoder_crud_delete(
   decoder_resource: Decoder(resource),
   decoder_create: Decoder(create),
   decoder_update: Decoder(update),
-) -> Decoder(Crud(resource, create, update)) {
+  decoder_key: Decoder(key),
+) -> Decoder(Crud(resource, create, update, key)) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Delete"))
   use req <- decode.field("req", decoder_delete_req(decoder_resource))
   decode.success(Delete(req:))
 }
 
-pub fn encode_list_req(value: ListReq(resource)) -> Json {
+pub fn encode_list_req(
+  value: ListReq(resource, key),
+  encode_key: fn(key) -> Json,
+) -> Json {
   case value {
     ListReq(..) as value ->
       json.object([
-        #("pagination", json.nullable(value.pagination, encode_pagination)),
+        #("params", json.nullable(value.params, encode_params(_, encode_key))),
       ])
   }
 }
 
-pub fn decoder_list_req() -> Decoder(ListReq(resource)) {
-  decode.one_of(decoder_list_req_list_req(), [])
+pub fn decoder_list_req(
+  decoder_key: Decoder(key),
+) -> Decoder(ListReq(resource, key)) {
+  decode.one_of(decoder_list_req_list_req(decoder_key), [])
 }
 
-pub fn decoder_list_req_list_req() -> Decoder(ListReq(resource)) {
-  use pagination <- decode.optional_field(
-    "pagination",
+pub fn decoder_list_req_list_req(
+  decoder_key: Decoder(key),
+) -> Decoder(ListReq(resource, key)) {
+  use params <- decode.optional_field(
+    "params",
     deriv.none,
-    decode.optional(decoder_pagination()),
+    decode.optional(decoder_params(decoder_key)),
   )
-  decode.success(ListReq(pagination:))
+  decode.success(ListReq(params:))
 }
 
 pub fn encode_create_req(
@@ -436,7 +543,8 @@ pub fn encode_create_req(
   encode_create: fn(create) -> Json,
 ) -> Json {
   case value {
-    CreateReq(..) as value -> json.object([#("new", encode_create(value.new))])
+    CreateReq(..) as value ->
+      json.object([#("data", encode_create(value.data))])
   }
 }
 
@@ -449,8 +557,8 @@ pub fn decoder_create_req(
 pub fn decoder_create_req_create_req(
   decoder_create: Decoder(create),
 ) -> Decoder(CreateReq(resource, create)) {
-  use new <- decode.field("new", decoder_create)
-  decode.success(CreateReq(new:))
+  use data <- decode.field("data", decoder_create)
+  decode.success(CreateReq(data:))
 }
 
 pub fn encode_read_req(
@@ -478,24 +586,35 @@ pub fn decoder_read_req_read_req(
 
 pub fn encode_update_req(
   value: UpdateReq(resource, update),
+  encode_resource: fn(resource) -> Json,
   encode_update: fn(update) -> Json,
 ) -> Json {
   case value {
-    UpdateReq(..) as value -> json.object([#("new", encode_update(value.new))])
+    UpdateReq(..) as value ->
+      json.object([
+        #("data", encode_update(value.data)),
+        #("id", encode_id(value.id, encode_resource)),
+      ])
   }
 }
 
 pub fn decoder_update_req(
+  decoder_resource: Decoder(resource),
   decoder_update: Decoder(update),
 ) -> Decoder(UpdateReq(resource, update)) {
-  decode.one_of(decoder_update_req_update_req(decoder_update), [])
+  decode.one_of(
+    decoder_update_req_update_req(decoder_resource, decoder_update),
+    [],
+  )
 }
 
 pub fn decoder_update_req_update_req(
+  decoder_resource: Decoder(resource),
   decoder_update: Decoder(update),
 ) -> Decoder(UpdateReq(resource, update)) {
-  use new <- decode.field("new", decoder_update)
-  decode.success(UpdateReq(new:))
+  use id <- decode.field("id", decoder_id(decoder_resource))
+  use data <- decode.field("data", decoder_update)
+  decode.success(UpdateReq(id:, data:))
 }
 
 pub fn encode_delete_req(
@@ -770,4 +889,93 @@ pub fn decoder_action_updated() -> Decoder(Action) {
 pub fn decoder_action_deleted() -> Decoder(Action) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Deleted"))
   decode.success(Deleted)
+}
+
+
+pub fn encode_params(value: Params(key), encode_key: fn(key) -> Json) -> Json {
+  case value {
+    Params(..) as value ->
+      json.object([
+        #("pagination", json.nullable(value.pagination, encode_pagination)),
+        #("params", json.array(value.params, encode_param)),
+        #("sort", json.array(value.sort, encode_sort(_, encode_key))),
+      ])
+  }
+}
+
+pub fn decoder_params(decoder_key: Decoder(key)) -> Decoder(Params(key)) {
+  decode.one_of(decoder_params_params(decoder_key), [])
+}
+
+pub fn decoder_params_params(decoder_key: Decoder(key)) -> Decoder(Params(key)) {
+  use sort <- decode.field("sort", decode.list(decoder_sort(decoder_key)))
+  use params <- decode.field("params", decode.list(decoder_param()))
+  use pagination <- decode.optional_field(
+    "pagination",
+    deriv.none,
+    decode.optional(decoder_pagination()),
+  )
+  decode.success(Params(sort:, params:, pagination:))
+}
+
+pub fn encode_sort(value: Sort(key), encode_key: fn(key) -> Json) -> Json {
+  case value {
+    Sort(..) as value ->
+      json.object([
+        #("dir", encode_dir(value.dir)),
+        #("key", encode_key(value.key)),
+      ])
+  }
+}
+
+pub fn decoder_sort(decoder_key: Decoder(key)) -> Decoder(Sort(key)) {
+  decode.one_of(decoder_sort_sort(decoder_key), [])
+}
+
+pub fn decoder_sort_sort(decoder_key: Decoder(key)) -> Decoder(Sort(key)) {
+  use key <- decode.field("key", decoder_key)
+  use dir <- decode.field("dir", decoder_dir())
+  decode.success(Sort(key:, dir:))
+}
+
+pub fn encode_dir(value: Dir) -> Json {
+  case value {
+    Asc -> json.object([#("_var", json.string("Asc"))])
+    Desc -> json.object([#("_var", json.string("Desc"))])
+  }
+}
+
+pub fn decoder_dir() -> Decoder(Dir) {
+  decode.one_of(decoder_dir_asc(), [decoder_dir_desc()])
+}
+
+pub fn decoder_dir_asc() -> Decoder(Dir) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Asc"))
+  decode.success(Asc)
+}
+
+pub fn decoder_dir_desc() -> Decoder(Dir) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Desc"))
+  decode.success(Desc)
+}
+
+
+pub fn encode_param(value: Param) -> Json {
+  case value {
+    Param(..) as value ->
+      json.object([
+        #("key", json.string(value.key)),
+        #("val", json.string(value.val)),
+      ])
+  }
+}
+
+pub fn decoder_param() -> Decoder(Param) {
+  decode.one_of(decoder_param_param(), [])
+}
+
+pub fn decoder_param_param() -> Decoder(Param) {
+  use key <- decode.field("key", decode.string)
+  use val <- decode.field("val", decode.string)
+  decode.success(Param(key:, val:))
 }

@@ -1,14 +1,14 @@
+import api/generic.{type ConfirmDelete, type Crud, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_record, encode_crud, encode_record}
 import api/id.{type Id}
-import gleam/option.{type Option, Some, None}
-import gleam/pair
 import gleam/dict.{type Dict}
-import gleam/string
 import gleam/dynamic.{type Dynamic}
-import gleam/result
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
+import gleam/option.{type Option, None, Some}
+import gleam/pair
+import gleam/result
+import gleam/string
 import youid/uuid.{type Uuid}
-import api/generic.{type Paginated, type SocketReq, SocketReq, type Crud, type Record, List, ListReq, Read, ReadReq, type Pagination}
 
 pub type RecvErr(ref) {
   NoRef(
@@ -38,7 +38,7 @@ pub type RecvErr(ref) {
 
 type Reqs(ref, msg) = Dict(ref, fn(Dynamic) -> Result(msg, RecvErr(ref)))
 
-type NoConn {
+pub type NoConn {
   NoConn
 }
 
@@ -109,7 +109,7 @@ fn recv_(
 //   })
 // }
 
-type Req(req, msg, ref) {
+pub type Req(req, msg, ref) {
   Req(
     ref: ref,
     req: req,
@@ -122,7 +122,6 @@ fn generic_listen(
   reqs reqs: Reqs(ref, msg),
   req req: Req(req, msg, ref),
   encode encode: fn(req) -> Json,
-  // make_ref make_ref: fn() -> ref,
   ref_str ref_str: fn(ref) -> String,
   send send: Option(fn(String) -> Nil),
 ) -> Result(Reqs(ref, msg), NoConn) {
@@ -148,7 +147,7 @@ type Msg {
   NoOp
 }
 
-fn update(
+fn dummy_update(
   reqs reqs: Reqs(Uuid, Msg),
   msg msg: Msg,
 ) -> #(Reqs(Uuid, Msg), Msg) {
@@ -159,11 +158,18 @@ fn update(
 
 // dummy api
 
-type Api {
-  People(Crud(Person, Person, Person))
+pub type PersonAttr {
+  //$ derive json encode decode
+  PersonName
 }
 
-type Person {
+pub type Api {
+  //$ derive json encode decode
+  People(crud: Crud(Person, Person, Person, PersonAttr))
+}
+
+pub type Person {
+  //$ derive json encode decode
   Person(
     name: String,
   )
@@ -177,62 +183,69 @@ type Transcoders(t) {
 }
 
 fn list(
-  pagination pagination: Option(Pagination),
+  params params: Option(Params(key)),
   ref ref: ref,
   msg msg: fn(Paginated(t)) -> msg,
   //
-  req req: fn(Crud(t, t, t)) -> req,
+  req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(Paginated(t)),
 ) -> Req(req, msg, ref) {
-  build_req(
-    req: req(List(ListReq(pagination:))),
-    decoder:,
-    msg:,
-    ref:,
-  )
+  let req = req(List(ListReq(params:)))
+  build_req(req:, decoder:, msg:, ref:)
 }
 
 fn read(
   id id: Id(t),
   ref ref: ref,
-  msg msg: fn(t) -> msg,
+  msg msg: fn(Record(t)) -> msg,
   //
-  req req: fn(Crud(t, t, t)) -> req,
+  req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(t),
 ) -> Req(req, msg, ref) {
-  build_req(
-    req: req(Read(ReadReq(id:))),
-    decoder:,
-    msg:,
-    ref:,
-  )
+  let req = req(Read(ReadReq(id:)))
+  let decoder = decoder_record(decoder)
+  build_req(req:, decoder:, msg:, ref:)
 }
 
-fn list_people(
-  pagination pagination: Option(Pagination),
+fn create(
+  data data: create,
   ref ref: ref,
-  msg msg: fn(Paginated(Person)) -> msg,
-) -> Req(Api, msg, ref) {
-  list(
-    pagination:,
-    ref:,
-    msg:,
-    req: People,
-    decoder: json_paginated_people.decoder(),
-  )
+  msg msg: fn(Record(t)) -> msg,
+  //
+  req req: fn(Crud(t, create, update, key)) -> req,
+  decoder decoder: Decoder(t),
+) -> Req(req, msg, ref) {
+  let req = req(Create(CreateReq(data:)))
+  let decoder = decoder_record(decoder)
+  build_req(req:, decoder:, msg:, ref:)
 }
 
-fn req_read_people(
-  id id: Id(Person),
+fn update(
+  id id: Id(t),
+  data data: update,
   ref ref: ref,
-  msg msg: fn(Record(Person)) -> msg,
-) -> Req(Api, msg, ref) {
-  build_req(
-    req: People(Read(ReadReq(id:))),
-    decoder: json_people_scalar.decoder(),
-    msg:,
-    ref:,
-  )
+  msg msg: fn(Record(t)) -> msg,
+  //
+  req req: fn(Crud(t, create, update, key)) -> req,
+  decoder decoder: Decoder(t),
+) -> Req(req, msg, ref) {
+  let req = req(Update(UpdateReq(id:, data:)))
+  let decoder = decoder_record(decoder)
+  build_req(req:, decoder:, msg:, ref:)
+}
+
+fn delete(
+  id id: Id(t),
+  confirm confirm: ConfirmDelete,
+  ref ref: ref,
+  msg msg: fn(Record(t)) -> msg,
+  //
+  req req: fn(Crud(t, create, update, key)) -> req,
+  decoder decoder: Decoder(t),
+) -> Req(req, msg, ref) {
+  let req = req(Delete(DeleteReq(id:, confirm:)))
+  let decoder = decoder_record(decoder)
+  build_req(req:, decoder:, msg:, ref:)
 }
 
 fn build_req(
@@ -248,7 +261,71 @@ fn build_req(
   })
 }
 
-//
+// codegen helpers
+
+pub fn listen(
+  reqs reqs: Reqs(ref, msg),
+  req req: Req(Api, msg, ref),
+  ref_str ref_str: fn(ref) -> String,
+  send send: Option(fn(String) -> Nil),
+) -> Result(Reqs(ref, msg), NoConn) {
+  let encode = encode_api
+  generic_listen(reqs:, req:, encode:, ref_str:, send:)
+}
+
+pub fn list_people(
+  params params: Option(Params(PersonAttr)),
+  ref ref: ref,
+  msg msg: fn(Paginated(Person)) -> msg,
+) -> Req(Api, msg, ref) {
+  let req = People
+  let decoder = json_paginated_people.decoder()
+  list(params:, ref:, msg:, req:, decoder:)
+}
+
+pub fn read_people(
+  id id: Id(Person),
+  ref ref: ref,
+  msg msg: fn(Record(Person)) -> msg,
+) -> Req(Api, msg, ref) {
+  let req = People
+  let decoder = json_people_scalar.decoder()
+  read(id:, ref:, msg:, req:, decoder:)
+}
+
+pub fn create_people(
+  data data: Person,
+  ref ref: ref,
+  msg msg: fn(Record(Person)) -> msg,
+) -> Req(Api, msg, ref) {
+  let req = People
+  let decoder = json_people_scalar.decoder()
+  create(data:, ref:, msg:, req:, decoder:)
+}
+
+pub fn update_people(
+  id id: Id(Person),
+  data data: Person,
+  ref ref: ref,
+  msg msg: fn(Record(Person)) -> msg,
+) -> Req(Api, msg, ref) {
+  let req = People
+  let decoder = json_people_scalar.decoder()
+  update(id:, data:, ref:, msg:, req:, decoder:)
+}
+
+pub fn delete_people(
+  id id: Id(Person),
+  confirm confirm: ConfirmDelete,
+  ref ref: ref,
+  msg msg: fn(Record(Person)) -> msg,
+) -> Req(Api, msg, ref) {
+  let req = People
+  let decoder = json_people_scalar.decoder()
+  delete(id:, confirm:, ref:, msg:, req:, decoder:)
+}
+
+// codegen json
 
 const json_paginated_people: Transcoders(Paginated(Person)) =
   Transcoders(
@@ -256,7 +333,7 @@ const json_paginated_people: Transcoders(Paginated(Person)) =
     encode: encode_paginated_people,
   )
 
-const json_people_scalar: Transcoders(Record(Person)) =
+const json_people_scalar: Transcoders(Person) =
   Transcoders(
     decoder: decoder_people_scalar,
     encode: encode_people_scalar,
@@ -272,12 +349,78 @@ fn encode_paginated_people(
   todo
 }
 
-fn decoder_people_scalar() -> Decoder(Record(Person)) {
+fn decoder_people_scalar() -> Decoder(Person) {
   todo
 }
 
 fn encode_people_scalar(
-  value value: Record(Person),
+  value value: Person,
 ) -> Json {
   todo
+}
+
+// DERIVED
+
+pub fn encode_person_attr(value: PersonAttr) -> Json {
+  case value {
+    PersonName -> json.object([])
+  }
+}
+
+pub fn decoder_person_attr() -> Decoder(PersonAttr) {
+  decode.one_of(decoder_person_attr_person_name(), [])
+}
+
+pub fn decoder_person_attr_person_name() -> Decoder(PersonAttr) {
+  decode.success(PersonName)
+}
+
+pub fn encode_api(value: Api) -> Json {
+  case value {
+    People(..) as value ->
+      json.object([
+        #(
+          "crud",
+          encode_crud(
+            value.crud,
+            encode_person,
+            encode_person,
+            encode_person,
+            encode_person_attr,
+          ),
+        ),
+      ])
+  }
+}
+
+pub fn decoder_api() -> Decoder(Api) {
+  decode.one_of(decoder_api_people(), [])
+}
+
+pub fn decoder_api_people() -> Decoder(Api) {
+  use crud <- decode.field(
+    "crud",
+    decoder_crud(
+      decoder_person(),
+      decoder_person(),
+      decoder_person(),
+      decoder_person_attr(),
+    ),
+  )
+  decode.success(People(crud:))
+}
+
+pub fn encode_person(value: Person) -> Json {
+  case value {
+    Person(..) as value -> json.object([#("name", json.string(value.name))])
+  }
+}
+
+pub fn decoder_person() -> Decoder(Person) {
+  decode.one_of(decoder_person_person(), [])
+}
+
+pub fn decoder_person_person() -> Decoder(Person) {
+  use name <- decode.field("name", decode.string)
+  decode.success(Person(name:))
 }
