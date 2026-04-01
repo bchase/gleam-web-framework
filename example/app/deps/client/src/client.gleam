@@ -56,7 +56,7 @@ type Model {
     item: Option(Record(api.Item)),
     uuid: Uuid,
     //
-    reqs: Dict(String, ApiRespHandler),
+    reqs: Dict(Uuid, ApiRespHandler),
   )
 }
 
@@ -392,9 +392,9 @@ fn map_success(
 }
 
 fn pop(
-  reqs reqs: Dict(String, ApiRespHandler),
+  reqs reqs: Dict(Uuid, ApiRespHandler),
   resp resp: SocketResp,
-) -> #(Dict(String, ApiRespHandler), Result(ApiRespHandler, Nil)) {
+) -> #(Dict(Uuid, ApiRespHandler), Result(ApiRespHandler, Nil)) {
   case dict.get(reqs, resp.ref) {
     Ok(handler) ->
       #(dict.delete(reqs, resp.ref), Ok(handler))
@@ -411,7 +411,7 @@ fn process(
 ) -> #(Model, Effect(Msg)) {
   let #(reqs, handler) = pop(model.reqs, resp)
 
-  case resp.ref, resp.result {
+  case resp.ref |> uuid.to_string, resp.result {
     "pubsub:" <> _ref, Error(err) -> {
       io.println_error("Received pubsub err msg: " <> err |> string.inspect)
       pure(model)

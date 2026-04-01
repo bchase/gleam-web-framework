@@ -1,6 +1,7 @@
 import api/id.{type Id}
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
+import gleam/function
 import gleam/json.{type Json}
 import gleam/option.{type Option}
 import gleam/order.{type Order}
@@ -35,10 +36,9 @@ pub fn decoder_uuid() -> Decoder(Uuid) {
   })
 }
 
-pub type CrudCustom(resource, create, update, key, custom) {
+pub type Func(param, return) {
   //$ derive json encode decode
-  Crud(crud: Crud(resource, create, update, key))
-  Custom(custom: custom)
+  Func(req: FuncReq(param, return))
 }
 
 pub type Crud(resource, create, update, key) {
@@ -105,6 +105,11 @@ pub type Dir {
 //  BitArray(ba: BitArray)
 //}
 
+pub type FuncReq(param, return) {
+  //$ derive json encode decode
+  FuncReq(param: param)
+}
+
 pub type ListReq(resource, key) {
   //$ derive json encode decode
   ListReq(params: Option(Params(key)))
@@ -141,12 +146,20 @@ pub type Pagination {
 
 // generic resp
 
-pub type SocketResp(resp) {
-  //$ derive json encode decode
+pub type SocketResp {
   SocketResp(
-    ref: String,
-    result: Result(resp, Err),
+    ref: Uuid,
+    result: Result(Json, Err),
   )
+}
+
+pub fn encode_socket_resp(
+  value: SocketResp,
+) -> Json {
+  json.object([
+    #("ref", value.ref |> uuid.to_string |> json.string),
+    #("result", value.result |> encode_result(function.identity, encode_err)),
+  ])
 }
 
 pub type Err {
@@ -305,91 +318,6 @@ pub fn decoder_socket_req_socket_req(
   use ref <- decode.field("ref", decoder_uuid())
   use req <- decode.field("req", decoder_req)
   decode.success(SocketReq(ref:, req:))
-}
-
-pub fn encode_crud_custom(
-  value: CrudCustom(resource, create, update, key, custom),
-  encode_resource: fn(resource) -> Json,
-  encode_create: fn(create) -> Json,
-  encode_update: fn(update) -> Json,
-  encode_key: fn(key) -> Json,
-  encode_custom: fn(custom) -> Json,
-) -> Json {
-  case value {
-    Crud(..) as value ->
-      json.object([
-        #("_var", json.string("Crud")),
-        #(
-          "crud",
-          encode_crud(
-            value.crud,
-            encode_resource,
-            encode_create,
-            encode_update,
-            encode_key,
-          ),
-        ),
-      ])
-    Custom(..) as value ->
-      json.object([
-        #("_var", json.string("Custom")),
-        #("custom", encode_custom(value.custom)),
-      ])
-  }
-}
-
-pub fn decoder_crud_custom(
-  decoder_resource: Decoder(resource),
-  decoder_create: Decoder(create),
-  decoder_update: Decoder(update),
-  decoder_key: Decoder(key),
-  decoder_custom: Decoder(custom),
-) -> Decoder(CrudCustom(resource, create, update, key, custom)) {
-  decode.one_of(
-    decoder_crud_custom_crud(
-      decoder_resource,
-      decoder_create,
-      decoder_update,
-      decoder_key,
-      decoder_custom,
-    ),
-    [
-      decoder_crud_custom_custom(
-        decoder_resource,
-        decoder_create,
-        decoder_update,
-        decoder_key,
-        decoder_custom,
-      ),
-    ],
-  )
-}
-
-pub fn decoder_crud_custom_crud(
-  decoder_resource: Decoder(resource),
-  decoder_create: Decoder(create),
-  decoder_update: Decoder(update),
-  decoder_key: Decoder(key),
-  decoder_custom: Decoder(custom),
-) -> Decoder(CrudCustom(resource, create, update, key, custom)) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("Crud"))
-  use crud <- decode.field(
-    "crud",
-    decoder_crud(decoder_resource, decoder_create, decoder_update, decoder_key),
-  )
-  decode.success(Crud(crud:))
-}
-
-pub fn decoder_crud_custom_custom(
-  decoder_resource: Decoder(resource),
-  decoder_create: Decoder(create),
-  decoder_update: Decoder(update),
-  decoder_key: Decoder(key),
-  decoder_custom: Decoder(custom),
-) -> Decoder(CrudCustom(resource, create, update, key, custom)) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("Custom"))
-  use custom <- decode.field("custom", decoder_custom)
-  decode.success(Custom(custom:))
 }
 
 pub fn encode_crud(
@@ -697,36 +625,6 @@ pub fn decoder_pagination_pagination() -> Decoder(Pagination) {
   decode.success(Pagination(page:, limit:))
 }
 
-pub fn encode_socket_resp(
-  value: SocketResp(resp),
-  encode_resp: fn(resp) -> Json,
-) -> Json {
-  case value {
-    SocketResp(..) as value ->
-      json.object([
-        #("ref", json.string(value.ref)),
-        #("result", encode_result(value.result, encode_resp, encode_err)),
-      ])
-  }
-}
-
-pub fn decoder_socket_resp(
-  decoder_resp: Decoder(resp),
-) -> Decoder(SocketResp(resp)) {
-  decode.one_of(decoder_socket_resp_socket_resp(decoder_resp), [])
-}
-
-pub fn decoder_socket_resp_socket_resp(
-  decoder_resp: Decoder(resp),
-) -> Decoder(SocketResp(resp)) {
-  use ref <- decode.field("ref", decode.string)
-  use result <- decode.field(
-    "result",
-    decoder_result(decoder_resp, decoder_err()),
-  )
-  decode.success(SocketResp(ref:, result:))
-}
-
 pub fn encode_err(value: Err) -> Json {
   case value {
     Client(..) as value ->
@@ -997,4 +895,53 @@ pub fn decoder_param_param() -> Decoder(Param) {
   use key <- decode.field("key", decode.string)
   use val <- decode.field("val", decode.string)
   decode.success(Param(key:, val:))
+}
+
+
+pub fn encode_func(
+  value: Func(param, return),
+  encode_param: fn(param) -> Json,
+  encode_return: fn(return) -> Json,
+) -> Json {
+  case value {
+    Func(..) as value ->
+      json.object([#("req", encode_func_req(value.req, encode_param))])
+  }
+}
+
+pub fn decoder_func(
+  decoder_param: Decoder(param),
+  decoder_return: Decoder(return),
+) -> Decoder(Func(param, return)) {
+  decode.one_of(decoder_func_func(decoder_param, decoder_return), [])
+}
+
+pub fn decoder_func_func(
+  decoder_param: Decoder(param),
+  decoder_return: Decoder(return),
+) -> Decoder(Func(param, return)) {
+  use req <- decode.field("req", decoder_func_req(decoder_param))
+  decode.success(Func(req:))
+}
+
+pub fn encode_func_req(
+  value: FuncReq(param, return),
+  encode_param: fn(param) -> Json,
+) -> Json {
+  case value {
+    FuncReq(..) as value -> json.object([#("param", encode_param(value.param))])
+  }
+}
+
+pub fn decoder_func_req(
+  decoder_param: Decoder(param),
+) -> Decoder(FuncReq(param, return)) {
+  decode.one_of(decoder_func_req_func_req(decoder_param), [])
+}
+
+pub fn decoder_func_req_func_req(
+  decoder_param: Decoder(param),
+) -> Decoder(FuncReq(param, return)) {
+  use param <- decode.field("param", decoder_param)
+  decode.success(FuncReq(param:))
 }

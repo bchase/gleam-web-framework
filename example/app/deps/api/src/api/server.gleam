@@ -1,3 +1,4 @@
+import gleam/int
 import youid/uuid.{type Uuid}
 import gleam/result
 import api/id.{type Id}
@@ -5,17 +6,10 @@ import gleam/option.{type Option}
 import gleam/io
 import gleam/string
 import gleam/json.{type Json}
-import api/client.{type Api, type Person, type PersonAttr, People, decoder_api, encode_person}
-import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq}
+import api/client.{type Api, type Person, type PersonAttr, decoder_api, encode_person}
+import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func}
 
 // codegen server
-
-pub type SocketResp {
-  SocketResp(
-    ref: Uuid,
-    resp: Json,
-  )
-}
 
 pub fn api_server(
   req req: SocketReq(Api),
@@ -23,13 +17,30 @@ pub fn api_server(
   let generic.SocketReq(ref:, req:) = req
 
   case req {
-    People(crud:) ->
+    client.People(crud:) ->
       crud_people
       |> process_crud(crud:, ref:)
+
+    client.IntToString(func:) ->
+      func_int_to_string
+      |> process_func(func:, ref:)
   }
 }
 
 // domain server impl
+
+pub const func_int_to_string =
+  ServerFuncHandler(
+    run: int_to_string,
+    //
+    encode: json.string,
+  )
+
+fn int_to_string(
+  num num: Int,
+) -> Result(String, Err) {
+  Ok(int.to_string(num))
+}
 
 pub const crud_people =
   ServerCrudHandler(
@@ -70,6 +81,7 @@ fn delete_people(
 
 // generic
 
+
 pub type ServerCrudHandler(resource, create, update, key) {
   ServerCrudHandler(
     list: fn(ListReq(resource, key)) -> Result(Paginated(resource), Err),
@@ -80,6 +92,25 @@ pub type ServerCrudHandler(resource, create, update, key) {
     //
     encode: fn(resource) -> Json,
   )
+}
+
+pub type ServerFuncHandler(param, return) {
+  ServerFuncHandler(
+    run: fn(param) -> Result(return, Err),
+    //
+    encode: fn(return) -> Json,
+  )
+}
+
+pub fn process_func(
+  func func: Func(param, return),
+  ref ref: Uuid,
+  handler handler: ServerFuncHandler(param, return),
+) -> Result(SocketResp, Err) {
+  func.req.param
+  |> handler.run
+  |> result.map(handler.encode)
+  |> result.map(fn(json) { SocketResp(ref:, result: Ok(json)) })
 }
 
 pub fn process_crud(
@@ -94,5 +125,5 @@ pub fn process_crud(
     Update(req:) -> handler.update(req) |> result.map(encode_record(_, handler.encode))
     Delete(req:) -> handler.delete(req) |> result.map(encode_record(_, handler.encode))
   }
-  |> result.map(SocketResp(ref:, resp: _))
+  |> result.map(fn(json) { SocketResp(ref:, result: Ok(json)) })
 }

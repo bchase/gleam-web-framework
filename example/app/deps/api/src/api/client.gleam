@@ -1,5 +1,6 @@
-import api/generic.{type ConfirmDelete, type Crud, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_record, encode_crud, encode_record}
+import api/generic.{type ConfirmDelete, type Crud, type Func, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_func, decoder_record, encode_crud, encode_func}
 import api/id.{type Id}
+import deriv/util as deriv
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
@@ -318,6 +319,7 @@ pub type PersonAttr {
 pub type Api {
   //$ derive json encode decode
   People(crud: Crud(Person, Person, Person, PersonAttr))
+  IntToString(func: Func(Int, String))
 }
 
 pub type Person {
@@ -542,6 +544,7 @@ pub fn encode_api(value: Api) -> Json {
   case value {
     People(..) as value ->
       json.object([
+        #("_var", json.string("People")),
         #(
           "crud",
           encode_crud(
@@ -553,14 +556,20 @@ pub fn encode_api(value: Api) -> Json {
           ),
         ),
       ])
+    IntToString(..) as value ->
+      json.object([
+        #("_var", json.string("IntToString")),
+        #("func", encode_func(value.func, json.int, json.string)),
+      ])
   }
 }
 
 pub fn decoder_api() -> Decoder(Api) {
-  decode.one_of(decoder_api_people(), [])
+  decode.one_of(decoder_api_people(), [decoder_api_int_to_string()])
 }
 
 pub fn decoder_api_people() -> Decoder(Api) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("People"))
   use crud <- decode.field(
     "crud",
     decoder_crud(
@@ -586,4 +595,11 @@ pub fn decoder_person() -> Decoder(Person) {
 pub fn decoder_person_person() -> Decoder(Person) {
   use name <- decode.field("name", decode.string)
   decode.success(Person(name:))
+}
+
+
+pub fn decoder_api_int_to_string() -> Decoder(Api) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("IntToString"))
+  use func <- decode.field("func", decoder_func(decode.int, decode.string))
+  decode.success(IntToString(func:))
 }

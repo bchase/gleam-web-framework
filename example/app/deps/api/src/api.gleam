@@ -18,7 +18,7 @@ fn decoder_id(_) { id.decoder_id() }
 pub type Record(t) = generic.Record(t)
 
 pub type SocketReq = generic.SocketReq(Req)
-pub type SocketResp = generic.SocketResp(Resp)
+pub type SocketResp = generic.SocketResp
 pub type Err = generic.Err
 
 pub fn socket_req(
@@ -29,9 +29,9 @@ pub fn socket_req(
 }
 
 pub fn socket_resp(
-  ref ref: String,
-  result result: Result(Resp, Err),
-) -> generic.SocketResp(Resp) {
+  ref ref: Uuid,
+  result result: Result(Json, Err),
+) -> generic.SocketResp {
   generic.SocketResp(ref:, result:)
 }
 
@@ -111,15 +111,17 @@ pub fn decoder_socket_req(
   generic.decoder_socket_req(decoder_req())
 }
 
-pub fn encode_socket_resp(
-  value: generic.SocketResp(Resp),
-) -> Json {
-  generic.encode_socket_resp(value, encode_resp)
-}
+pub const encode_socket_resp = generic.encode_socket_resp
+// pub fn encode_socket_resp(
+//   value: generic.SocketResp,
+// ) -> Json {
+//   generic.encode_socket_resp(value, encode_resp)
+// }
 
 pub fn decoder_socket_resp(
-) -> Decoder(generic.SocketResp(Resp)) {
-  generic.decoder_socket_resp(decoder_resp())
+) -> Decoder(generic.SocketResp) {
+  // generic.decoder_socket_resp(decoder_resp())
+  todo as "this should now be handled as `Dynamic` decode, but if not, reimpl `decoder_socket_resp`"
 }
 
 fn encode_nil(
