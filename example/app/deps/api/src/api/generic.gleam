@@ -254,7 +254,7 @@ fn encode_result(
   }
 }
 
-fn decoder_result(
+pub fn decoder_result(
   decoder_ok decoder_ok: Decoder(t),
   decoder_error decoder_error: Decoder(err),
 ) -> Decoder(Result(t, err)) {

@@ -62,7 +62,7 @@ type Model {
     //
     client: ApiClient(Api, Model, Msg),
     //
-    str: Option(Result(String, api.Err)),
+    str: Option(Result(String, client.Err)),
   )
 }
 
@@ -78,7 +78,7 @@ type Msg {
   // ui
   Send(num: Int)
   // api resps
-  GotIntToString(result: Result(String, client.RecvErr))
+  GotIntToString(result: Result(String, client.Err))
 
   // DeleteItem(id: Id(api.Item))
   // SetItem(item: Option(Record(api.Item)))
@@ -200,8 +200,7 @@ fn update(
       model.client.send(model, client.req_int_to_string(num, GotIntToString))
 
     GotIntToString(result:) -> {
-      echo result
-      pure(model)
+      pure(Model(..model, str: Some(result)))
     }
 
     // DeleteItem(id: item_id) -> {
@@ -404,8 +403,12 @@ fn update(
       pure(Model(..model, conn: None))
     }
 
-    RecvWebSocketEvent(event: ws.OnTextMessage(msg)) ->
+    RecvWebSocketEvent(event: ws.OnTextMessage(msg)) -> {
+      echo model.client.reqs
+      echo msg
+
       model.client.recv(model, msg)
+    }
   }
 }
 

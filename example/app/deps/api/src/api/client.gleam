@@ -1,4 +1,5 @@
-import api/generic.{type ConfirmDelete, type Crud, type Func, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_func, decoder_record, encode_crud, encode_func, FuncReq, Func}
+import api
+import api/generic.{type ConfirmDelete, type Crud, type Func, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_func, decoder_record, encode_crud, encode_func}
 import api/id.{type Id}
 import deriv/util as deriv
 import gleam/dict.{type Dict}
@@ -13,6 +14,11 @@ import gleam/string
 import lustre/effect.{type Effect}
 import youid/uuid.{type Uuid}
 
+pub type Err {
+  ApiErr(err: api.Err)
+  RecvErr(err: RecvErr)
+}
+
 pub type RecvErr {
   NoRef(
     json: String,
@@ -25,7 +31,7 @@ pub type RecvErr {
     ref: Uuid,
     json: String,
   )
-  RespNotFound(
+  ResultNotFound(
     ref: Uuid,
     json: String,
   )
@@ -187,7 +193,7 @@ fn clear_req_and_log_err(
       reqs
 
     ReqNotFound(ref:, ..) |
-    RespNotFound(ref:, ..) |
+    ResultNotFound(ref:, ..) |
     DecodeErrs(ref:, ..) ->
     // JsonDecodeErr(ref:, ..) ->
       case pop_req(reqs, ref) {
@@ -217,9 +223,9 @@ fn recv_(
   )
 
   use resp <- result.try(
-    decode.at(["resp"], decode.dynamic)
+    decode.at(["result"], decode.dynamic)
     |> json.parse(json, _)
-    |> result.replace_error(RespNotFound(ref:, json:))
+    |> result.replace_error(ResultNotFound(ref:, json:))
   )
 
   Ok(#(ref, resp))
@@ -336,7 +342,7 @@ fn dummy_update(
 
 pub type Api {
   //$ derive json encode decode
-  Items(crud: Crud(Item, Item, Item, ItemAttr))
+  // Items(crud: Crud(Item, Item, Item, ItemAttr))
   IntToString(func: Func(Int, String))
 }
 
@@ -361,102 +367,112 @@ type Transcoders(t) {
 
 fn func(
   param param: param,
-  msg to_msg: fn(Result(return, RecvErr)) -> msg,
+  msg to_msg: fn(Result(return, Err)) -> msg,
   //
   req req: fn(Func(param, return)) -> req,
   decoder decoder: Decoder(return),
 ) -> Req(req, msg) {
   let req = req(Func(FuncReq(param:)))
-  let msg = fn(x) { to_msg(Ok(x)) }
-  let err = fn(err) { to_msg(Error(err)) }
+  let msg = fn(x) { to_msg(x) }
+  let err = fn(err) { to_msg(Error(RecvErr(err))) }
+  // build_req(req:, decoder:, msg:, err:)
   build_req(req:, decoder:, msg:, err:)
 }
 
-fn list(
-  params params: Option(Params(key)),
-  msg to_msg: fn(Result(Paginated(t), RecvErr)) -> msg,
-  //
-  req req: fn(Crud(t, create, update, key)) -> req,
-  decoder decoder: Decoder(Paginated(t)),
-) -> Req(req, msg) {
-  let req = req(List(ListReq(params:)))
-  let msg = fn(x) { to_msg(Ok(x)) }
-  let err = fn(err) { to_msg(Error(err)) }
-  build_req(req:, decoder:, msg:, err:)
-}
+// fn list(
+//   params params: Option(Params(key)),
+//   msg to_msg: fn(Result(Paginated(t), RecvErr)) -> msg,
+//   //
+//   req req: fn(Crud(t, create, update, key)) -> req,
+//   decoder decoder: Decoder(Paginated(t)),
+// ) -> Req(req, msg) {
+//   let req = req(List(ListReq(params:)))
+//   let msg = fn(x) { to_msg(Ok(x)) }
+//   let err = fn(err) { to_msg(Error(err)) }
+//   build_req(req:, decoder:, msg:, err:)
+// }
 
-fn read(
-  id id: Id(t),
-  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
-  //
-  req req: fn(Crud(t, create, update, key)) -> req,
-  decoder decoder: Decoder(t),
-) -> Req(req, msg) {
-  let req = req(Read(ReadReq(id:)))
-  let decoder = decoder_record(decoder)
-  let msg = fn(x) { to_msg(Ok(x)) }
-  let err = fn(err) { to_msg(Error(err)) }
-  build_req(req:, decoder:, msg:, err:)
-}
+// fn read(
+//   id id: Id(t),
+//   msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
+//   //
+//   req req: fn(Crud(t, create, update, key)) -> req,
+//   decoder decoder: Decoder(t),
+// ) -> Req(req, msg) {
+//   let req = req(Read(ReadReq(id:)))
+//   let decoder = decoder_record(decoder)
+//   let msg = fn(x) { to_msg(Ok(x)) }
+//   let err = fn(err) { to_msg(Error(err)) }
+//   build_req(req:, decoder:, msg:, err:)
+// }
 
-fn create(
-  data data: create,
-  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
-  //
-  req req: fn(Crud(t, create, update, key)) -> req,
-  decoder decoder: Decoder(t),
-) -> Req(req, msg) {
-  let req = req(Create(CreateReq(data:)))
-  let decoder = decoder_record(decoder)
-  let msg = fn(x) { to_msg(Ok(x)) }
-  let err = fn(err) { to_msg(Error(err)) }
-  build_req(req:, decoder:, msg:, err:)
-}
+// fn create(
+//   data data: create,
+//   msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
+//   //
+//   req req: fn(Crud(t, create, update, key)) -> req,
+//   decoder decoder: Decoder(t),
+// ) -> Req(req, msg) {
+//   let req = req(Create(CreateReq(data:)))
+//   let decoder = decoder_record(decoder)
+//   let msg = fn(x) { to_msg(Ok(x)) }
+//   let err = fn(err) { to_msg(Error(err)) }
+//   build_req(req:, decoder:, msg:, err:)
+// }
 
-fn update(
-  id id: Id(t),
-  data data: update,
-  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
-  //
-  req req: fn(Crud(t, create, update, key)) -> req,
-  decoder decoder: Decoder(t),
-) -> Req(req, msg) {
-  let req = req(Update(UpdateReq(id:, data:)))
-  let decoder = decoder_record(decoder)
-  let msg = fn(x) { to_msg(Ok(x)) }
-  let err = fn(err) { to_msg(Error(err)) }
-  build_req(req:, decoder:, msg:, err:)
-}
+// fn update(
+//   id id: Id(t),
+//   data data: update,
+//   msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
+//   //
+//   req req: fn(Crud(t, create, update, key)) -> req,
+//   decoder decoder: Decoder(t),
+// ) -> Req(req, msg) {
+//   let req = req(Update(UpdateReq(id:, data:)))
+//   let decoder = decoder_record(decoder)
+//   let msg = fn(x) { to_msg(Ok(x)) }
+//   let err = fn(err) { to_msg(Error(err)) }
+//   build_req(req:, decoder:, msg:, err:)
+// }
 
-fn delete(
-  id id: Id(t),
-  confirm confirm: ConfirmDelete,
-  msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
-  //
-  req req: fn(Crud(t, create, update, key)) -> req,
-  decoder decoder: Decoder(t),
-) -> Req(req, msg) {
-  let req = req(Delete(DeleteReq(id:, confirm:)))
-  let decoder = decoder_record(decoder)
-  let msg = fn(x) { to_msg(Ok(x)) }
-  let err = fn(err) { to_msg(Error(err)) }
-  build_req(req:, decoder:, msg:, err:)
-}
+// fn delete(
+//   id id: Id(t),
+//   confirm confirm: ConfirmDelete,
+//   msg to_msg: fn(Result(Record(t), RecvErr)) -> msg,
+//   //
+//   req req: fn(Crud(t, create, update, key)) -> req,
+//   decoder decoder: Decoder(t),
+// ) -> Req(req, msg) {
+//   let req = req(Delete(DeleteReq(id:, confirm:)))
+//   let decoder = decoder_record(decoder)
+//   let msg = fn(x) { to_msg(Ok(x)) }
+//   let err = fn(err) { to_msg(Error(err)) }
+//   build_req(req:, decoder:, msg:, err:)
+// }
 
 fn build_req(
   req req: req,
   decoder decoder: Decoder(t),
-  msg msg: fn(t) -> msg,
+  msg msg: fn(Result(t, Err)) -> msg,
   err err: fn(RecvErr) -> msg
 ) -> Req(req, msg) {
   let ref = uuid.v7()
   Req(ref:, req:, resp: fn(dyn) {
     dyn
-    |> decode.run(decoder)
+    |> decode.run(generic.decoder_result(decoder, generic.decoder_err()))
+    |> result.map(result.map_error(_, ApiErr))
     |> result.map(msg)
     |> result.map_error(DecodeErrs(ref:, errs: _))
     |> HandlerResult(result: _, err:)
   })
+    // dyn
+    // |> decode.run(generic.decoder_result(decoder, generic.decoder_err()))
+    // |> result.map(result.map(_, fn(x) { msg(Ok(x))}))
+    // |> result.map(result.map_error(_, ApiErr))
+    // |> result.map_error(DecodeErrs(ref:, errs: _))
+    // |> result.map_error(RecvErr)
+    // |> result.flatten
+    // |> HandlerResult(result: _, err:)
 }
 
 // codegen helpers
@@ -471,59 +487,59 @@ fn build_req(
 
 pub fn req_int_to_string(
   param param: Int,
-  msg msg: fn(Result(String, RecvErr)) -> msg,
+  msg msg: fn(Result(String, Err)) -> msg,
 ) -> Req(Api, msg) {
   let req = IntToString
   let decoder = decode.string
   func(param:, msg:, req:, decoder:)
 }
 
-pub fn req_list_items(
-  params params: Option(Params(ItemAttr)),
-  msg msg: fn(Result(Paginated(Item), RecvErr)) -> msg,
-) -> Req(Api, msg) {
-  let req = Items
-  let decoder = json_paginated_items.decoder()
-  list(params:, msg:, req:, decoder:)
-}
+// pub fn req_list_items(
+//   params params: Option(Params(ItemAttr)),
+//   msg msg: fn(Result(Paginated(Item), RecvErr)) -> msg,
+// ) -> Req(Api, msg) {
+//   let req = Items
+//   let decoder = json_paginated_items.decoder()
+//   list(params:, msg:, req:, decoder:)
+// }
 
-pub fn req_read_items(
-  id id: Id(Item),
-  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
-) -> Req(Api, msg) {
-  let req = Items
-  let decoder = json_items_scalar.decoder()
-  read(id:, msg:, req:, decoder:)
-}
+// pub fn req_read_items(
+//   id id: Id(Item),
+//   msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
+// ) -> Req(Api, msg) {
+//   let req = Items
+//   let decoder = json_items_scalar.decoder()
+//   read(id:, msg:, req:, decoder:)
+// }
 
-pub fn req_create_items(
-  data data: Item,
-  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
-) -> Req(Api, msg) {
-  let req = Items
-  let decoder = json_items_scalar.decoder()
-  create(data:, msg:, req:, decoder:)
-}
+// pub fn req_create_items(
+//   data data: Item,
+//   msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
+// ) -> Req(Api, msg) {
+//   let req = Items
+//   let decoder = json_items_scalar.decoder()
+//   create(data:, msg:, req:, decoder:)
+// }
 
-pub fn req_update_items(
-  id id: Id(Item),
-  data data: Item,
-  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
-) -> Req(Api, msg) {
-  let req = Items
-  let decoder = json_items_scalar.decoder()
-  update(id:, data:, msg:, req:, decoder:)
-}
+// pub fn req_update_items(
+//   id id: Id(Item),
+//   data data: Item,
+//   msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
+// ) -> Req(Api, msg) {
+//   let req = Items
+//   let decoder = json_items_scalar.decoder()
+//   update(id:, data:, msg:, req:, decoder:)
+// }
 
-pub fn req_delete_items(
-  id id: Id(Item),
-  confirm confirm: ConfirmDelete,
-  msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
-) -> Req(Api, msg) {
-  let req = Items
-  let decoder = json_items_scalar.decoder()
-  delete(id:, confirm:, msg:, req:, decoder:)
-}
+// pub fn req_delete_items(
+//   id id: Id(Item),
+//   confirm confirm: ConfirmDelete,
+//   msg msg: fn(Result(Record(Item), RecvErr)) -> msg,
+// ) -> Req(Api, msg) {
+//   let req = Items
+//   let decoder = json_items_scalar.decoder()
+//   delete(id:, confirm:, msg:, req:, decoder:)
+// }
 
 // codegen json
 
@@ -561,61 +577,20 @@ fn encode_items_scalar(
 
 // DERIVED
 
-pub fn encode_item_attr(value: ItemAttr) -> Json {
-  case value {
-    ItemName -> json.object([])
-  }
-}
-
-pub fn decoder_item_attr() -> Decoder(ItemAttr) {
-  decode.one_of(decoder_item_attr_item_name(), [])
-}
-
-pub fn decoder_item_attr_item_name() -> Decoder(ItemAttr) {
-  decode.success(ItemName)
-}
-
-
 pub fn encode_api(value: Api) -> Json {
   case value {
-    Items(..) as value ->
-      json.object([
-        #("_var", json.string("Items")),
-        #(
-          "crud",
-          encode_crud(
-            value.crud,
-            encode_item,
-            encode_item,
-            encode_item,
-            encode_item_attr,
-          ),
-        ),
-      ])
     IntToString(..) as value ->
-      json.object([
-        #("_var", json.string("IntToString")),
-        #("func", encode_func(value.func, json.int, json.string)),
-      ])
+      json.object([#("func", encode_func(value.func, json.int, json.string))])
   }
 }
 
 pub fn decoder_api() -> Decoder(Api) {
-  decode.one_of(decoder_api_items(), [decoder_api_int_to_string()])
+  decode.one_of(decoder_api_int_to_string(), [])
 }
 
-pub fn decoder_api_items() -> Decoder(Api) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("Items"))
-  use crud <- decode.field(
-    "crud",
-    decoder_crud(
-      decoder_item(),
-      decoder_item(),
-      decoder_item(),
-      decoder_item_attr(),
-    ),
-  )
-  decode.success(Items(crud:))
+pub fn decoder_api_int_to_string() -> Decoder(Api) {
+  use func <- decode.field("func", decoder_func(decode.int, decode.string))
+  decode.success(IntToString(func:))
 }
 
 pub fn encode_item(value: Item) -> Json {
@@ -633,9 +608,16 @@ pub fn decoder_item_item() -> Decoder(Item) {
   decode.success(Item(name:))
 }
 
+pub fn encode_item_attr(value: ItemAttr) -> Json {
+  case value {
+    ItemName -> json.object([])
+  }
+}
 
-pub fn decoder_api_int_to_string() -> Decoder(Api) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("IntToString"))
-  use func <- decode.field("func", decoder_func(decode.int, decode.string))
-  decode.success(IntToString(func:))
+pub fn decoder_item_attr() -> Decoder(ItemAttr) {
+  decode.one_of(decoder_item_attr_item_name(), [])
+}
+
+pub fn decoder_item_attr_item_name() -> Decoder(ItemAttr) {
+  decode.success(ItemName)
 }
