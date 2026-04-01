@@ -266,78 +266,6 @@ fn generic_send(
   }
 }
 
-// dummy lustre app
-
-type Model {
-  Model(
-    conn: Option(Conn),
-    client: ApiClient(Api, Model, Msg),
-    //
-    items: ApiData(List(Record(Item))),
-  )
-}
-
-type Msg {
-  NoOp
-  GotItems(result: Result(Paginated(Item), RecvErr))
-}
-
-type Conn {
-  Conn
-}
-
-fn emulate_ws_send(
-  conn conn: Conn,
-  msg msg: String,
-) -> Nil {
-  io.println("EMULATING WS SEND: " <> msg)
-}
-
-fn dummy_model(
-) -> Model {
-  let client =
-    init(
-      get_client: fn(model: Model) { model.client },
-      set_client: fn(model: Model, client) { Model(..model, client:) },
-      get_send: fn(model: Model) {
-        case model.conn {
-          None -> None
-          // Some(conn) -> Some(emulate_ws_send(conn, _))
-          Some(conn) -> todo
-        }
-      },
-      encode: encode_api,
-      on_no_conn: todo,
-    )
-
-  Model(
-    conn: None,
-    client:,
-    //
-    items: NotAsked,
-  )
-}
-
-fn dummy_update(
-  model model: Model,
-  msg msg: Msg,
-) -> #(Model, Effect(Msg)) {
-  case msg {
-    NoOp ->
-      todo
-
-    GotItems(result:) ->
-      case result {
-        Ok(data) ->
-          Model(..model, items: Success(data: data.resources))
-          |> pair.new(effect.none())
-
-        Error(_) ->
-          todo
-      }
-  }
-}
-
 // dummy api
 
 pub type Api {
@@ -465,25 +393,9 @@ fn build_req(
     |> result.map_error(DecodeErrs(ref:, errs: _))
     |> HandlerResult(result: _, err:)
   })
-    // dyn
-    // |> decode.run(generic.decoder_result(decoder, generic.decoder_err()))
-    // |> result.map(result.map(_, fn(x) { msg(Ok(x))}))
-    // |> result.map(result.map_error(_, ApiErr))
-    // |> result.map_error(DecodeErrs(ref:, errs: _))
-    // |> result.map_error(RecvErr)
-    // |> result.flatten
-    // |> HandlerResult(result: _, err:)
 }
 
 // codegen helpers
-
-// pub fn send(
-//   reqs reqs: Reqs(msg),
-//   req req: Req(Api, msg),
-//   send send: Option(fn(String) -> Effect(msg)),
-// ) -> Result(#(Reqs(msg), Effect(msg)), NoConn) {
-//   generic_send(reqs:, req:, send:, encode: encode_api)
-// }
 
 pub fn req_int_to_string(
   param param: Int,
