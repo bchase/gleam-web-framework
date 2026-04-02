@@ -51,6 +51,11 @@ pub fn decoder_sub_sub(_decoder_sub: Decoder(sub)) -> Decoder(Sub(return)) {
   decode.success(Sub)
 }
 
+pub type SubscriptionMsg(msg) {
+  //$ derive json encode decode
+  S(s: msg)
+}
+
 pub type Func(param, return) {
   //$ derive json encode decode
   Func(req: FuncReq(param, return))
@@ -270,7 +275,7 @@ pub fn decoder_nil(
   decode.success(Nil)
 }
 
-fn encode_result(
+pub fn encode_result(
   result result: Result(t, err),
   encode_ok encode_ok: fn(t) -> Json,
   encode_error encode_error: fn(err) -> Json,
@@ -291,14 +296,14 @@ pub fn decoder_result(
   )
 }
 
-fn decoder_result_ok(
+pub fn decoder_result_ok(
   decoder_ok decoder_ok: Decoder(t),
 ) -> Decoder(Result(t, err)) {
   use x <- decode.field("ok", decoder_ok)
   decode.success(Ok(x))
 }
 
-fn decoder_result_err(
+pub fn decoder_result_err(
   decoder_error decoder_error: Decoder(err),
 ) -> Decoder(Result(t, err)) {
   use err <- decode.field("error", decoder_error)
@@ -968,4 +973,27 @@ pub fn decoder_action_updated() -> Decoder(Action) {
 pub fn decoder_action_deleted() -> Decoder(Action) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Deleted"))
   decode.success(Deleted)
+}
+
+
+pub fn encode_subscription_msg(
+  value: SubscriptionMsg(msg),
+  encode_msg: fn(msg) -> Json,
+) -> Json {
+  case value {
+    S(..) as value -> json.object([#("s", encode_msg(value.s))])
+  }
+}
+
+pub fn decoder_subscription_msg(
+  decoder_msg: Decoder(msg),
+) -> Decoder(SubscriptionMsg(msg)) {
+  decode.one_of(decoder_subscription_msg_s(decoder_msg), [])
+}
+
+pub fn decoder_subscription_msg_s(
+  decoder_msg: Decoder(msg),
+) -> Decoder(SubscriptionMsg(msg)) {
+  use s <- decode.field("s", decoder_msg)
+  decode.success(S(s:))
 }

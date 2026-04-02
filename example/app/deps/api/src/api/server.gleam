@@ -109,7 +109,13 @@ pub fn process_sub(
     False ->
       case handler.run(sub, ref, ctx) {
         Ok(listner) -> {
-          let resp = SocketResp(ref:, action:, result: Ok(json.null()))
+          let ack =
+            generic.S(Ok(Nil))
+            |> generic.encode_subscription_msg(
+              generic.encode_result(_, generic.encode_nil, fn(_) { json.null() })
+            )
+
+          let resp = SocketResp(ref:, action:, result: Ok(ack))
           #(subs, resp, Some(listner))
         }
 

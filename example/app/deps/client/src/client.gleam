@@ -84,8 +84,6 @@ type Msg {
   RecvItems(result: Result(Paginated(client.Item), client.Err))
   RecvIntToString(result: Result(String, client.Err))
   RecvItem(action: Action, result: Result(Record(client.Item), client.Err))
-  // // subs
-  // RecvSubscription(ref: String, resp: api.Resp)
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
@@ -190,6 +188,7 @@ fn update(
   model model: Model,
   msg msg: Msg,
 ) -> #(Model, Effect(Msg)) {
+  // case msg |> echo {
   case msg {
     NoOp ->
       pure(model)
@@ -320,8 +319,10 @@ fn update(
       let #(model, subscribe_items_eff) =
         model
         |> model.client.send(client.req_subscribe_to_items(msg: fn(result) {
-          echo result
-          NoOp
+          case result {
+            Ok(client.ItemsSubMsg(action:, item:)) -> RecvItem(action:, result: Ok(item))
+            Error(_) -> NoOp
+          }
         }))
 
       #(model, effect.batch([
@@ -408,18 +409,18 @@ fn map_success(
 //   }
 // }
 
-fn pop(
-  reqs reqs: Dict(Uuid, ApiRespHandler),
-  resp resp: SocketResp,
-) -> #(Dict(Uuid, ApiRespHandler), Result(ApiRespHandler, Nil)) {
-  case dict.get(reqs, resp.ref) {
-    Ok(handler) ->
-      #(dict.delete(reqs, resp.ref), Ok(handler))
+// fn pop(
+//   reqs reqs: Dict(Uuid, ApiRespHandler),
+//   resp resp: SocketResp,
+// ) -> #(Dict(Uuid, ApiRespHandler), Result(ApiRespHandler, Nil)) {
+//   case dict.get(reqs, resp.ref) {
+//     Ok(handler) ->
+//       #(dict.delete(reqs, resp.ref), Ok(handler))
 
-    Error(Nil) ->
-      #(reqs, Error(Nil))
-  }
-}
+//     Error(Nil) ->
+//       #(reqs, Error(Nil))
+//   }
+// }
 
 fn process(
   model model: Model,

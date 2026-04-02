@@ -903,7 +903,11 @@ fn subscribe_to_items(
     in: fn(rs: PubSub) { rs.items },
     wrap: fn(t) {
       client.ItemsSubMsg(item: t.0, action: t.1)
-      |> client.encode_items_sub_msg
+      |> Ok
+      |> generic.S
+      |> generic.encode_subscription_msg(
+        generic.encode_result(_, client.encode_items_sub_msg, fn(_) { json.null() })
+      )
       |> Ok
       |> generic.SocketResp(ref:, action: None)
       |> generic.encode_socket_resp

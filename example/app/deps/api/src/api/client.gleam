@@ -113,31 +113,6 @@ pub fn init(
       }
     }
 
-  let sub =
-    fn(model, req) {
-      let client = get_client(model)
-      let send = get_send(model)
-
-      case send_(req:, reqs: client.reqs, send:, encode:) {
-        Ok(#(reqs, send_eff)) ->
-          model
-          |> set_client(ApiClient(..client, reqs:))
-          |> pair.new(send_eff)
-
-        Error(NoConn) ->
-          case handle_no_conn(model) {
-            Some(msg) ->
-              model
-              |> pair.new(effect.from(fn(dispatch) {
-                dispatch(msg)
-              }))
-
-            None ->
-              #(model, effect.none())
-          }
-      }
-    }
-
   let recv =
     fn(model, json) {
       let client = get_client(model)
@@ -164,14 +139,40 @@ pub fn init(
 
 // RECEIVE
 
+// fn decoder_result_ok_subbed() -> Decoder(Subbed) {
+//   generic.decoder_result_ok(generic.decoder_subbed())
+//   |> decode.then(fn(result) {
+//     case result {
+//       Ok(subbed) -> decode.success(subbed)
+//       Error(_err) -> decode.failure(Subbed, "Result(Subbed, err)")
+//     }
+//   })
+// }
+
 fn recv(
   reqs reqs: Reqs(msg),
   json json: String,
 ) -> Result(#(Reqs(msg), msg), RecvErr) {
   use #(ref, dyn) <- result.try(recv_ref_and_dyn(json:))
 
+  let decoder: Decoder(Result(generic.SubscriptionMsg(Dynamic), err)) =
+    generic.decoder_subscription_msg(decode.dynamic)
+    |> generic.decoder_result_ok
+
+  let #(is_sub, dyn) =
+    case decode.run(dyn, decoder) {
+      Ok(Ok(generic.S(dyn))) -> #(True, dyn)
+      _ -> #(False, dyn)
+    }
+
+  let get_handler =
+    case is_sub {
+      True -> get_req
+      False -> pop_req
+    }
+
   use #(reqs, handle_resp) <- result.try(
-    pop_req(reqs, ref)
+    get_handler(reqs, ref)
     |> result.replace_error(ReqNotFound(ref:, json:))
   )
 
@@ -210,6 +211,14 @@ fn recv_ref_and_dyn(
   )
 
   Ok(#(ref, resp))
+}
+
+fn get_req(
+  reqs reqs: Reqs(msg),
+  ref ref: Uuid,
+) -> Result(#(Reqs(msg), HandlerFunc(msg)), Nil) {
+  use f <- result.try(dict.get(reqs.dict, ref))
+  Ok(#(reqs, f))
 }
 
 fn pop_req(
@@ -307,11 +316,11 @@ fn func(
 fn sub(
   sub sub: Sub(sub_msg),
   req req: fn(Sub(sub_msg)) -> req,
-  msg msg: fn(Result(Nil, Err)) -> msg,
+  decoder decoder: Decoder(sub_msg),
+  msg msg: fn(Result(sub_msg, Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(sub)
   let err = fn(err) { msg(Error(RecvErr(err))) }
-  let decoder = generic.decoder_nil()
   build_req(req:, decoder:, msg:, err:)
 }
 
@@ -435,9 +444,9 @@ pub type ItemAttr {
 // codegen helpers
 
 pub fn req_subscribe_to_items(
-  msg msg: fn(Result(Nil, Err)) -> msg,
+  msg msg: fn(Result(ItemsSubMsg, Err)) -> msg,
 ) -> Req(Api, msg) {
-  sub(Sub, SubscribeToItems, msg)
+  sub(Sub, SubscribeToItems, decoder_items_sub_msg(),  msg)
 }
 
 pub fn req_int_to_string(
