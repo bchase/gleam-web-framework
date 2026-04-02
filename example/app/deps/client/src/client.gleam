@@ -311,9 +311,23 @@ fn update(
     RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
       io.println("WebSocket opened: " <> ws_url)
 
-      // pure(Model(..model, conn: Some(conn)))
-      Model(..model, conn: Some(conn))
-      |> model.client.send(client.req_list_items(params: None, msg: RecvItems))
+      let model = Model(..model, conn: Some(conn))
+
+      let #(model, list_items_eff) =
+        model
+        |> model.client.send(client.req_list_items(params: None, msg: RecvItems))
+
+      let #(model, subscribe_items_eff) =
+        model
+        |> model.client.send(client.req_subscribe_to_items(msg: fn(result) {
+          echo result
+          NoOp
+        }))
+
+      #(model, effect.batch([
+        list_items_eff,
+        subscribe_items_eff,
+      ]))
 
       // let #(model, sub_to_items_eff) =
       //   Model(..model, conn: Some(conn), items: Loading)
@@ -356,7 +370,7 @@ fn update(
     }
 
     RecvWebSocketEvent(event: ws.OnTextMessage(msg)) -> {
-      echo msg
+      // echo msg
 
       model.client.recv(model, msg)
     }

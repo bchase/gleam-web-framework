@@ -36,6 +36,21 @@ pub fn decoder_uuid() -> Decoder(Uuid) {
   })
 }
 
+pub type Sub(return) {
+  Sub
+}
+// TODO `deriv` detect phantom types
+pub fn encode_sub(_sub: Sub(sub), _) -> Json {
+  json.object([#("sub", json.null())])
+}
+pub fn decoder_sub(decoder_sub: Decoder(return)) -> Decoder(Sub(return)) {
+  decode.one_of(decoder_sub_sub(decoder_sub), [])
+}
+pub fn decoder_sub_sub(_decoder_sub: Decoder(sub)) -> Decoder(Sub(return)) {
+  use _sub <- decode.field("sub", decoder_nil())
+  decode.success(Sub)
+}
+
 pub type Func(param, return) {
   //$ derive json encode decode
   Func(req: FuncReq(param, return))
@@ -242,7 +257,18 @@ fn decoder_timestamp() -> Decoder(Timestamp) {
   decode.success(timestamp.from_unix_seconds_and_nanoseconds(s, ns))
 }
 
-// TODO impl `Result` in deriv
+// TODO impl `Result` / `Nil` in deriv
+
+pub fn encode_nil(
+  value value: Nil,
+) -> Json {
+  json.null()
+}
+
+pub fn decoder_nil(
+) -> Decoder(Nil) {
+  decode.success(Nil)
+}
 
 fn encode_result(
   result result: Result(t, err),
@@ -319,6 +345,32 @@ pub fn decoder_socket_req_socket_req(
   use ref <- decode.field("ref", decoder_uuid())
   use req <- decode.field("req", decoder_req)
   decode.success(SocketReq(ref:, req:))
+}
+
+pub fn encode_func(
+  value: Func(param, return),
+  encode_param: fn(param) -> Json,
+  encode_return: fn(return) -> Json,
+) -> Json {
+  case value {
+    Func(..) as value ->
+      json.object([#("req", encode_func_req(value.req, encode_param))])
+  }
+}
+
+pub fn decoder_func(
+  decoder_param: Decoder(param),
+  decoder_return: Decoder(return),
+) -> Decoder(Func(param, return)) {
+  decode.one_of(decoder_func_func(decoder_param, decoder_return), [])
+}
+
+pub fn decoder_func_func(
+  decoder_param: Decoder(param),
+  decoder_return: Decoder(return),
+) -> Decoder(Func(param, return)) {
+  use req <- decode.field("req", decoder_func_req(decoder_param))
+  decode.success(Func(req:))
 }
 
 pub fn encode_crud(
@@ -455,6 +507,115 @@ pub fn decoder_crud_delete(
   use _deriv_var_constr <- decode.field("_var", deriv.is("Delete"))
   use req <- decode.field("req", decoder_delete_req(decoder_resource))
   decode.success(Delete(req:))
+}
+
+pub fn encode_params(value: Params(key), encode_key: fn(key) -> Json) -> Json {
+  case value {
+    Params(..) as value ->
+      json.object([
+        #("pagination", json.nullable(value.pagination, encode_pagination)),
+        #("params", json.array(value.params, encode_param)),
+        #("sort", json.array(value.sort, encode_sort(_, encode_key))),
+      ])
+  }
+}
+
+pub fn decoder_params(decoder_key: Decoder(key)) -> Decoder(Params(key)) {
+  decode.one_of(decoder_params_params(decoder_key), [])
+}
+
+pub fn decoder_params_params(decoder_key: Decoder(key)) -> Decoder(Params(key)) {
+  use sort <- decode.field("sort", decode.list(decoder_sort(decoder_key)))
+  use params <- decode.field("params", decode.list(decoder_param()))
+  use pagination <- decode.optional_field(
+    "pagination",
+    deriv.none,
+    decode.optional(decoder_pagination()),
+  )
+  decode.success(Params(sort:, params:, pagination:))
+}
+
+pub fn encode_param(value: Param) -> Json {
+  case value {
+    Param(..) as value ->
+      json.object([
+        #("key", json.string(value.key)),
+        #("val", json.string(value.val)),
+      ])
+  }
+}
+
+pub fn decoder_param() -> Decoder(Param) {
+  decode.one_of(decoder_param_param(), [])
+}
+
+pub fn decoder_param_param() -> Decoder(Param) {
+  use key <- decode.field("key", decode.string)
+  use val <- decode.field("val", decode.string)
+  decode.success(Param(key:, val:))
+}
+
+pub fn encode_sort(value: Sort(key), encode_key: fn(key) -> Json) -> Json {
+  case value {
+    Sort(..) as value ->
+      json.object([
+        #("dir", encode_dir(value.dir)),
+        #("key", encode_key(value.key)),
+      ])
+  }
+}
+
+pub fn decoder_sort(decoder_key: Decoder(key)) -> Decoder(Sort(key)) {
+  decode.one_of(decoder_sort_sort(decoder_key), [])
+}
+
+pub fn decoder_sort_sort(decoder_key: Decoder(key)) -> Decoder(Sort(key)) {
+  use key <- decode.field("key", decoder_key)
+  use dir <- decode.field("dir", decoder_dir())
+  decode.success(Sort(key:, dir:))
+}
+
+pub fn encode_dir(value: Dir) -> Json {
+  case value {
+    Asc -> json.object([#("_var", json.string("Asc"))])
+    Desc -> json.object([#("_var", json.string("Desc"))])
+  }
+}
+
+pub fn decoder_dir() -> Decoder(Dir) {
+  decode.one_of(decoder_dir_asc(), [decoder_dir_desc()])
+}
+
+pub fn decoder_dir_asc() -> Decoder(Dir) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Asc"))
+  decode.success(Asc)
+}
+
+pub fn decoder_dir_desc() -> Decoder(Dir) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Desc"))
+  decode.success(Desc)
+}
+
+pub fn encode_func_req(
+  value: FuncReq(param, return),
+  encode_param: fn(param) -> Json,
+) -> Json {
+  case value {
+    FuncReq(..) as value -> json.object([#("param", encode_param(value.param))])
+  }
+}
+
+pub fn decoder_func_req(
+  decoder_param: Decoder(param),
+) -> Decoder(FuncReq(param, return)) {
+  decode.one_of(decoder_func_req_func_req(decoder_param), [])
+}
+
+pub fn decoder_func_req_func_req(
+  decoder_param: Decoder(param),
+) -> Decoder(FuncReq(param, return)) {
+  use param <- decode.field("param", decoder_param)
+  decode.success(FuncReq(param:))
 }
 
 pub fn encode_list_req(
@@ -807,142 +968,4 @@ pub fn decoder_action_updated() -> Decoder(Action) {
 pub fn decoder_action_deleted() -> Decoder(Action) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("Deleted"))
   decode.success(Deleted)
-}
-
-
-pub fn encode_params(value: Params(key), encode_key: fn(key) -> Json) -> Json {
-  case value {
-    Params(..) as value ->
-      json.object([
-        #("pagination", json.nullable(value.pagination, encode_pagination)),
-        #("params", json.array(value.params, encode_param)),
-        #("sort", json.array(value.sort, encode_sort(_, encode_key))),
-      ])
-  }
-}
-
-pub fn decoder_params(decoder_key: Decoder(key)) -> Decoder(Params(key)) {
-  decode.one_of(decoder_params_params(decoder_key), [])
-}
-
-pub fn decoder_params_params(decoder_key: Decoder(key)) -> Decoder(Params(key)) {
-  use sort <- decode.field("sort", decode.list(decoder_sort(decoder_key)))
-  use params <- decode.field("params", decode.list(decoder_param()))
-  use pagination <- decode.optional_field(
-    "pagination",
-    deriv.none,
-    decode.optional(decoder_pagination()),
-  )
-  decode.success(Params(sort:, params:, pagination:))
-}
-
-pub fn encode_sort(value: Sort(key), encode_key: fn(key) -> Json) -> Json {
-  case value {
-    Sort(..) as value ->
-      json.object([
-        #("dir", encode_dir(value.dir)),
-        #("key", encode_key(value.key)),
-      ])
-  }
-}
-
-pub fn decoder_sort(decoder_key: Decoder(key)) -> Decoder(Sort(key)) {
-  decode.one_of(decoder_sort_sort(decoder_key), [])
-}
-
-pub fn decoder_sort_sort(decoder_key: Decoder(key)) -> Decoder(Sort(key)) {
-  use key <- decode.field("key", decoder_key)
-  use dir <- decode.field("dir", decoder_dir())
-  decode.success(Sort(key:, dir:))
-}
-
-pub fn encode_dir(value: Dir) -> Json {
-  case value {
-    Asc -> json.object([#("_var", json.string("Asc"))])
-    Desc -> json.object([#("_var", json.string("Desc"))])
-  }
-}
-
-pub fn decoder_dir() -> Decoder(Dir) {
-  decode.one_of(decoder_dir_asc(), [decoder_dir_desc()])
-}
-
-pub fn decoder_dir_asc() -> Decoder(Dir) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("Asc"))
-  decode.success(Asc)
-}
-
-pub fn decoder_dir_desc() -> Decoder(Dir) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("Desc"))
-  decode.success(Desc)
-}
-
-
-pub fn encode_param(value: Param) -> Json {
-  case value {
-    Param(..) as value ->
-      json.object([
-        #("key", json.string(value.key)),
-        #("val", json.string(value.val)),
-      ])
-  }
-}
-
-pub fn decoder_param() -> Decoder(Param) {
-  decode.one_of(decoder_param_param(), [])
-}
-
-pub fn decoder_param_param() -> Decoder(Param) {
-  use key <- decode.field("key", decode.string)
-  use val <- decode.field("val", decode.string)
-  decode.success(Param(key:, val:))
-}
-
-
-pub fn encode_func(
-  value: Func(param, return),
-  encode_param: fn(param) -> Json,
-  encode_return: fn(return) -> Json,
-) -> Json {
-  case value {
-    Func(..) as value ->
-      json.object([#("req", encode_func_req(value.req, encode_param))])
-  }
-}
-
-pub fn decoder_func(
-  decoder_param: Decoder(param),
-  decoder_return: Decoder(return),
-) -> Decoder(Func(param, return)) {
-  decode.one_of(decoder_func_func(decoder_param, decoder_return), [])
-}
-
-pub fn decoder_func_func(
-  decoder_param: Decoder(param),
-  decoder_return: Decoder(return),
-) -> Decoder(Func(param, return)) {
-  use req <- decode.field("req", decoder_func_req(decoder_param))
-  decode.success(Func(req:))
-}
-
-pub fn encode_func_req(
-  value: FuncReq(param, return),
-  encode_param: fn(param) -> Json,
-) -> Json {
-  case value {
-    FuncReq(..) as value -> json.object([#("param", encode_param(value.param))])
-  }
-}
-
-pub fn decoder_func_req(
-  decoder_param: Decoder(param),
-) -> Decoder(FuncReq(param, return)) {
-  decode.one_of(decoder_func_req_func_req(decoder_param), [])
-}
-
-pub fn decoder_func_req_func_req(
-  decoder_param: Decoder(param),
-) -> Decoder(FuncReq(param, return)) {
-  use param <- decode.field("param", decoder_param)
-  decode.success(FuncReq(param:))
 }

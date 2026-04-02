@@ -1,5 +1,5 @@
 import api
-import api/generic.{type ConfirmDelete, type Crud, type Func, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_func, decoder_record, encode_crud, encode_func, type Action, Created, Updated, Deleted}
+import api/generic.{type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Pagination, type Params, type Record, type SocketReq, type Sub, Create, CreateReq, Created, Delete, DeleteReq, Deleted, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Sub, Update, UpdateReq, Updated, decoder_action, decoder_crud, decoder_func, decoder_record, decoder_sub, encode_action, encode_crud, encode_func, encode_record, encode_sub}
 import api/id.{type Id}
 import deriv/util as deriv
 import gleam/dict.{type Dict}
@@ -89,6 +89,31 @@ pub fn init(
   on_no_conn handle_no_conn: fn(model) -> Option(msg),
 ) -> ApiClient(req, model, msg) {
   let send =
+    fn(model, req) {
+      let client = get_client(model)
+      let send = get_send(model)
+
+      case send_(req:, reqs: client.reqs, send:, encode:) {
+        Ok(#(reqs, send_eff)) ->
+          model
+          |> set_client(ApiClient(..client, reqs:))
+          |> pair.new(send_eff)
+
+        Error(NoConn) ->
+          case handle_no_conn(model) {
+            Some(msg) ->
+              model
+              |> pair.new(effect.from(fn(dispatch) {
+                dispatch(msg)
+              }))
+
+            None ->
+              #(model, effect.none())
+          }
+      }
+    }
+
+  let sub =
     fn(model, req) {
       let client = get_client(model)
       let send = get_send(model)
@@ -279,6 +304,17 @@ fn func(
   build_req(req:, decoder:, msg:, err:)
 }
 
+fn sub(
+  sub sub: Sub(sub_msg),
+  req req: fn(Sub(sub_msg)) -> req,
+  msg msg: fn(Result(Nil, Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(sub)
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  let decoder = generic.decoder_nil()
+  build_req(req:, decoder:, msg:, err:)
+}
+
 fn list(
   req req: fn(Crud(t, create, update, key)) -> req,
   params params: Option(Params(key)),
@@ -372,6 +408,16 @@ pub type Api {
   //$ derive json encode decode
   Items(crud: Crud(Item, Item, Item, ItemAttr))
   IntToString(func: Func(Int, String))
+  SubscribeToItems(sub: Sub(ItemsSubMsg))
+}
+
+//pub type ApiSub {
+//  //$ derive json encode decode
+//  ItemsSub
+//}
+pub type ItemsSubMsg {
+  //$ derive json encode decode
+  ItemsSubMsg(action: Action, item: Record(Item))
 }
 
 pub type Item {
@@ -387,6 +433,12 @@ pub type ItemAttr {
 }
 
 // codegen helpers
+
+pub fn req_subscribe_to_items(
+  msg msg: fn(Result(Nil, Err)) -> msg,
+) -> Req(Api, msg) {
+  sub(Sub, SubscribeToItems, msg)
+}
 
 pub fn req_int_to_string(
   param param: Int,
@@ -455,17 +507,59 @@ pub fn encode_api(value: Api) -> Json {
         #("_var", json.string("IntToString")),
         #("func", encode_func(value.func, json.int, json.string)),
       ])
+    SubscribeToItems(..) as value ->
+      json.object([
+        #("_var", json.string("SubscribeToItems")),
+        #("sub", encode_sub(value.sub, encode_items_sub_msg)),
+      ])
   }
 }
 
 pub fn decoder_api() -> Decoder(Api) {
-  decode.one_of(decoder_api_items(), [decoder_api_int_to_string()])
+  decode.one_of(decoder_api_items(), [
+    decoder_api_int_to_string(),
+    decoder_api_subscribe_to_items(),
+  ])
+}
+
+pub fn decoder_api_items() -> Decoder(Api) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Items"))
+  use crud <- decode.field(
+    "crud",
+    decoder_crud(
+      decoder_item(),
+      decoder_item(),
+      decoder_item(),
+      decoder_item_attr(),
+    ),
+  )
+  decode.success(Items(crud:))
 }
 
 pub fn decoder_api_int_to_string() -> Decoder(Api) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("IntToString"))
   use func <- decode.field("func", decoder_func(decode.int, decode.string))
   decode.success(IntToString(func:))
+}
+
+pub fn encode_items_sub_msg(value: ItemsSubMsg) -> Json {
+  case value {
+    ItemsSubMsg(..) as value ->
+      json.object([
+        #("action", encode_action(value.action)),
+        #("item", encode_record(value.item, encode_item)),
+      ])
+  }
+}
+
+pub fn decoder_items_sub_msg() -> Decoder(ItemsSubMsg) {
+  decode.one_of(decoder_items_sub_msg_items_sub_msg(), [])
+}
+
+pub fn decoder_items_sub_msg_items_sub_msg() -> Decoder(ItemsSubMsg) {
+  use action <- decode.field("action", decoder_action())
+  use item <- decode.field("item", decoder_record(decoder_item()))
+  decode.success(ItemsSubMsg(action:, item:))
 }
 
 pub fn encode_item(value: Item) -> Json {
@@ -498,16 +592,8 @@ pub fn decoder_item_attr_item_name() -> Decoder(ItemAttr) {
 }
 
 
-pub fn decoder_api_items() -> Decoder(Api) {
-  use _deriv_var_constr <- decode.field("_var", deriv.is("Items"))
-  use crud <- decode.field(
-    "crud",
-    decoder_crud(
-      decoder_item(),
-      decoder_item(),
-      decoder_item(),
-      decoder_item_attr(),
-    ),
-  )
-  decode.success(Items(crud:))
+pub fn decoder_api_subscribe_to_items() -> Decoder(Api) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("SubscribeToItems"))
+  use sub <- decode.field("sub", decoder_sub(decoder_items_sub_msg()))
+  decode.success(SubscribeToItems(sub:))
 }

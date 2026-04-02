@@ -1,3 +1,4 @@
+import gleam/set.{type Set}
 import bravo
 import bravo/uset
 import gleam/pair
@@ -29,7 +30,7 @@ import lustre/effect.{type Effect}
 //
 import api.{type SocketResp, type Req, type Resp}
 // import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
-import api/generic.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created}
+import api/generic.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created, type Sub}
 import api/id.{type Id, Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 //
@@ -52,15 +53,15 @@ pub fn start(
 
 type Msg {
   NoOp
-  Broadcast(ref: String, resp: api.Resp)
+  Broadcast(ref: Uuid, msg: Json)
 }
 
 type Socket {
   Socket(
-    // self: Subject(mist.WebsocketMessage(Msg)),
+    self: Subject(Msg),
     ctx: Context,
     conn: mist.WebsocketConnection,
-    subs: Dict(String, api.Subscription),
+    subs: Set(String),
     // state: State,
   )
 }
@@ -125,7 +126,7 @@ fn init(
     // })
     // |> process.select_map(self, ApiSocketMsg)
 
-  #(Socket(ctx:, conn:, subs: dict.new()), Some(selector))
+  #(Socket(self:, ctx:, conn:, subs: set.new()), Some(selector))
 }
 
 // fn init_items() -> Dict(Id(client.Item), Record(client.Item)) {
@@ -165,18 +166,21 @@ fn update(
     }
 
     mist.Text(msg) -> {
-      serve(socket:, msg:, send:, ctx: socket.ctx, server: Server(
-        call: api_server,
-        decoder: client.decoder_api(),
-      ))
+      serve(socket:, msg:, send:, ctx: socket.ctx,
+        get_subs: fn(socket: Socket) { socket.subs },
+        set_subs: fn(socket: Socket, subs) { Socket(..socket, subs:) },
+        get_self: fn(socket: Socket) { socket.self },
+        server: Server(
+          call: api_server,
+          decoder: client.decoder_api(),
+        ),
+      )
     }
 
-    mist.Custom(Broadcast(ref:, resp:)) -> {
-      todo "reimpl `Broadcast`"
-      // api.socket_resp(ref: "pubsub:" <> ref, result: Ok(resp))
-      // |> api.encode_socket_resp
-      // |> json.to_string
-      // |> ws_send(conn, _)
+    mist.Custom(Broadcast(ref:, msg:)) -> {
+      msg
+      |> json.to_string
+      |> send(socket)
 
       mist.continue(socket)
     }
@@ -672,11 +676,11 @@ fn send(
 // TODO mv `server`
 
 type ApiServer(req, context) =
-  fn(generic.SocketReq(req), context) -> Result(SocketResp, generic.Err)
+  fn(generic.SocketReq(req), context, Set(String)) -> Result(SocketResp, generic.Err)
 
-type Server(req, context) {
+type Server(req, context, msg) {
   Server(
-    call: fn(generic.SocketReq(req), context) -> SocketResp,
+    call: fn(generic.SocketReq(req), context, Set(String)) -> #(Set(String), SocketResp, Option(Selector(msg))),
     decoder: Decoder(req),
   )
 }
@@ -685,16 +689,43 @@ fn serve(
   socket socket: socket,
   msg msg: String,
   ctx ctx: context,
-  server server: Server(req, context),
+  server server: Server(req, context, msg),
   send send: fn(String, socket) -> mist.Next(socket, msg),
+  get_self get_self: fn(socket) -> Subject(msg),
+  get_subs get_subs: fn(socket) -> Set(String),
+  set_subs set_subs: fn(socket, Set(String)) -> socket,
 ) -> mist.Next(socket, msg) {
   case parse_socket_req(msg, server.decoder) {
-    Ok(req) ->
-      req
-      |> server.call(ctx)
+    Ok(req) -> {
+      let subs = get_subs(socket)
+      let #(subs, resp, selector) = server.call(req, ctx, subs)
+
+      let selector =
+        {
+          use selector <- option.map(selector)
+          selector
+          |> process.select(get_self(socket))
+        }
+
+      resp
       |> generic.encode_socket_resp
       |> json.to_string
       |> send(socket)
+
+      let socket =
+        socket
+        |> set_subs(subs)
+
+      case selector {
+        None ->
+          mist.continue(socket)
+
+        Some(selector) ->
+          socket
+          |> mist.continue
+          |> mist.with_selector(selector)
+      }
+    }
 
     Error(ParseErr) ->
       todo as "ParseErr"
@@ -852,21 +883,73 @@ fn delete_items(
   }
 }
 
+fn sub_subscribe_to_items(
+  sub sub: Sub(client.ItemsSubMsg),
+) -> server.SubHandler(client.ItemsSubMsg, Context, Selector(Msg)) {
+  server.SubHandler(
+    run: subscribe_to_items,
+    encode: client.encode_items_sub_msg,
+    sub:,
+  )
+}
+
+fn subscribe_to_items(
+  _sub: Sub(msg),
+  ref ref: Uuid,
+  ctx ctx: Context,
+) -> Result(Selector(Msg), generic.Err) {
+  let _ = subscribe(
+    to: "items",
+    in: fn(rs: PubSub) { rs.items },
+    wrap: fn(t) {
+      client.ItemsSubMsg(item: t.0, action: t.1)
+      |> client.encode_items_sub_msg
+      |> Ok
+      |> generic.SocketResp(ref:, action: None)
+      |> generic.encode_socket_resp
+      |> Broadcast(ref:, msg: _)
+    }
+  )
+  |> run(ctx, Nil)
+  |> result.replace_error(generic.Server(generic.ServerErr("failed to subscribe (`" <> "subscribe_to_items" <> "`)")))
+}
+
 // codegen server
 
-pub fn api_server(
+fn api_server(
   req req: generic.SocketReq(client.Api),
   ctx ctx: Context,
-) -> SocketResp {
+  subs subs: Set(String),
+) -> #(Set(String), SocketResp, Option(Selector(Msg))) {
   let SocketReq(ref:, req:) = req
 
   case req {
-    client.Items(crud:) ->
+    client.Items(crud:) -> {
       crud_items()
       |> server.process_crud(crud:, ref:, ctx:)
+      |> fn(resp) {
+        #(subs, resp, None)
+      }
+    }
 
-    client.IntToString(func:) ->
+    client.IntToString(func:) -> {
       func_int_to_string()
       |> server.process_func(func:, ref:, ctx:)
+      |> fn(resp) {
+        #(subs, resp, None)
+      }
+    }
+
+    client.SubscribeToItems(sub:) -> {
+      sub_subscribe_to_items(sub:)
+      |> server.process_sub(sub:, ref:, ctx:, subs:)
+      // |> fn(t) {
+      //   let #(subs, resp, selector) = t
+      //   // let selector =
+
+      //   // #(subs, resp, Some(selector))
+      //   todo
+      // }
+    }
   }
 }

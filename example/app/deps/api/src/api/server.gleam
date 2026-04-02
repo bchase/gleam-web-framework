@@ -1,10 +1,12 @@
+import gleam/string
+import gleam/set.{type Set}
 import youid/uuid.{type Uuid}
 import gleam/result
 import api/id.{type Id}
 import gleam/option.{type Option, None, Some}
 import gleam/json.{type Json}
 import api/client.{type Api, type Item, type ItemAttr, decoder_api, encode_item}
-import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func, type Action, Created, Updated, Deleted}
+import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func, type Action, Created, Updated, Deleted, type Sub, encode_action, decoder_action}
 
 pub type App(t, err, ctx) { App(run: fn(ctx) -> Result(t, err)) }
 fn run(app: App(t, err, ctx), ctx: ctx) -> Result(t, err) { todo }
@@ -66,6 +68,15 @@ pub type FuncHandler(param, return, context) {
   )
 }
 
+pub type SubHandler(msg, context, listener) {
+  SubHandler(
+    run: fn(Sub(msg), Uuid, context) -> Result(listener, Err),
+    //
+    encode: fn(msg) -> Json,
+    sub: Sub(msg),
+  )
+}
+
 pub fn func_handler_app(
   app app: fn(param) -> App(return, err, context),
   encode encode: fn(return) -> Json,
@@ -76,6 +87,38 @@ pub fn func_handler_app(
     //
     encode:,
   )
+}
+
+pub fn process_sub(
+  sub sub: Sub(msg),
+  ref ref: Uuid,
+  ctx ctx: context,
+  subs subs: Set(String),
+  handler handler: SubHandler(msg, context, listener),
+) -> #(Set(String), SocketResp, Option(listener)) {
+  let action = None
+
+  let sub_str = sub |> string.inspect
+
+  case set.contains(subs, sub_str)  {
+    True -> {
+      let resp = SocketResp(ref:, action:, result: Error(generic.Server(generic.ServerErr("already subscribed: " <> sub_str))))
+      #(subs, resp, None)
+    }
+
+    False ->
+      case handler.run(sub, ref, ctx) {
+        Ok(listner) -> {
+          let resp = SocketResp(ref:, action:, result: Ok(json.null()))
+          #(subs, resp, Some(listner))
+        }
+
+        Error(err) -> {
+          let resp = SocketResp(ref:, action:, result: Error(err))
+          #(subs, resp, None)
+        }
+      }
+  }
 }
 
 pub fn process_func(
