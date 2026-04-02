@@ -29,7 +29,7 @@ import lustre/effect.{type Effect}
 //
 import api.{type SocketResp, type Req, type Resp}
 // import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
-import api/generic.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq}
+import api/generic.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created}
 import api/id.{type Id, Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 //
@@ -798,9 +798,8 @@ fn create_items(
   let id = Id(uuid.v7_string())
   let ts = timestamp.system_time()
   let item = generic.Record(id:, created_at: ts, updated_at: ts, resource: req.data)
-  let assert Ok(_inserted) =
-    ctx.cfg.items
-    |> uset.insert(item.id, item)
+  let assert Ok(_inserted) = ctx.cfg.items |> uset.insert(item.id, item)
+  let _broadcasted = broadcast_item(item:, action: Created, ctx:)
   Ok(item)
 }
 fn update_items(
@@ -820,7 +819,7 @@ fn update_items(
       let updated_at = timestamp.system_time()
       let item = client.Item(..item, name: req.data.name)
       let record = generic.Record(..record, resource: item, updated_at:)
-      // let _broadcasted = broadcast_item(item: record, action: Updated, ctx: socket.ctx)
+      let _broadcasted = broadcast_item(item: record, action: Updated, ctx:)
       Ok(record)
     }
   }
@@ -846,7 +845,7 @@ fn delete_items(
 
     Ok(item) -> {
       let assert Ok(_deleted) = uset.delete_key(ctx.cfg.items, item.id)
-      // let _broadcasted = broadcast_item(item:, action: Deleted, ctx:)
+      let _broadcasted = broadcast_item(item:, action: Deleted, ctx:)
       Ok(item)
     }
   }
