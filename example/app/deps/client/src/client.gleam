@@ -79,6 +79,7 @@ type Msg {
   Send(num: Int)
   GotItemForm(values: List(#(String, String)))
   SetItem(item: Option(Record(client.Item)))
+  DeleteItem(id: Id(client.Item))
   // api resps
   RecvIntToString(result: Result(String, client.Err))
   RecvItem(result: Result(#(Record(client.Item), Action), client.Err))
@@ -87,7 +88,6 @@ type Msg {
   RecvItems(result: Result(Paginated(client.Item), client.Err))
   // RecvSubscription(ref: String, resp: api.Resp)
 
-  // DeleteItem(id: Id(api.Item))
   // // api resps
 }
 
@@ -204,21 +204,30 @@ fn update(
       pure(Model(..model, str: Some(result)))
     }
 
-    // DeleteItem(id: item_id) -> {
-    //   model
-    //   |> send(
-    //     req: api.CrudItems(Delete(item_id, generic.ConfirmDelete)),
-    //     handler: send_msg(
-    //       msg: RecvItem,
-    //       map: fn(resp) {
-    //         case resp {
-    //           api.GotItem(item:, action:) -> Ok(#(item, action))
-    //           _ -> Error(Nil)
-    //         }
-    //       },
-    //     )
-    //   )
-    // }
+    DeleteItem(id: item_id) -> {
+      model
+      |> model.client.send(client.req_delete_items(
+        id: item_id,
+        confirm: generic.ConfirmDelete,
+        msg: fn(result) {
+          result
+          |> result.map(pair.new(_, Deleted))
+          |> RecvItem
+        },
+      ))
+      // |> send(
+      //   req: api.CrudItems(Delete(item_id, generic.ConfirmDelete)),
+      //   handler: send_msg(
+      //     msg: RecvItem,
+      //     map: fn(resp) {
+      //       case resp {
+      //         api.GotItem(item:, action:) -> Ok(#(item, action))
+      //         _ -> Error(Nil)
+      //       }
+      //     },
+      //   )
+      // )
+    }
 
     SetItem(item:) -> {
       pure(Model(..model, item:))
@@ -585,7 +594,7 @@ fn view_item_form(
             html.text("Cancel"),
           ]),
           html.button([
-            // event.on_click(DeleteItem(id: item.id)),
+            event.on_click(DeleteItem(id: item.id)),
           ], [
             html.text("Delete"),
           ]),

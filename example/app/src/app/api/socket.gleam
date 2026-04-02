@@ -158,7 +158,7 @@ fn update(
   msg msg: mist.WebsocketMessage(Msg),
   conn conn: mist.WebsocketConnection,
 ) -> mist.Next(Socket, Msg) {
-  case msg |> echo {
+  case msg {
     mist.Binary(_) -> {
       io.println_error("WEBSOCKET IGNORING BINARY MSG")
       mist.continue(socket)
@@ -835,22 +835,26 @@ fn read_items(
   ctx ctx,
 ) -> Result(Record(Item), generic.Err) {
   todo
-  // {
-  //   let ts = timestamp.system_time()
-  //   pure(generic.Record(
-  //     id: id.Id(""),
-  //     created_at: ts,
-  //     updated_at: ts,
-  //     resource: client.Item(name: ""),
-  //   ))
-  // }
-  // |> run(ctx)
 }
 fn delete_items(
   req req: DeleteReq(Item),
-  ctx ctx,
+  ctx ctx: Context,
 ) -> Result(Record(Item), generic.Err) {
-  todo
+  case uset.lookup(ctx.cfg.items, req.id) {
+    Error(err) ->
+      case err {
+        bravo.Empty ->
+          Error(generic.Client(generic.NotFound(req.id.id, None)))
+        _ ->
+          todo
+      }
+
+    Ok(item) -> {
+      let assert Ok(_deleted) = uset.delete_key(ctx.cfg.items, item.id)
+      // let _broadcasted = broadcast_item(item:, action: Deleted, ctx:)
+      Ok(item)
+    }
+  }
 }
 
 // codegen server
