@@ -93,7 +93,7 @@ pub fn init(
       let client = get_client(model)
       let send = get_send(model)
 
-      case generic_send(req:, reqs: client.reqs, send:, encode:) {
+      case send_(req:, reqs: client.reqs, send:, encode:) {
         Ok(#(reqs, send_eff)) ->
           model
           |> set_client(ApiClient(..client, reqs:))
@@ -116,7 +116,7 @@ pub fn init(
   let recv =
     fn(model, json) {
       let client = get_client(model)
-      case generic_recv(json:, reqs: client.reqs) {
+      case recv(json:, reqs: client.reqs) {
         Ok(#(reqs, msg)) ->
           model
           |> set_client(ApiClient(..client, reqs:))
@@ -139,11 +139,11 @@ pub fn init(
 
 // RECEIVE
 
-fn generic_recv(
+fn recv(
   reqs reqs: Reqs(msg),
   json json: String,
 ) -> Result(#(Reqs(msg), msg), RecvErr) {
-  use #(ref, resp) <- result.try(recv_(json:))
+  use #(ref, dyn) <- result.try(recv_ref_and_dyn(json:))
 
   use #(reqs, handle_resp) <- result.try(
     pop_req(reqs, ref)
@@ -151,7 +151,7 @@ fn generic_recv(
   )
 
   let HandlerResult(result:, err: to_err_msg) =
-    handle_resp(resp)
+    handle_resp(dyn)
 
   let msg =
     case result {
@@ -160,6 +160,31 @@ fn generic_recv(
     }
 
   Ok(#(reqs, msg))
+}
+
+fn recv_ref_and_dyn(
+  json json: String,
+) -> Result(#(Uuid, Dynamic), RecvErr) {
+  use ref <- result.try(
+    decode.at(["ref"], decode.string)
+    |> json.parse(json, _)
+    |> result.replace_error(NoRef(json:))
+  )
+
+  use ref <- result.try(
+    uuid.from_string(ref)
+    |> result.map_error(fn(err) {
+      RefParseFailure(ref:, err: err |> string.inspect)
+    })
+  )
+
+  use resp <- result.try(
+    decode.at(["result"], decode.dynamic)
+    |> json.parse(json, _)
+    |> result.replace_error(ResultNotFound(ref:, json:))
+  )
+
+  Ok(#(ref, resp))
 }
 
 fn pop_req(
@@ -206,31 +231,6 @@ fn clear_req_and_log_err(
   }
 }
 
-fn recv_(
-  json json: String,
-) -> Result(#(Uuid, Dynamic), RecvErr) {
-  use ref <- result.try(
-    decode.at(["ref"], decode.string)
-    |> json.parse(json, _)
-    |> result.replace_error(NoRef(json:))
-  )
-
-  use ref <- result.try(
-    uuid.from_string(ref)
-    |> result.map_error(fn(err) {
-      RefParseFailure(ref:, err: err |> string.inspect)
-    })
-  )
-
-  use resp <- result.try(
-    decode.at(["result"], decode.dynamic)
-    |> json.parse(json, _)
-    |> result.replace_error(ResultNotFound(ref:, json:))
-  )
-
-  Ok(#(ref, resp))
-}
-
 // SEND
 
 pub type Req(req, msg) {
@@ -241,7 +241,7 @@ pub type Req(req, msg) {
   )
 }
 
-fn generic_send(
+fn send_(
   reqs reqs: Reqs(msg),
   req req: Req(req, msg),
   send send: Option(fn(String) -> Effect(msg)),

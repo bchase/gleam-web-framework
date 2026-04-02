@@ -1,12 +1,7 @@
-import gleam/time/timestamp
-import gleam/function
-import gleam/int
 import youid/uuid.{type Uuid}
 import gleam/result
 import api/id.{type Id}
 import gleam/option.{type Option}
-import gleam/io
-import gleam/string
 import gleam/json.{type Json}
 import api/client.{type Api, type Item, type ItemAttr, decoder_api, encode_item}
 import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func}
