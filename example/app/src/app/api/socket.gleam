@@ -53,7 +53,7 @@ pub fn start(
 
 type Msg {
   NoOp
-  Broadcast(ref: Uuid, msg: Json)
+  Broadcast(msg: SocketResp)
 }
 
 type Socket {
@@ -166,7 +166,7 @@ fn update(
     }
 
     mist.Text(msg) -> {
-      serve(socket:, msg:, send:, ctx: socket.ctx,
+      serve(socket:, msg:, send:, send_resp: Broadcast, ctx: socket.ctx,
         get_subs: fn(socket: Socket) { socket.subs },
         set_subs: fn(socket: Socket, subs) { Socket(..socket, subs:) },
         get_self: fn(socket: Socket) { socket.self },
@@ -177,8 +177,9 @@ fn update(
       )
     }
 
-    mist.Custom(Broadcast(ref:, msg:)) -> {
+    mist.Custom(Broadcast(msg:)) -> {
       msg
+      |> generic.encode_socket_resp
       |> json.to_string
       |> send(socket)
 
@@ -680,7 +681,7 @@ type ApiServer(req, context) =
 
 type Server(req, context, msg) {
   Server(
-    call: fn(generic.SocketReq(req), context, Set(String)) -> #(Set(String), SocketResp, Option(Selector(msg))),
+    call: fn(generic.SocketReq(req), context, Set(String), fn(SocketResp) -> msg) -> #(Set(String), SocketResp, Option(Selector(msg))),
     decoder: Decoder(req),
   )
 }
@@ -694,11 +695,12 @@ fn serve(
   get_self get_self: fn(socket) -> Subject(msg),
   get_subs get_subs: fn(socket) -> Set(String),
   set_subs set_subs: fn(socket, Set(String)) -> socket,
+  send_resp send_resp: fn(SocketResp) -> msg,
 ) -> mist.Next(socket, msg) {
   case parse_socket_req(msg, server.decoder) {
     Ok(req) -> {
       let subs = get_subs(socket)
-      let #(subs, resp, selector) = server.call(req, ctx, subs)
+      let #(subs, resp, selector) = server.call(req, ctx, subs, send_resp)
 
       let selector =
         {
@@ -885,33 +887,42 @@ fn delete_items(
 
 fn sub_subscribe_to_items(
   sub sub: Sub(client.ItemsSubMsg),
-) -> server.SubHandler(client.ItemsSubMsg, Context, Selector(Msg)) {
+  send send: fn(SocketResp) -> Msg,
+) -> server.SubHandler(client.ItemsSubMsg, Context, Selector(Msg), Msg) {
   server.SubHandler(
     run: subscribe_to_items,
     encode: client.encode_items_sub_msg,
     sub:,
+    send:,
   )
+}
+
+fn sub_socket_resp(
+  value value: t,
+  ref ref: Uuid,
+  encode encode: fn(t) -> Json,
+) -> generic.SocketResp {
+  generic.S(Ok(value))
+  |> generic.encode_subscription_msg(
+    generic.encode_result(_, encode, fn(_) { json.null() })
+  )
+  |> Ok
+  |> generic.SocketResp(ref:, action: None)
 }
 
 fn subscribe_to_items(
   _sub: Sub(msg),
   ref ref: Uuid,
   ctx ctx: Context,
+  send send: fn(SocketResp) -> Msg, // TODO rename ... `wrap`?
 ) -> Result(Selector(Msg), generic.Err) {
   let _ = subscribe(
     to: "items",
     in: fn(rs: PubSub) { rs.items },
     wrap: fn(t) {
       client.ItemsSubMsg(item: t.0, action: t.1)
-      |> Ok
-      |> generic.S
-      |> generic.encode_subscription_msg(
-        generic.encode_result(_, client.encode_items_sub_msg, fn(_) { json.null() })
-      )
-      |> Ok
-      |> generic.SocketResp(ref:, action: None)
-      |> generic.encode_socket_resp
-      |> Broadcast(ref:, msg: _)
+      |> sub_socket_resp(ref:, encode: client.encode_items_sub_msg)
+      |> send
     }
   )
   |> run(ctx, Nil)
@@ -924,6 +935,7 @@ fn api_server(
   req req: generic.SocketReq(client.Api),
   ctx ctx: Context,
   subs subs: Set(String),
+  send send: fn(SocketResp) -> Msg
 ) -> #(Set(String), SocketResp, Option(Selector(Msg))) {
   let SocketReq(ref:, req:) = req
 
@@ -945,7 +957,7 @@ fn api_server(
     }
 
     client.SubscribeToItems(sub:) -> {
-      sub_subscribe_to_items(sub:)
+      sub_subscribe_to_items(sub:, send:)
       |> server.process_sub(sub:, ref:, ctx:, subs:)
       // |> fn(t) {
       //   let #(subs, resp, selector) = t

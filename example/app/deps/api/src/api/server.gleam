@@ -68,12 +68,14 @@ pub type FuncHandler(param, return, context) {
   )
 }
 
-pub type SubHandler(msg, context, listener) {
+// TODO if eventually in an erlang package, `listener` is actually `process.Selector(msg)`
+pub type SubHandler(sub_msg, context, listener, msg) {
   SubHandler(
-    run: fn(Sub(msg), Uuid, context) -> Result(listener, Err),
+    run: fn(Sub(sub_msg), Uuid, context, fn(SocketResp) -> msg) -> Result(listener, Err),
     //
-    encode: fn(msg) -> Json,
-    sub: Sub(msg),
+    encode: fn(sub_msg) -> Json,
+    sub: Sub(sub_msg),
+    send: fn(SocketResp) -> msg,
   )
 }
 
@@ -90,11 +92,11 @@ pub fn func_handler_app(
 }
 
 pub fn process_sub(
-  sub sub: Sub(msg),
+  sub sub: Sub(sub_msg),
   ref ref: Uuid,
   ctx ctx: context,
   subs subs: Set(String),
-  handler handler: SubHandler(msg, context, listener),
+  handler handler: SubHandler(sub_msg, context, listener, msg),
 ) -> #(Set(String), SocketResp, Option(listener)) {
   let action = None
 
@@ -107,7 +109,7 @@ pub fn process_sub(
     }
 
     False ->
-      case handler.run(sub, ref, ctx) {
+      case handler.run(sub, ref, ctx, handler.send) {
         Ok(listner) -> {
           let ack =
             generic.S(Ok(Nil))
