@@ -155,20 +155,12 @@ fn recv(
 ) -> Result(#(Reqs(msg), msg), RecvErr) {
   use #(ref, dyn) <- result.try(recv_ref_and_dyn(json:))
 
-  let decoder: Decoder(Result(generic.SubscriptionMsg(Dynamic), err)) =
-    generic.decoder_subscription_msg(decode.dynamic)
-    |> generic.decoder_result_ok
-
-  let #(is_sub, dyn) =
-    case decode.run(dyn, decoder) {
-      Ok(Ok(generic.S(dyn))) -> #(True, dyn)
-      _ -> #(False, dyn)
-    }
+  let #(typ, dyn) = payload_type(dyn)
 
   let get_handler =
-    case is_sub {
-      True -> get_req
-      False -> pop_req
+    case typ {
+      Subscription -> get_req
+      Response -> pop_req
     }
 
   use #(reqs, handle_resp) <- result.try(
@@ -186,6 +178,24 @@ fn recv(
     }
 
   Ok(#(reqs, msg))
+}
+
+type PayloadType {
+  Response
+  Subscription
+}
+
+fn payload_type(
+  dyn: Dynamic,
+) -> #(PayloadType, Dynamic) {
+  let decoder: Decoder(Result(generic.SubscriptionMsg(Dynamic), err)) =
+    generic.decoder_subscription_msg(decode.dynamic)
+    |> generic.decoder_result_ok
+
+  case decode.run(dyn, decoder) {
+    Ok(Ok(generic.S(dyn))) -> #(Subscription, dyn)
+    _ -> #(Response, dyn)
+  }
 }
 
 fn recv_ref_and_dyn(
