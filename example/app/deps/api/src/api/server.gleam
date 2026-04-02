@@ -100,7 +100,7 @@ pub fn process_crud(
   ref ref: Uuid,
   ctx ctx: context,
   handler handler: CrudHandler(resource, create, update, key, context),
-) -> Result(SocketResp, Err) {
+) -> SocketResp {
   let #(result, action) =
     case crud {
       List(req:) -> #(handler.list(req, ctx) |> result.map(encode_paginated(_, handler.encode)), None)
@@ -109,10 +109,12 @@ pub fn process_crud(
       Update(req:) -> #(handler.update(req, ctx) |> result.map(encode_record(_, handler.encode)), Some(Updated))
       Delete(req:) -> #(handler.delete(req, ctx) |> result.map(encode_record(_, handler.encode)), Some(Deleted))
     }
-  // |> result.map(fn(t) {
-  //   let #(result, action) = t
-  //   SocketResp(ref:, action:, result:)
-  // })
-  SocketResp(ref:, action:, result:)
-  todo
+
+  case result {
+    Ok(x) ->
+      SocketResp(ref:, action:, result: Ok(x))
+
+    Error(err) ->
+      SocketResp(ref:, action:, result: Error(err))
+  }
 }

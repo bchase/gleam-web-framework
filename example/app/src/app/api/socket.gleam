@@ -862,9 +862,8 @@ pub fn api_server(
 
   case req {
     client.Items(crud:) ->
-      // crud_items()
-      // |> server.process_crud(crud:, ref:, ctx:)
-      todo
+      crud_items()
+      |> server.process_crud(crud:, ref:, ctx:)
 
     client.IntToString(func:) ->
       func_int_to_string()
