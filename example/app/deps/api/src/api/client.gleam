@@ -86,7 +86,7 @@ pub fn init(
   set_client set_client: fn(model, ApiClient(req, model, msg)) -> model,
   get_send get_send: fn(model) -> Option(fn(String) -> Effect(msg)),
   encode encode: fn(req) -> Json,
-  on_no_conn handle_no_conn: fn(NoConn) -> Option(msg),
+  on_no_conn handle_no_conn: fn(model) -> Option(msg),
 ) -> ApiClient(req, model, msg) {
   let send =
     fn(model, req) {
@@ -99,8 +99,8 @@ pub fn init(
           |> set_client(ApiClient(..client, reqs:))
           |> pair.new(send_eff)
 
-        Error(no_conn) ->
-          case handle_no_conn(no_conn) {
+        Error(NoConn) ->
+          case handle_no_conn(model) {
             Some(msg) ->
               model
               |> pair.new(effect.from(fn(dispatch) {
