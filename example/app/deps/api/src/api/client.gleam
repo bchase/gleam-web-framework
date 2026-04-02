@@ -269,11 +269,10 @@ fn send_(
 //
 
 fn func(
-  param param: param,
-  msg msg: fn(Result(return, Err)) -> msg,
-  //
   req req: fn(Func(param, return)) -> req,
+  param param: param,
   decoder decoder: Decoder(return),
+  msg msg: fn(Result(return, Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(Func(FuncReq(param:)))
   let err = fn(err) { msg(Error(RecvErr(err))) }
@@ -281,11 +280,10 @@ fn func(
 }
 
 fn list(
-  params params: Option(Params(key)),
-  msg msg: fn(Result(Paginated(t), Err)) -> msg,
-  //
   req req: fn(Crud(t, create, update, key)) -> req,
+  params params: Option(Params(key)),
   decoder decoder: Decoder(Paginated(t)),
+  msg msg: fn(Result(Paginated(t), Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(List(ListReq(params:)))
   let err = fn(err) { msg(Error(RecvErr(err))) }
@@ -293,11 +291,10 @@ fn list(
 }
 
 fn read(
-  id id: Id(t),
-  msg msg: fn(Result(Record(t), Err)) -> msg,
-  //
   req req: fn(Crud(t, create, update, key)) -> req,
+  id id: Id(t),
   decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(Read(ReadReq(id:)))
   let decoder = decoder_record(decoder)
@@ -306,11 +303,10 @@ fn read(
 }
 
 fn create(
-  data data: create,
-  msg msg: fn(Result(Record(t), Err)) -> msg,
-  //
   req req: fn(Crud(t, create, update, key)) -> req,
+  data data: create,
   decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(Create(CreateReq(data:)))
   let decoder = decoder_record(decoder)
@@ -319,12 +315,11 @@ fn create(
 }
 
 fn update(
+  req req: fn(Crud(t, create, update, key)) -> req,
   id id: Id(t),
   data data: update,
-  msg msg: fn(Result(Record(t), Err)) -> msg,
-  //
-  req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(Update(UpdateReq(id:, data:)))
   let decoder = decoder_record(decoder)
@@ -333,12 +328,11 @@ fn update(
 }
 
 fn delete(
+  req req: fn(Crud(t, create, update, key)) -> req,
   id id: Id(t),
   confirm confirm: ConfirmDelete,
-  msg msg: fn(Result(Record(t), Err)) -> msg,
-  //
-  req req: fn(Crud(t, create, update, key)) -> req,
   decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(Delete(DeleteReq(id:, confirm:)))
   let decoder = decoder_record(decoder)
@@ -362,6 +356,8 @@ fn build_req(
     |> HandlerResult(result: _, err:)
   })
 }
+
+const paginated = generic.decoder_paginated
 
 fn action(
   msg msg: fn(#(Action, Result(Record(t), Err))) -> msg,
@@ -396,37 +392,28 @@ pub fn req_int_to_string(
   param param: Int,
   msg msg: fn(Result(String, Err)) -> msg,
 ) -> Req(Api, msg) {
-  let req = IntToString
-  let decoder = decode.string
-  func(param:, msg:, req:, decoder:)
+  func(IntToString, param, decode.string, msg)
 }
 
 pub fn req_list_items(
   params params: Option(Params(ItemAttr)),
   msg msg: fn(Result(Paginated(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
-  let req = Items
-  let decoder = generic.decoder_paginated(decoder_item())
-  list(params:, msg:, req:, decoder:)
+  list(Items, params, paginated(decoder_item()), msg)
 }
 
 pub fn req_read_items(
   id id: Id(Item),
   msg msg: fn(Result(Record(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
-  let req = Items
-  let decoder = decoder_item()
-  read(id:, msg:, req:, decoder:)
+  read(Items, id, decoder_item(), msg)
 }
 
 pub fn req_create_items(
   data data: Item,
   msg msg: fn(#(Action, Result(Record(Item), Err))) -> msg,
 ) -> Req(Api, msg) {
-  let req = Items
-  let decoder = decoder_item()
-  let msg = msg |> action(Created)
-  create(data:, msg:, req:, decoder:)
+  create(Items, data, decoder_item(), msg |> action(Created))
 }
 
 pub fn req_update_items(
@@ -434,10 +421,7 @@ pub fn req_update_items(
   data data: Item,
   msg msg: fn(#(Action, Result(Record(Item), Err))) -> msg,
 ) -> Req(Api, msg) {
-  let req = Items
-  let decoder = decoder_item()
-  let msg = msg |> action(Updated)
-  update(id:, data:, msg:, req:, decoder:)
+  update(Items, id, data, decoder_item(), msg |> action(Updated))
 }
 
 pub fn req_delete_items(
@@ -445,10 +429,7 @@ pub fn req_delete_items(
   confirm confirm: ConfirmDelete,
   msg msg: fn(#(Action, Result(Record(Item), Err))) -> msg,
 ) -> Req(Api, msg) {
-  let req = Items
-  let decoder = decoder_item()
-  let msg = msg |> action(Deleted)
-  delete(id:, confirm:, msg:, req:, decoder:)
+  delete(Items, id, confirm, decoder_item(), msg |> action(Deleted))
 }
 
 // DERIVED
