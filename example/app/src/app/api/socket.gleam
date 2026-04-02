@@ -811,6 +811,7 @@ fn update_items(
       case err {
         bravo.Empty ->
           Error(generic.Client(generic.NotFound(req.id.id, None)))
+
         _ ->
           todo
       }

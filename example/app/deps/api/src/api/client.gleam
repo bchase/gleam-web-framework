@@ -1,5 +1,5 @@
 import api
-import api/generic.{type ConfirmDelete, type Crud, type Func, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_func, decoder_record, encode_crud, encode_func}
+import api/generic.{type ConfirmDelete, type Crud, type Func, type Paginated, type Pagination, type Params, type Record, type SocketReq, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_crud, decoder_func, decoder_record, encode_crud, encode_func, type Action, Created, Updated, Deleted}
 import api/id.{type Id}
 import deriv/util as deriv
 import gleam/dict.{type Dict}
@@ -233,7 +233,7 @@ fn clear_req_and_log_err(
 
 // SEND
 
-pub type Req(req, msg) {
+pub opaque type Req(req, msg) {
   Req(
     ref: Uuid,
     req: req,
@@ -363,6 +363,13 @@ fn build_req(
   })
 }
 
+fn action(
+  msg msg: fn(#(Action, Result(Record(t), Err))) -> msg,
+  action action: Action,
+) -> fn(Result(Record(t), Err)) -> msg {
+  fn(result) { msg(#(action, result)) }
+}
+
 // dummy api
 
 pub type Api {
@@ -414,30 +421,33 @@ pub fn req_read_items(
 
 pub fn req_create_items(
   data data: Item,
-  msg msg: fn(Result(Record(Item), Err)) -> msg,
+  msg msg: fn(#(Action, Result(Record(Item), Err))) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
   let decoder = decoder_item()
+  let msg = msg |> action(Created)
   create(data:, msg:, req:, decoder:)
 }
 
 pub fn req_update_items(
   id id: Id(Item),
   data data: Item,
-  msg msg: fn(Result(Record(Item), Err)) -> msg,
+  msg msg: fn(#(Action, Result(Record(Item), Err))) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
   let decoder = decoder_item()
+  let msg = msg |> action(Updated)
   update(id:, data:, msg:, req:, decoder:)
 }
 
 pub fn req_delete_items(
   id id: Id(Item),
   confirm confirm: ConfirmDelete,
-  msg msg: fn(Result(Record(Item), Err)) -> msg,
+  msg msg: fn(#(Action, Result(Record(Item), Err))) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
   let decoder = decoder_item()
+  let msg = msg |> action(Deleted)
   delete(id:, confirm:, msg:, req:, decoder:)
 }
 

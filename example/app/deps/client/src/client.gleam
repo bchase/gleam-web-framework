@@ -27,7 +27,7 @@ import api/generic.{List, Create, Update, Delete, type Record, type Records, typ
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
 //
-import api/client.{type ApiClient, type Api}
+import api/client.{type ApiClient, type Api, NotAsked, Loading, Failure, Success}
 
 // gleam run -m lustre/dev build --no-html --minify
 
@@ -81,14 +81,11 @@ type Msg {
   SetItem(item: Option(Record(client.Item)))
   DeleteItem(id: Id(client.Item))
   // api resps
-  RecvIntToString(result: Result(String, client.Err))
-  RecvItem(result: Result(#(Record(client.Item), Action), client.Err))
-
-  // subs
   RecvItems(result: Result(Paginated(client.Item), client.Err))
+  RecvIntToString(result: Result(String, client.Err))
+  RecvItem(action: Action, result: Result(Record(client.Item), client.Err))
+  // // subs
   // RecvSubscription(ref: String, resp: api.Resp)
-
-  // // api resps
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
@@ -108,7 +105,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
 
   Model(
     conn: None,
-    items: client.NotAsked,
+    items: NotAsked,
     item: None,
     uuid: uuid.v7(),
     //
@@ -200,38 +197,19 @@ fn update(
     Send(num:) ->
       model.client.send(model, client.req_int_to_string(num, RecvIntToString))
 
-    RecvIntToString(result:) -> {
+    RecvIntToString(result:) ->
       pure(Model(..model, str: Some(result)))
-    }
 
-    DeleteItem(id: item_id) -> {
+    DeleteItem(id: item_id) ->
       model
       |> model.client.send(client.req_delete_items(
         id: item_id,
         confirm: generic.ConfirmDelete,
-        msg: fn(result) {
-          result
-          |> result.map(pair.new(_, Deleted))
-          |> RecvItem
-        },
+        msg: fn(t) { RecvItem(action: t.0, result: t.1) },
       ))
-      // |> send(
-      //   req: api.CrudItems(Delete(item_id, generic.ConfirmDelete)),
-      //   handler: send_msg(
-      //     msg: RecvItem,
-      //     map: fn(resp) {
-      //       case resp {
-      //         api.GotItem(item:, action:) -> Ok(#(item, action))
-      //         _ -> Error(Nil)
-      //       }
-      //     },
-      //   )
-      // )
-    }
 
-    SetItem(item:) -> {
+    SetItem(item:) ->
       pure(Model(..model, item:))
-    }
 
     // RecvSubscription(ref:, resp:) -> {
     //   case resp {
@@ -252,12 +230,12 @@ fn update(
     //   }
     // }
 
-    RecvItem(Error(err)) -> {
+    RecvItem(action: _, result: Error(err)) -> {
       io.println_error("`RecvItem` err: " <> err |> string.inspect)
       pure(model)
     }
 
-    RecvItem(Ok(#(item, Deleted))) -> {
+    RecvItem(action: Deleted, result: Ok(item)) -> {
       Model(..model, uuid: uuid.v7(), item: None, items: {
         model.items
         |> map_success(dict.delete(_, item.id))
@@ -267,19 +245,18 @@ fn update(
       ])
     }
 
-    RecvItem(Ok(#(item, Created))) |
-    RecvItem(Ok(#(item, Updated))) -> {
-      let items =
+    RecvItem(action: Created, result: Ok(item)) |
+    RecvItem(action: Updated, result: Ok(item)) -> {
+      Model(..model, uuid: uuid.v7(), item: None, items: {
         case model.items {
-          client.NotAsked | client.Loading | client.Failure(err: _) ->
-            client.Success(dict.new())
+          NotAsked | Loading | Failure(err: _) ->
+            Success(dict.new())
 
-          client.Success(items) ->
-            client.Success(items)
+          Success(items) ->
+            Success(items)
         }
         |> map_success(dict.insert(_, item.id, item))
-
-      Model(..model, uuid: uuid.v7(), item: None, items:)
+      })
       |> eff([
         set_focus("item-name"),
       ])
@@ -294,22 +271,14 @@ fn update(
           None ->
             client.req_create_items(
               data:,
-              msg: fn(result) {
-                result
-                |> result.map(pair.new(_, Created))
-                |> RecvItem
-              },
+              msg: fn(t) { RecvItem(action: t.0, result: t.1) },
             )
 
           Some(item) ->
             client.req_update_items(
               id: item.id,
               data:,
-              msg: fn(result) {
-                result
-                |> result.map(pair.new(_, Updated))
-                |> RecvItem
-              },
+              msg: fn(t) { RecvItem(action: t.0, result: t.1) },
             )
         }
 
@@ -321,8 +290,8 @@ fn update(
         Ok(generic.Paginated(resources: new, ..)) ->
           pure(Model(..model, items: {
             case model.items {
-              client.NotAsked | client.Loading | client.Failure(err: _) -> dict.new()
-              client.Success(data: items) -> items
+              NotAsked | Loading | Failure(err: _) -> dict.new()
+              Success(data: items) -> items
             }
             |> fn(old) {
               new
@@ -331,12 +300,12 @@ fn update(
               })
               |> dict.from_list
               |> dict.merge(old, _)
-              |> client.Success
+              |> Success
             }
           }))
 
         Error(err) ->
-          pure(Model(..model, items: client.Failure(err)))
+          pure(Model(..model, items: Failure(err)))
       }
 
     RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
@@ -399,10 +368,10 @@ fn map_success(
   apply f: fn(a) -> b,
 ) -> client.ApiData(b) {
   case data {
-    client.NotAsked -> client.NotAsked
-    client.Loading -> client.Loading
-    client.Failure(err:) -> client.Failure(err:)
-    client.Success(data:) -> client.Success(data: f(data))
+    NotAsked -> NotAsked
+    Loading -> Loading
+    Failure(err:) -> Failure(err:)
+    Success(data:) -> Success(data: f(data))
   }
 }
 
@@ -609,12 +578,12 @@ fn view_items(
 ) -> Element(Msg) {
   html.ul([], {
     case model.items {
-      client.NotAsked |
-      client.Loading |
-      client.Failure(err: _) ->
+      NotAsked |
+      Loading |
+      Failure(err: _) ->
         [html.text(model.items |> string.inspect)]
 
-      client.Success(data: items) ->
+      Success(data: items) ->
         items
         |> dict.to_list
         |> list.map(pair.second)
