@@ -4,6 +4,7 @@ import deriv/util as deriv
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
+import gleam/option.{type Option}
 import youid/uuid.{type Uuid}
 
 pub fn main() -> Nil {
@@ -30,9 +31,10 @@ pub fn socket_req(
 
 pub fn socket_resp(
   ref ref: Uuid,
+  action action: Option(Action),
   result result: Result(Json, Err),
 ) -> generic.SocketResp {
-  generic.SocketResp(ref:, result:)
+  generic.SocketResp(ref:, action:, result:)
 }
 
 pub fn zero_err(

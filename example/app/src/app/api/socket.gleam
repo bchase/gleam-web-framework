@@ -676,7 +676,7 @@ type ApiServer(req, context) =
 
 type Server(req, context) {
   Server(
-    call: fn(generic.SocketReq(req), context) -> Result(SocketResp, generic.Err),
+    call: fn(generic.SocketReq(req), context) -> SocketResp,
     decoder: Decoder(req),
   )
 }
@@ -690,16 +690,11 @@ fn serve(
 ) -> mist.Next(socket, msg) {
   case parse_socket_req(msg, server.decoder) {
     Ok(req) ->
-      case server.call(req, ctx) {
-        Ok(resp) ->
-          resp
-          |> generic.encode_socket_resp
-          |> json.to_string
-          |> send(socket)
-
-        Error(_err) ->
-          todo as "encode this as socket resp?"
-      }
+      req
+      |> server.call(ctx)
+      |> generic.encode_socket_resp
+      |> json.to_string
+      |> send(socket)
 
     Error(ParseErr) ->
       todo as "ParseErr"
@@ -862,13 +857,14 @@ fn delete_items(
 pub fn api_server(
   req req: generic.SocketReq(client.Api),
   ctx ctx: Context,
-) -> Result(SocketResp, generic.Err) {
+) -> SocketResp {
   let SocketReq(ref:, req:) = req
 
   case req {
     client.Items(crud:) ->
-      crud_items()
-      |> server.process_crud(crud:, ref:, ctx:)
+      // crud_items()
+      // |> server.process_crud(crud:, ref:, ctx:)
+      todo
 
     client.IntToString(func:) ->
       func_int_to_string()

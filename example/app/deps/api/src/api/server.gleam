@@ -1,10 +1,10 @@
 import youid/uuid.{type Uuid}
 import gleam/result
 import api/id.{type Id}
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/json.{type Json}
 import api/client.{type Api, type Item, type ItemAttr, decoder_api, encode_item}
-import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func}
+import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func, type Action, Created, Updated, Deleted}
 
 pub type App(t, err, ctx) { App(run: fn(ctx) -> Result(t, err)) }
 fn run(app: App(t, err, ctx), ctx: ctx) -> Result(t, err) { todo }
@@ -83,11 +83,16 @@ pub fn process_func(
   ref ref: Uuid,
   ctx ctx: context,
   handler handler: FuncHandler(param, return, context),
-) -> Result(SocketResp, Err) {
-  func.req.param
-  |> handler.run(ctx)
-  |> result.map(handler.encode)
-  |> result.map(fn(json) { SocketResp(ref:, result: Ok(json)) })
+) -> SocketResp {
+  let action = None
+
+  case handler.run(func.req.param, ctx) {
+    Ok(x) ->
+      SocketResp(ref:, action:, result: Ok(handler.encode(x)))
+
+    Error(err) ->
+      SocketResp(ref:, action:, result: Error(err))
+  }
 }
 
 pub fn process_crud(
@@ -96,12 +101,18 @@ pub fn process_crud(
   ctx ctx: context,
   handler handler: CrudHandler(resource, create, update, key, context),
 ) -> Result(SocketResp, Err) {
-  case crud {
-    List(req:) -> handler.list(req, ctx) |> result.map(encode_paginated(_, handler.encode))
-    Create(req:) -> handler.create(req, ctx) |> result.map(encode_record(_, handler.encode))
-    Read(req:) -> handler.read(req, ctx) |> result.map(encode_record(_, handler.encode))
-    Update(req:) -> handler.update(req, ctx) |> result.map(encode_record(_, handler.encode))
-    Delete(req:) -> handler.delete(req, ctx) |> result.map(encode_record(_, handler.encode))
-  }
-  |> result.map(fn(json) { SocketResp(ref:, result: Ok(json)) })
+  let #(result, action) =
+    case crud {
+      List(req:) -> #(handler.list(req, ctx) |> result.map(encode_paginated(_, handler.encode)), None)
+      Create(req:) -> #(handler.create(req, ctx) |> result.map(encode_record(_, handler.encode)), Some(Created))
+      Read(req:) -> #(handler.read(req, ctx) |> result.map(encode_record(_, handler.encode)), None)
+      Update(req:) -> #(handler.update(req, ctx) |> result.map(encode_record(_, handler.encode)), Some(Updated))
+      Delete(req:) -> #(handler.delete(req, ctx) |> result.map(encode_record(_, handler.encode)), Some(Deleted))
+    }
+  // |> result.map(fn(t) {
+  //   let #(result, action) = t
+  //   SocketResp(ref:, action:, result:)
+  // })
+  SocketResp(ref:, action:, result:)
+  todo
 }

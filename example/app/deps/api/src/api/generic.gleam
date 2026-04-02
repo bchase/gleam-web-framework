@@ -149,6 +149,7 @@ pub type Pagination {
 pub type SocketResp {
   SocketResp(
     ref: Uuid,
+    action: Option(Action),
     result: Result(Json, Err),
   )
 }

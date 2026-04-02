@@ -342,8 +342,9 @@ fn update(
     RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
       io.println("WebSocket opened: " <> ws_url)
 
-      Model(..model, conn: Some(conn))
-      |> model.client.send(client.req_list_items(params: None, msg: RecvItems))
+      // Model(..model, conn: Some(conn))
+      // |> model.client.send(client.req_list_items(params: None, msg: RecvItems))
+      pure(Model(..model, conn: Some(conn)))
 
       // let #(model, sub_to_items_eff) =
       //   Model(..model, conn: Some(conn), items: Loading)
