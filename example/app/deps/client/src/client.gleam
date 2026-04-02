@@ -23,7 +23,7 @@ import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
 import api.{type SocketResp}
-import api/generic.{List, Create, Update, Delete, type Record, type Records, type Action, Created, Updated, Deleted, type Pagination}
+import api/generic.{List, Create, Update, Delete, type Record, type Records, type Action, Created, Updated, Deleted, type Pagination, type Paginated}
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
 //
@@ -54,8 +54,8 @@ fn decoders() -> List(component.Option(Msg)) {
 type Model {
   Model(
     conn: Option(ws.WebSocket),
-    items: RemoteData(Dict(Id(api.Item), Record(api.Item)), api.Err),
-    item: Option(Record(api.Item)),
+    items: client.ApiData(Dict(Id(client.Item), Record(client.Item))),
+    item: Option(Record(client.Item)),
     uuid: Uuid,
     //
     reqs: Dict(Uuid, ApiRespHandler),
@@ -77,17 +77,18 @@ type Msg {
   RecvWebSocketEvent(event: WebSocketEvent)
   // ui
   Send(num: Int)
+  GotItemForm(values: List(#(String, String)))
+  SetItem(item: Option(Record(client.Item)))
   // api resps
-  GotIntToString(result: Result(String, client.Err))
+  RecvIntToString(result: Result(String, client.Err))
+  RecvItem(result: Result(#(Record(client.Item), Action), client.Err))
+
+  // subs
+  RecvItems(result: Result(Paginated(client.Item), client.Err))
+  // RecvSubscription(ref: String, resp: api.Resp)
 
   // DeleteItem(id: Id(api.Item))
-  // SetItem(item: Option(Record(api.Item)))
-  // GotItemForm(values: List(#(String, String)))
   // // api resps
-  // RecvItem(result: Result(#(Record(api.Item), Action), api.Err))
-  // // subs
-  // RecvItems(result: Result(Records(api.Item), api.Err))
-  // RecvSubscription(ref: String, resp: api.Resp)
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
@@ -107,7 +108,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
 
   Model(
     conn: None,
-    items: NotAsked,
+    items: client.NotAsked,
     item: None,
     uuid: uuid.v7(),
     //
@@ -124,29 +125,29 @@ fn init(_) -> #(Model, Effect(Msg)) {
 
 const ws_url = "/ws/api"
 
-fn set_remote_data(
-  map map: fn(api.Resp) -> Result(t, Nil),
-  set set: fn(Model, RemoteData(t, api.Err)) -> Model,
-) -> ApiRespHandler {
-  SetRemoteData(set: fn(model, result) {
-    case result {
-      Error(err) -> {
-        model |> set(Failure(err:))
-      }
+// fn set_remote_data(
+//   map map: fn(api.Resp) -> Result(t, Nil),
+//   set set: fn(Model, RemoteData(t, api.Err)) -> Model,
+// ) -> ApiRespHandler {
+//   SetRemoteData(set: fn(model, result) {
+//     case result {
+//       Error(err) -> {
+//         model |> set(Failure(err:))
+//       }
 
-      Ok(resp) ->
-        case map(resp) {
-          Ok(data) ->
-            model |> set(Success(data:))
+//       Ok(resp) ->
+//         case map(resp) {
+//           Ok(data) ->
+//             model |> set(Success(data:))
 
-          Error(Nil) -> {
-            io.println_error("Failed to map api result: " <> result |> string.inspect)
-            model
-          }
-        }
-    }
-  })
-}
+//           Error(Nil) -> {
+//             io.println_error("Failed to map api result: " <> result |> string.inspect)
+//             model
+//           }
+//         }
+//     }
+//   })
+// }
 
 fn send_msg(
   map map: fn(api.Resp) -> Result(t, Nil),
@@ -197,9 +198,9 @@ fn update(
       pure(model)
 
     Send(num:) ->
-      model.client.send(model, client.req_int_to_string(num, GotIntToString))
+      model.client.send(model, client.req_int_to_string(num, RecvIntToString))
 
-    GotIntToString(result:) -> {
+    RecvIntToString(result:) -> {
       pure(Model(..model, str: Some(result)))
     }
 
@@ -219,9 +220,9 @@ fn update(
     //   )
     // }
 
-    // SetItem(item:) -> {
-    //   pure(Model(..model, item:))
-    // }
+    SetItem(item:) -> {
+      pure(Model(..model, item:))
+    }
 
     // RecvSubscription(ref:, resp:) -> {
     //   case resp {
@@ -242,126 +243,98 @@ fn update(
     //   }
     // }
 
-    // RecvItem(Error(err)) -> {
-    //   io.println_error("`RecvItem` err: " <> err |> string.inspect)
-    //   pure(model)
-    // }
+    RecvItem(Error(err)) -> {
+      io.println_error("`RecvItem` err: " <> err |> string.inspect)
+      pure(model)
+    }
 
-    // RecvItem(Ok(#(item, Deleted))) -> {
-    //   Model(..model, uuid: uuid.v7(), item: None, items: {
-    //     model.items
-    //     |> map_success(dict.delete(_, item.id))
-    //   })
-    //   |> eff([
-    //     set_focus("item-name"),
-    //   ])
-    // }
+    RecvItem(Ok(#(item, Deleted))) -> {
+      Model(..model, uuid: uuid.v7(), item: None, items: {
+        model.items
+        |> map_success(dict.delete(_, item.id))
+      })
+      |> eff([
+        set_focus("item-name"),
+      ])
+    }
 
-    // RecvItem(Ok(#(item, Created))) |
-    // RecvItem(Ok(#(item, Updated))) -> {
-    //   let items =
-    //     case model.items {
-    //       NotAsked | Loading | Failure(err: _) ->
-    //         Success(dict.new())
+    RecvItem(Ok(#(item, Created))) |
+    RecvItem(Ok(#(item, Updated))) -> {
+      let items =
+        case model.items {
+          client.NotAsked | client.Loading | client.Failure(err: _) ->
+            client.Success(dict.new())
 
-    //       Success(items) ->
-    //         Success(items)
-    //     }
-    //     |> map_success(dict.insert(_, item.id, item))
+          client.Success(items) ->
+            client.Success(items)
+        }
+        |> map_success(dict.insert(_, item.id, item))
 
-    //   Model(..model, uuid: uuid.v7(), item: None, items:)
-    //   |> eff([
-    //     set_focus("item-name"),
-    //   ])
-    // }
+      Model(..model, uuid: uuid.v7(), item: None, items:)
+      |> eff([
+        set_focus("item-name"),
+      ])
+    }
 
-    // GotItemForm(values:) -> {
-    //   let assert Ok(name) = values |> list.key_find("name")
+    GotItemForm(values:) -> {
+      let assert Ok(name) = values |> list.key_find("name")
+      let data = client.Item(name:)
 
-    //   let action =
-    //     case model.item {
-    //       Some(item) -> Update(id: item.id, new: api.Item(name:))
-    //       None -> Create(new: api.Item(name:))
-    //     }
+      let req =
+        case model.item {
+          None ->
+            client.req_create_items(
+              data:,
+              msg: fn(result) {
+                result
+                |> result.map(pair.new(_, Created))
+                |> RecvItem
+              },
+            )
 
-    //   model
-    //   |> send(
-    //     req: api.CrudItems(action),
-    //     handler: send_msg(
-    //       msg: fn(result) {
-    //         result
-    //         |> result.map(fn(record) { #(record, Created) })
-    //         |> RecvItem
-    //       },
-    //       map: fn(resp) {
-    //         case resp {
-    //           api.GotItem(item:, action: _) -> Ok(item)
-    //           _ -> Error(Nil)
-    //         }
-    //       },
-    //     ),
-    //     // handler: set_remote_data(
-    //     //   set: fn(model, items) { Model(..model, items:) },
-    //     //   map: fn(resp) {
-    //     //     case resp {
-    //     //       api.GotItems(page:) -> Ok(page.resources)
-    //     //       _ -> Error(Nil)
-    //     //     }
-    //     //   },
-    //     // ),
-    //   )
-    // }
+          Some(item) ->
+            client.req_update_items(
+              id: item.id,
+              data:,
+              msg: fn(result) {
+                result
+                |> result.map(pair.new(_, Updated))
+                |> RecvItem
+              },
+            )
+        }
 
-    // RecvItems(result:) ->
-    //   case result {
-    //     Ok(new) ->
-    //       pure(Model(..model, items: {
-    //         case model.items {
-    //           NotAsked | Loading | Failure(err: _) -> dict.new()
-    //           Success(data: items) -> items
-    //         }
-    //         |> fn(old) {
-    //           new
-    //           |> list.map(fn(item: Record(api.Item)) {
-    //             #(item.id, item)
-    //           })
-    //           |> dict.from_list
-    //           |> dict.merge(old, _)
-    //           |> Success
-    //         }
-    //       }))
+      model.client.send(model, req)
+    }
 
-    //     Error(err) ->
-    //       pure(Model(..model, items: Failure(err)))
-    //   }
+    RecvItems(result:) ->
+      case result {
+        Ok(generic.Paginated(resources: new, ..)) ->
+          pure(Model(..model, items: {
+            case model.items {
+              client.NotAsked | client.Loading | client.Failure(err: _) -> dict.new()
+              client.Success(data: items) -> items
+            }
+            |> fn(old) {
+              new
+              |> list.map(fn(item: Record(client.Item)) {
+                #(item.id, item)
+              })
+              |> dict.from_list
+              |> dict.merge(old, _)
+              |> client.Success
+            }
+          }))
+
+        Error(err) ->
+          pure(Model(..model, items: client.Failure(err)))
+      }
 
     RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
       io.println("WebSocket opened: " <> ws_url)
-      pure(Model(..model, conn: Some(conn)))
 
-      // let #(model, list_items_eff) =
-      //   Model(..model, conn: Some(conn), items: Loading)
-      //   |> send(
-      //     req: api.CrudItems(List(None)),
-      //     handler: send_msg(
-      //       msg: RecvItems,
-      //       map: fn(resp) {
-      //         case resp {
-      //           api.GotItems(page:) -> Ok(page.resources)
-      //           _ -> Error(Nil)
-      //         }
-      //       },
-      //     ),
-      //     // handler: set_remote_data(
-      //     //   set: fn(model, items) { Model(..model, items:) },
-      //     //   map: fn(resp) {
-      //     //     case resp {
-      //     //       api.GotItems(page:) -> Ok(page.resources)
-      //     //       _ -> Error(Nil)
-      //     //     }
-      //     //   },
-      //     // ),
-      //   )
+      Model(..model, conn: Some(conn))
+      |> model.client.send(client.req_list_items(params: None, msg: RecvItems))
 
       // let #(model, sub_to_items_eff) =
       //   Model(..model, conn: Some(conn), items: Loading)
@@ -411,24 +384,36 @@ fn update(
   }
 }
 
-type RemoteData(t, err) {
-  NotAsked
-  Loading
-  Success(data: t)
-  Failure(err: err)
-}
-
 fn map_success(
-  data data: RemoteData(a, err),
+  data data: client.ApiData(a),
   apply f: fn(a) -> b,
-) -> RemoteData(b, err) {
+) -> client.ApiData(b) {
   case data {
-    NotAsked -> NotAsked
-    Loading -> Loading
-    Failure(err:) -> Failure(err:)
-    Success(data:) -> Success(data: f(data))
+    client.NotAsked -> client.NotAsked
+    client.Loading -> client.Loading
+    client.Failure(err:) -> client.Failure(err:)
+    client.Success(data:) -> client.Success(data: f(data))
   }
 }
+
+// type RemoteData(t, err) {
+//   NotAsked
+//   Loading
+//   Success(data: t)
+//   Failure(err: err)
+// }
+
+// fn map_success(
+//   data data: RemoteData(a, err),
+//   apply f: fn(a) -> b,
+// ) -> RemoteData(b, err) {
+//   case data {
+//     NotAsked -> NotAsked
+//     Loading -> Loading
+//     Failure(err:) -> Failure(err:)
+//     Success(data:) -> Success(data: f(data))
+//   }
+// }
 
 fn pop(
   reqs reqs: Dict(Uuid, ApiRespHandler),
@@ -517,19 +502,19 @@ fn view(
   model model: Model,
 ) -> Element(Msg) {
   html.div([], [
-    html.p([], [
-      html.text(string.inspect(model.str)),
+    html.div([], [
+      html.p([], [
+        html.text(string.inspect(model.str)),
+      ]),
+      html.button([
+        event.on_click(Send(num: 123)),
+      ], [
+        html.text("Send"),
+      ]),
     ]),
-    html.button([
-      event.on_click(Send(num: 123)),
-    ], [
-      html.text("Send"),
-    ]),
+    view_items(model:),
+    view_item_form(model:),
   ])
-  // html.div([], [
-  //   view_items(model:),
-  //   view_item_form(model:),
-  // ])
 }
 
 fn view_item_form(
@@ -543,7 +528,7 @@ fn view_item_form(
   html.div([], [
     keyed.div([], [#(item_id,
       html.form([
-        // event.on_submit(GotItemForm),
+        event.on_submit(GotItemForm),
       ], [
         html.p([], [
           html.label([
@@ -595,7 +580,7 @@ fn view_item_form(
       Some(item) ->
         html.div([], [
           html.button([
-            // event.on_click(SetItem(None)),
+            event.on_click(SetItem(None)),
           ], [
             html.text("Cancel"),
           ]),
@@ -614,21 +599,21 @@ fn view_items(
 ) -> Element(Msg) {
   html.ul([], {
     case model.items {
-      NotAsked |
-      Loading |
-      Failure(err: _) ->
+      client.NotAsked |
+      client.Loading |
+      client.Failure(err: _) ->
         [html.text(model.items |> string.inspect)]
 
-      Success(data: items) ->
+      client.Success(data: items) ->
         items
         |> dict.to_list
         |> list.map(pair.second)
-        |> list.sort(fn(a: Record(api.Item), b: Record(api.Item)) {
+        |> list.sort(fn(a: Record(client.Item), b: Record(client.Item)) {
           string.compare(a.resource.name, b.resource.name)
         })
         |> list.map(fn(item) {
           html.li([
-            // event.on_click(SetItem(item: Some(item))),
+            event.on_click(SetItem(item: Some(item))),
           ], [
             html.code([], [
               html.text("(" <> item.id.id <> ") "),

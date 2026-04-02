@@ -77,7 +77,7 @@ pub type ApiClient(req, model, msg) {
 pub type ApiData(t) {
   NotAsked
   Loading
-  Failure(err: RecvErr)
+  Failure(err: Err)
   Success(data: t)
 }
 
@@ -266,32 +266,7 @@ fn generic_send(
   }
 }
 
-// dummy api
-
-pub type Api {
-  //$ derive json encode decode
-  Items(crud: Crud(Item, Item, Item, ItemAttr))
-  IntToString(func: Func(Int, String))
-}
-
-pub type Item {
-  //$ derive json encode decode
-  Item(
-    name: String,
-  )
-}
-
-pub type ItemAttr {
-  //$ derive json encode decode
-  ItemName
-}
-
-type Transcoders(t) {
-  Transcoders(
-    decoder: fn() -> Decoder(t),
-    encode: fn(t) -> Json,
-  )
-}
+//
 
 fn func(
   param param: param,
@@ -388,6 +363,26 @@ fn build_req(
   })
 }
 
+// dummy api
+
+pub type Api {
+  //$ derive json encode decode
+  Items(crud: Crud(Item, Item, Item, ItemAttr))
+  IntToString(func: Func(Int, String))
+}
+
+pub type Item {
+  //$ derive json encode decode
+  Item(
+    name: String,
+  )
+}
+
+pub type ItemAttr {
+  //$ derive json encode decode
+  ItemName
+}
+
 // codegen helpers
 
 pub fn req_int_to_string(
@@ -404,7 +399,7 @@ pub fn req_list_items(
   msg msg: fn(Result(Paginated(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
-  let decoder = json_paginated_items.decoder()
+  let decoder = generic.decoder_paginated(decoder_item())
   list(params:, msg:, req:, decoder:)
 }
 
@@ -413,7 +408,7 @@ pub fn req_read_items(
   msg msg: fn(Result(Record(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
-  let decoder = json_items_scalar.decoder()
+  let decoder = decoder_item()
   read(id:, msg:, req:, decoder:)
 }
 
@@ -422,7 +417,7 @@ pub fn req_create_items(
   msg msg: fn(Result(Record(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
-  let decoder = json_items_scalar.decoder()
+  let decoder = decoder_item()
   create(data:, msg:, req:, decoder:)
 }
 
@@ -432,7 +427,7 @@ pub fn req_update_items(
   msg msg: fn(Result(Record(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
-  let decoder = json_items_scalar.decoder()
+  let decoder = decoder_item()
   update(id:, data:, msg:, req:, decoder:)
 }
 
@@ -442,42 +437,8 @@ pub fn req_delete_items(
   msg msg: fn(Result(Record(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
   let req = Items
-  let decoder = json_items_scalar.decoder()
+  let decoder = decoder_item()
   delete(id:, confirm:, msg:, req:, decoder:)
-}
-
-// codegen json
-
-const json_paginated_items: Transcoders(Paginated(Item)) =
-  Transcoders(
-    decoder: decoder_paginated_items,
-    encode: encode_paginated_items,
-  )
-
-const json_items_scalar: Transcoders(Item) =
-  Transcoders(
-    decoder: decoder_items_scalar,
-    encode: encode_items_scalar,
-  )
-
-fn decoder_paginated_items() -> Decoder(Paginated(Item)) {
-  todo
-}
-
-fn encode_paginated_items(
-  value value: Paginated(Item),
-) -> Json {
-  todo
-}
-
-fn decoder_items_scalar() -> Decoder(Item) {
-  todo
-}
-
-fn encode_items_scalar(
-  value value: Item,
-) -> Json {
-  todo
 }
 
 // DERIVED

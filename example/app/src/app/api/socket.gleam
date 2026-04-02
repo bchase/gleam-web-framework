@@ -27,13 +27,14 @@ import mist
 //
 import lustre/effect.{type Effect}
 //
-import api.{type SocketReq, type SocketResp, type Req, type Resp}
-import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
-import api/id.{type Id}
+import api.{type SocketResp, type Req, type Resp}
+// import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
+import api/generic.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq}
+import api/id.{type Id, Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 //
 import api/server
-import api/client
+import api/client.{type Item, type ItemAttr}
 
 pub type Context = types.Context(app.Config, app.PubSub, user.User)
 
@@ -127,47 +128,45 @@ fn init(
   #(Socket(ctx:, conn:, subs: dict.new()), Some(selector))
 }
 
-fn init_items() -> Dict(Id(api.Item), Record(api.Item)) {
-  let ts = timestamp.unix_epoch
-  [
-    generic.Record(
-      id: id.Id(uuid.v7_string()),
-      created_at: ts,
-      updated_at: ts,
-      resource: api.Item(name: "zzz"),
-    ),
-    generic.Record(
-      id: id.Id(uuid.v7_string()),
-      created_at: ts,
-      updated_at: ts,
-      resource: api.Item(name: "aaa"),
-    ),
-  ]
-  // |> list.sort(fn(a, b) {
-  //   string.compare(a.resource.name, b.resource.name)
-  // })
-  |> list.map(fn(item: Record(api.Item)) {
-    #(item.id, item)
-  })
-  |> dict.from_list
-}
+// fn init_items() -> Dict(Id(client.Item), Record(client.Item)) {
+//   let ts = timestamp.unix_epoch
+//   [
+//     generic.Record(
+//       id: Id(uuid.v7_string()),
+//       created_at: ts,
+//       updated_at: ts,
+//       resource: client.Item(name: "zzz"),
+//     ),
+//     generic.Record(
+//       id: Id(uuid.v7_string()),
+//       created_at: ts,
+//       updated_at: ts,
+//       resource: client.Item(name: "aaa"),
+//     ),
+//   ]
+//   // |> list.sort(fn(a, b) {
+//   //   string.compare(a.resource.name, b.resource.name)
+//   // })
+//   |> list.map(fn(item: Record(client.Item)) {
+//     #(item.id, item)
+//   })
+//   |> dict.from_list
+// }
 
 fn update(
   socket socket: Socket,
   msg msg: mist.WebsocketMessage(Msg),
   conn conn: mist.WebsocketConnection,
 ) -> mist.Next(Socket, Msg) {
-  case msg {
+  case msg |> echo {
     mist.Binary(_) -> {
       io.println_error("WEBSOCKET IGNORING BINARY MSG")
       mist.continue(socket)
     }
 
     mist.Text(msg) -> {
-      let ctx = server.Context
-
-      serve(socket:, msg:, send:, ctx:, server: Server(
-        call: server.api_server,
+      serve(socket:, msg:, send:, ctx: socket.ctx, server: Server(
+        call: api_server,
         decoder: client.decoder_api(),
       ))
     }
@@ -368,7 +367,7 @@ type State {
 // }
 
 fn broadcast_item(
-  item item: Record(api.Item),
+  item item: Record(client.Item),
   action action: Action,
   ctx ctx: Context,
 ) -> Result(Nil, Err(err)) {
@@ -753,3 +752,122 @@ fn parse_socket_req(
   |> result.replace_error(ParseErr)
 }
 
+// domain server impl
+
+pub fn func_int_to_string() -> server.FuncHandler(Int, String, Context) {
+  server.FuncHandler(
+    run: int_to_string,
+    //
+    encode: json.string,
+  )
+}
+
+fn int_to_string(
+  num num: Int,
+  ctx ctx: Context,
+) -> Result(String, generic.Err) {
+  Ok(int.to_string(num))
+}
+
+pub fn crud_items() -> server.CrudHandler(Item, Item, Item, ItemAttr, Context) {
+  server.CrudHandler(
+    list: list_items,
+    // list: list_items_app |> app_to_func(err: function.identity),
+    create: create_items,
+    update: update_items,
+    read: read_items,
+    delete: delete_items,
+    //
+    encode: client.encode_item,
+  )
+}
+
+fn list_items(
+  req _req: ListReq(Item, key),
+  ctx ctx: Context,
+) -> Result(Paginated(Item), generic.Err) {
+  let assert Ok(items) =
+    uset.tab2list(ctx.cfg.items)
+
+  let items =
+    items
+    |> list.map(pair.second)
+
+  let pagination = generic.Pagination(0, 0) // TODO next
+  Ok(generic.Paginated(resources: items, pagination:))
+}
+fn create_items(
+  req req: CreateReq(Item, Item),
+  ctx ctx: Context,
+) -> Result(Record(Item), generic.Err) {
+  let id = Id(uuid.v7_string())
+  let ts = timestamp.system_time()
+  let item = generic.Record(id:, created_at: ts, updated_at: ts, resource: req.data)
+  let assert Ok(_inserted) =
+    ctx.cfg.items
+    |> uset.insert(item.id, item)
+  Ok(item)
+}
+fn update_items(
+  req req: UpdateReq(Item, Item),
+  ctx ctx: Context,
+) -> Result(Record(Item), generic.Err) {
+  case uset.lookup(ctx.cfg.items, req.id) {
+    Error(err) ->
+      case err {
+        bravo.Empty ->
+          Error(generic.Client(generic.NotFound(req.id.id, None)))
+        _ ->
+          todo
+      }
+
+    Ok(generic.Record(resource: item, ..) as record) -> {
+      let updated_at = timestamp.system_time()
+      let item = client.Item(..item, name: req.data.name)
+      let record = generic.Record(..record, resource: item, updated_at:)
+      // let _broadcasted = broadcast_item(item: record, action: Updated, ctx: socket.ctx)
+      Ok(record)
+    }
+  }
+}
+fn read_items(
+  req req: ReadReq(Item),
+  ctx ctx,
+) -> Result(Record(Item), generic.Err) {
+  todo
+  // {
+  //   let ts = timestamp.system_time()
+  //   pure(generic.Record(
+  //     id: id.Id(""),
+  //     created_at: ts,
+  //     updated_at: ts,
+  //     resource: client.Item(name: ""),
+  //   ))
+  // }
+  // |> run(ctx)
+}
+fn delete_items(
+  req req: DeleteReq(Item),
+  ctx ctx,
+) -> Result(Record(Item), generic.Err) {
+  todo
+}
+
+// codegen server
+
+pub fn api_server(
+  req req: generic.SocketReq(client.Api),
+  ctx ctx: Context,
+) -> Result(SocketResp, generic.Err) {
+  let SocketReq(ref:, req:) = req
+
+  case req {
+    client.Items(crud:) ->
+      crud_items()
+      |> server.process_crud(crud:, ref:, ctx:)
+
+    client.IntToString(func:) ->
+      func_int_to_string()
+      |> server.process_func(func:, ref:, ctx:)
+  }
+}

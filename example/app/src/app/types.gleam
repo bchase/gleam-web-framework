@@ -5,7 +5,7 @@ import fpo/pubsub
 import app/pubsub.{type TextMsg} as _
 import app/types/err
 import bravo/uset.{}
-import api
+import api/client as api
 import api/generic.{type Record, type Action}
 import api/id.{type Id}
 
@@ -23,7 +23,7 @@ pub type Config {
 pub type PubSub {
   PubSub(
     text: pubsub.PubSub(TextMsg),
-    items: pubsub.PubSub(#(api.Record(api.Item), Action)),
+    items: pubsub.PubSub(#(Record(api.Item), Action)),
   )
 }
 

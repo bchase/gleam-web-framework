@@ -11,25 +11,6 @@ import gleam/json.{type Json}
 import api/client.{type Api, type Item, type ItemAttr, decoder_api, encode_item}
 import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func}
 
-// codegen server
-
-pub fn api_server(
-  req req: SocketReq(Api),
-  ctx ctx,
-) -> Result(SocketResp, Err) {
-  let generic.SocketReq(ref:, req:) = req
-
-  case req {
-    client.Items(crud:) ->
-      crud_items()
-      |> process_crud(crud:, ref:, ctx:)
-
-    client.IntToString(func:) ->
-      func_int_to_string()
-      |> process_func(func:, ref:, ctx:)
-  }
-}
-
 pub type App(t, err, ctx) { App(run: fn(ctx) -> Result(t, err)) }
 fn run(app: App(t, err, ctx), ctx: ctx) -> Result(t, err) { todo }
 fn pure(x: t) { App(run: fn(_) { Ok(x) }) }
@@ -46,86 +27,6 @@ fn app_to_func(
     |> run(ctx)
     |> result.map_error(err)
   }
-}
-
-// domain server impl
-
-pub fn func_int_to_string() -> FuncHandler(Int, String, Context) {
-  FuncHandler(
-    run: int_to_string,
-    //
-    encode: json.string,
-  )
-}
-
-fn int_to_string(
-  num num: Int,
-  ctx ctx: Context,
-) -> Result(String, Err) {
-  Ok(int.to_string(num))
-}
-
-pub type Context {
-  Context(
-  )
-}
-
-pub fn crud_items() -> CrudHandler(Item, Item, Item, ItemAttr, Context) {
-  CrudHandler(
-    // list: list_items,
-    list: list_items_app |> app_to_func(err: function.identity),
-    create: create_items,
-    update: update_items,
-    read: read_items,
-    delete: delete_items,
-    //
-    encode: encode_item,
-  )
-}
-
-fn list_items_app(
-  req req: ListReq(Item, key),
-) -> App(Paginated(Item), Err, Context) {
-  todo
-}
-fn list_items(
-  req req: ListReq(Item, key),
-  ctx ctx,
-) -> Result(Paginated(Item), Err) {
-  todo
-}
-fn create_items(
-  req req: CreateReq(Item, create),
-  ctx ctx,
-) -> Result(Record(Item), Err) {
-  todo
-}
-fn update_items(
-  req req: UpdateReq(Item, update),
-  ctx ctx,
-) -> Result(Record(Item), Err) {
-  todo
-}
-fn read_items(
-  req req: ReadReq(Item),
-  ctx ctx,
-) -> Result(Record(Item), Err) {
-  {
-    let ts = timestamp.system_time()
-    pure(generic.Record(
-      id: id.Id(""),
-      created_at: ts,
-      updated_at: ts,
-      resource: client.Item(name: ""),
-    ))
-  }
-  |> run(ctx)
-}
-fn delete_items(
-  req req: DeleteReq(Item),
-  ctx ctx,
-) -> Result(Record(Item), Err) {
-  todo
 }
 
 // generic
