@@ -1,3 +1,5 @@
+import gleam/float
+import gleam/int
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import plinth/browser/shadow
@@ -53,6 +55,7 @@ fn decoders() -> List(component.Option(Msg)) {
 
 type Model {
   Model(
+    conn_: Result(ws.WebSocket, Int),
     conn: Option(ws.WebSocket),
     items: client.ApiData(Dict(Id(client.Item), Record(client.Item))),
     item: Option(Record(client.Item)),
@@ -71,10 +74,41 @@ type ApiRespHandler {
   SendMsg(msg: fn(Result(api.Resp, api.Err)) -> Msg)
 }
 
+pub fn exp_backoff_delay_ms(
+  attempt attempt: Int
+) -> Int {
+  let attempt =
+    case attempt < 1 {
+      True -> 1
+      False -> attempt
+    }
+
+  let base_delay = 1000 // 1s
+  let max_delay = 60_000 // 60s
+
+  let exp_delay =
+    // case int.power(2, int.to_float(attempt)) {
+    case Ok(int.to_float(attempt) *. 2.0) |> echo {
+      Error(Nil) ->
+        max_delay
+
+      Ok(mul) ->
+        base_delay
+        |> int.to_float
+        |> float.multiply(mul)
+        |> float.round()
+    }
+
+  exp_delay
+  |> int.clamp(min: base_delay, max: max_delay)
+  |> int.random
+}
+
 type Msg {
   NoOp
   // websockets
   RecvWebSocketEvent(event: WebSocketEvent)
+  ReconnectWebsocket(delay: Bool, attempt: Int)
   // ui
   Send(num: Int)
   GotItemForm(values: List(#(String, String)))
@@ -102,6 +136,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
     )
 
   Model(
+    conn_: Error(0),
     conn: None,
     items: NotAsked,
     item: None,
@@ -114,7 +149,9 @@ fn init(_) -> #(Model, Effect(Msg)) {
     str: None,
   )
   |> pair.new(effect.batch([
-    ws.init(ws_url, RecvWebSocketEvent),
+    effect.from(fn(dispatch) {
+      dispatch(ReconnectWebsocket(delay: False, attempt: 0))
+    })
   ]))
 }
 
@@ -164,6 +201,19 @@ fn send_msg(
           }
         }
     }
+  })
+}
+
+fn send_after(
+  delay_ms delay_ms: Int,
+  msg msg: msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    global.set_timeout(delay_ms, fn() {
+      echo delay_ms
+      dispatch(msg)
+    })
+    Nil
   })
 }
 
@@ -310,7 +360,7 @@ fn update(
     RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
       io.println("WebSocket opened: " <> ws_url)
 
-      let model = Model(..model, conn: Some(conn))
+      let model = Model(..model, conn: Some(conn), conn_: Ok(conn))
 
       let #(model, list_items_eff) =
         model
@@ -357,7 +407,45 @@ fn update(
 
     RecvWebSocketEvent(event: ws.OnClose(reason)) -> {
       io.println_error("WebSocket closed: " <> reason |> string.inspect)
-      pure(Model(..model, conn: None))
+
+      let conn_ =
+        case model.conn_ {
+          Ok(_conn) -> model.conn_
+          Error(attempt) -> Error(attempt + 1)
+        }
+
+      Model(..model, conn: None, conn_:)
+      |> eff([
+        effect.from(fn(dispatch) {
+          dispatch(ReconnectWebsocket(delay: True, attempt: 0))
+        }),
+      ])
+      // let conn_ =
+      //   case model.conn_ {
+      //     Ok(_conn) ->
+      //       Model(..model, conn: None, conn_: Error(0))
+      //       |> eff([
+      //         effect.from(fn(dispatch) {
+      //           dispatch(ReconnectWebsocket(delay: True, attempt: 0))
+      //         }),
+      //       ])
+
+      //     Error(attempt) if attempt > 1 ->
+      //       Model(..model, conn: None, conn_: Error(0))
+      //       |> eff([
+      //         effect.from(fn(dispatch) {
+      //           dispatch(ReconnectWebsocket(delay: True, attempt: 0))
+      //         }),
+      //       ])
+
+      //     Error(attempt) ->
+      //       Model(..model, conn: None, conn_: Error(0))
+      //       |> eff([
+      //         effect.from(fn(dispatch) {
+      //           dispatch(ReconnectWebsocket(delay: True, attempt: 0))
+      //         }),
+      //       ])
+      //   }
     }
 
     RecvWebSocketEvent(event: ws.InvalidUrl) -> {
@@ -374,6 +462,29 @@ fn update(
       // echo msg
 
       model.client.recv(model, msg)
+    }
+
+    ReconnectWebsocket(delay:, attempt: _) -> {
+      case model.conn_, delay {
+        Ok(_conn), _ ->
+          pure(model)
+
+        Error(attempt), True -> {
+          Model(..model, conn_: Error(attempt))
+          |> pair.new(effect.batch([
+            send_after(
+              delay_ms: exp_backoff_delay_ms(attempt:),
+              msg: ReconnectWebsocket(delay: False, attempt:)),
+          ]))
+        }
+
+        Error(_attempt), False -> {
+          model
+          |> pair.new(effect.batch([
+            ws.init(ws_url, RecvWebSocketEvent),
+          ]))
+        }
+      }
     }
   }
 }
