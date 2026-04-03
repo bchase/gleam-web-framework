@@ -1,7 +1,5 @@
 import gleam/float
 import gleam/int
-import gleam/dynamic.{type Dynamic}
-import gleam/dynamic/decode.{type Decoder}
 import plinth/browser/shadow
 import plinth/javascript/global
 import plinth/browser/document
@@ -15,7 +13,6 @@ import gleam/dict.{type Dict}
 import gleam/string
 import gleam/io
 import gleam/option.{type Option, Some, None}
-import gleam/json.{type Json}
 import lustre/component
 import lustre/attribute as attr
 import lustre/element.{type Element}
@@ -24,14 +21,11 @@ import gleam/pair
 import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
-import api.{type SocketResp}
-import api/generic.{List, Create, Update, Delete, type Record, type Records, type Action, Created, Updated, Deleted, type Pagination, type Paginated}
+import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
 //
 import api/client.{type ApiClient, type Api, NotAsked, Loading, Failure, Success}
-
-// gleam run -m lustre/dev build --no-html --minify
 
 pub fn main() -> Nil {
   register_web_component()
@@ -61,17 +55,10 @@ type Model {
     item: Option(Record(client.Item)),
     uuid: Uuid,
     //
-    reqs: Dict(Uuid, ApiRespHandler),
-    //
     client: ApiClient(Api, Model, Msg),
     //
     str: Option(Result(String, client.Err)),
   )
-}
-
-type ApiRespHandler {
-  SetRemoteData(set: fn(Model, Result(api.Resp, api.Err)) -> Model)
-  SendMsg(msg: fn(Result(api.Resp, api.Err)) -> Msg)
 }
 
 pub fn exp_backoff_delay_ms(
@@ -87,8 +74,7 @@ pub fn exp_backoff_delay_ms(
   let max_delay = 60_000 // 60s
 
   let exp_delay =
-    // case int.power(2, int.to_float(attempt)) {
-    case Ok(int.to_float(attempt) *. 2.0) |> echo {
+    case int.power(2, int.to_float(attempt)) {
       Error(Nil) ->
         max_delay
 
@@ -108,9 +94,9 @@ type Msg {
   NoOp
   // websockets
   RecvWebSocketEvent(event: WebSocketEvent)
-  ReconnectWebsocket(delay: Bool, attempt: Int)
+  ReconnectWebsocket(delay: Bool)
   // ui
-  Send(num: Int)
+  SendIntToString(num: Int)
   GotItemForm(values: List(#(String, String)))
   SetItem(item: Option(Record(client.Item)))
   DeleteItem(id: Id(client.Item))
@@ -142,67 +128,18 @@ fn init(_) -> #(Model, Effect(Msg)) {
     item: None,
     uuid: uuid.v7(),
     //
-    reqs: dict.new(),
-    //
     client:,
     //
     str: None,
   )
   |> pair.new(effect.batch([
     effect.from(fn(dispatch) {
-      dispatch(ReconnectWebsocket(delay: False, attempt: 0))
+      dispatch(ReconnectWebsocket(delay: False))
     })
   ]))
 }
 
 const ws_url = "/ws/api"
-
-// fn set_remote_data(
-//   map map: fn(api.Resp) -> Result(t, Nil),
-//   set set: fn(Model, RemoteData(t, api.Err)) -> Model,
-// ) -> ApiRespHandler {
-//   SetRemoteData(set: fn(model, result) {
-//     case result {
-//       Error(err) -> {
-//         model |> set(Failure(err:))
-//       }
-
-//       Ok(resp) ->
-//         case map(resp) {
-//           Ok(data) ->
-//             model |> set(Success(data:))
-
-//           Error(Nil) -> {
-//             io.println_error("Failed to map api result: " <> result |> string.inspect)
-//             model
-//           }
-//         }
-//     }
-//   })
-// }
-
-fn send_msg(
-  map map: fn(api.Resp) -> Result(t, Nil),
-  msg msg: fn(Result(t, api.Err)) -> Msg,
-) -> ApiRespHandler {
-  SendMsg(msg: fn(result) {
-    case result {
-      Error(err) ->
-        msg(Error(err))
-
-      Ok(resp) ->
-        case map(resp) {
-          Ok(data) ->
-            msg(Ok(data))
-
-          Error(Nil) -> {
-            io.println_error("Failed to map api result: " <> result |> string.inspect)
-            NoOp // TODO conv to `Result(Msg, Nil)`
-          }
-        }
-    }
-  })
-}
 
 fn send_after(
   delay_ms delay_ms: Int,
@@ -238,12 +175,12 @@ fn update(
   model model: Model,
   msg msg: Msg,
 ) -> #(Model, Effect(Msg)) {
-  // case msg |> echo {
+  echo msg
   case msg {
     NoOp ->
       pure(model)
 
-    Send(num:) ->
+    SendIntToString(num:) ->
       model.client.send(model, client.req_int_to_string(num, RecvIntToString))
 
     RecvIntToString(result:) ->
@@ -259,25 +196,6 @@ fn update(
 
     SetItem(item:) ->
       pure(Model(..model, item:))
-
-    // RecvSubscription(ref:, resp:) -> {
-    //   case resp {
-    //     api.GotItems(page:) -> todo
-    //     api.SubscribedTo(all_subs:) -> todo
-    //     api.RespOther -> todo
-
-    //     api.GotItem(item:, action: Created) |
-    //     api.GotItem(item:, action: Updated) ->
-    //       pure(Model(..model, items: {
-    //         model.items |> map_success(dict.insert(_, item.id, item))
-    //       }))
-
-    //     api.GotItem(item:, action: Deleted) ->
-    //       pure(Model(..model, items: {
-    //         model.items |> map_success(dict.delete(_, item.id))
-    //       }))
-    //   }
-    // }
 
     RecvItem(action: _, result: Error(err)) -> {
       io.println_error("`RecvItem` err: " <> err |> string.inspect)
@@ -379,30 +297,6 @@ fn update(
         list_items_eff,
         subscribe_items_eff,
       ]))
-
-      // let #(model, sub_to_items_eff) =
-      //   Model(..model, conn: Some(conn), items: Loading)
-      //   |> send(
-      //     req: api.Subscribe(subs: dict.from_list([#(uuid.v7_string(), api.SubItems)])),
-      //     handler: send_msg(
-      //       msg: fn(msg) {
-      //         io.println("Subscribed: " <> string.inspect(msg))
-      //         NoOp
-      //       },
-      //       map: fn(resp) {
-      //         case resp {
-      //           api.SubscribedTo(all_subs:) -> Ok(all_subs)
-      //           _ -> Error(Nil)
-      //         }
-      //       },
-      //     ),
-      //   )
-
-      // model
-      // |> eff([
-      //   list_items_eff,
-      //   sub_to_items_eff,
-      // ])
     }
 
     RecvWebSocketEvent(event: ws.OnClose(reason)) -> {
@@ -410,42 +304,16 @@ fn update(
 
       let conn_ =
         case model.conn_ {
-          Ok(_conn) -> model.conn_
+          Ok(_conn) -> Error(0)
           Error(attempt) -> Error(attempt + 1)
         }
 
       Model(..model, conn: None, conn_:)
       |> eff([
         effect.from(fn(dispatch) {
-          dispatch(ReconnectWebsocket(delay: True, attempt: 0))
+          dispatch(ReconnectWebsocket(delay: True))
         }),
       ])
-      // let conn_ =
-      //   case model.conn_ {
-      //     Ok(_conn) ->
-      //       Model(..model, conn: None, conn_: Error(0))
-      //       |> eff([
-      //         effect.from(fn(dispatch) {
-      //           dispatch(ReconnectWebsocket(delay: True, attempt: 0))
-      //         }),
-      //       ])
-
-      //     Error(attempt) if attempt > 1 ->
-      //       Model(..model, conn: None, conn_: Error(0))
-      //       |> eff([
-      //         effect.from(fn(dispatch) {
-      //           dispatch(ReconnectWebsocket(delay: True, attempt: 0))
-      //         }),
-      //       ])
-
-      //     Error(attempt) ->
-      //       Model(..model, conn: None, conn_: Error(0))
-      //       |> eff([
-      //         effect.from(fn(dispatch) {
-      //           dispatch(ReconnectWebsocket(delay: True, attempt: 0))
-      //         }),
-      //       ])
-      //   }
     }
 
     RecvWebSocketEvent(event: ws.InvalidUrl) -> {
@@ -459,12 +327,10 @@ fn update(
     }
 
     RecvWebSocketEvent(event: ws.OnTextMessage(msg)) -> {
-      // echo msg
-
       model.client.recv(model, msg)
     }
 
-    ReconnectWebsocket(delay:, attempt: _) -> {
+    ReconnectWebsocket(delay:) -> {
       case model.conn_, delay {
         Ok(_conn), _ ->
           pure(model)
@@ -474,7 +340,7 @@ fn update(
           |> pair.new(effect.batch([
             send_after(
               delay_ms: exp_backoff_delay_ms(attempt:),
-              msg: ReconnectWebsocket(delay: False, attempt:)),
+              msg: ReconnectWebsocket(delay: False)),
           ]))
         }
 
@@ -501,108 +367,6 @@ fn map_success(
   }
 }
 
-// type RemoteData(t, err) {
-//   NotAsked
-//   Loading
-//   Success(data: t)
-//   Failure(err: err)
-// }
-
-// fn map_success(
-//   data data: RemoteData(a, err),
-//   apply f: fn(a) -> b,
-// ) -> RemoteData(b, err) {
-//   case data {
-//     NotAsked -> NotAsked
-//     Loading -> Loading
-//     Failure(err:) -> Failure(err:)
-//     Success(data:) -> Success(data: f(data))
-//   }
-// }
-
-// fn pop(
-//   reqs reqs: Dict(Uuid, ApiRespHandler),
-//   resp resp: SocketResp,
-// ) -> #(Dict(Uuid, ApiRespHandler), Result(ApiRespHandler, Nil)) {
-//   case dict.get(reqs, resp.ref) {
-//     Ok(handler) ->
-//       #(dict.delete(reqs, resp.ref), Ok(handler))
-
-//     Error(Nil) ->
-//       #(reqs, Error(Nil))
-//   }
-// }
-
-fn process(
-  model model: Model,
-  resp resp: SocketResp,
-  msg msg: fn(String, api.Resp) -> Msg,
-) -> #(Model, Effect(Msg)) {
-  // let #(reqs, handler) = pop(model.reqs, resp)
-
-  // case resp.ref |> uuid.to_string, resp.result {
-  //   "pubsub:" <> _ref, Error(err) -> {
-  //     io.println_error("Received pubsub err msg: " <> err |> string.inspect)
-  //     pure(model)
-  //   }
-
-  //   "pubsub:" <> ref, Ok(resp) -> {
-  //     model
-  //     |> eff([
-  //       effect.from(fn(dispatch) {
-  //         dispatch(msg(ref, resp))
-  //       }),
-  //     ])
-  //   }
-
-  //   _ref, _ -> {
-  //     let #(model, resp_eff) =
-  //       case handler {
-  //         Ok(SetRemoteData(set:)) ->
-  //           pure(model |> set(resp.result))
-
-  //         Ok(SendMsg(msg:)) ->
-  //           model
-  //           |> eff([
-  //             effect.from(fn(dispatch) {
-  //               dispatch(msg(resp.result))
-  //             }),
-  //           ])
-
-  //         Error(Nil) -> {
-  //           // TODO
-  //           io.println_error("WebSocket resp ref not found in reqs: " <> resp |> string.inspect)
-  //           pure(model)
-  //         }
-  //       }
-
-  //     Model(..model, reqs:)
-  //     |> eff([
-  //       resp_eff,
-  //     ])
-  //   }
-  // }
-}
-
-// fn handle_websocket_text(
-//   model model: Model,
-//   msg msg: String,
-// ) -> #(Model, Effect(Msg)) {
-//   case json.parse(msg, api.decoder_socket_resp()) {
-//     Ok(resp) -> {
-//       // model |> process(resp:, msg: RecvSubscription)
-//       todo as "tk"
-//     }
-
-//     Error(err) -> {
-//       io.println_error("WebSocket msg json parse failed:")
-//       io.println_error(err |> string.inspect)
-//       io.println_error(msg)
-//       pure(model)
-//     }
-//   }
-// }
-
 fn view(
   model model: Model,
 ) -> Element(Msg) {
@@ -612,7 +376,7 @@ fn view(
         html.text(string.inspect(model.str)),
       ]),
       html.button([
-        event.on_click(Send(num: 123)),
+        event.on_click(SendIntToString(num: 123)),
       ], [
         html.text("Send"),
       ]),
@@ -641,7 +405,6 @@ fn view_item_form(
           ], [
             html.text("Item ID: "),
           ]),
-          // html.span([], [html.text(" ")]),
           html.input([
             attr.disabled(True),
             attr.id("item-id"),
@@ -659,7 +422,6 @@ fn view_item_form(
           ], [
             html.text("Item name: "),
           ]),
-          // html.span([], [html.text(" ")]),
           html.input([
             attr.id("item-name"),
             attr.name("name"),
@@ -732,7 +494,6 @@ fn view_items(
   })
 }
 
-
 // lustre helpers
 
 fn pure(
@@ -747,294 +508,3 @@ fn eff(
 ) -> #(Model, Effect(Msg)) {
   model |> pair.new(effect.batch(effs))
 }
-
-// websockets helpers
-
-fn send(
-  model model: Model,
-  req req: api.Req,
-  handler handler: ApiRespHandler,
-) -> #(Model, Effect(Msg)) {
-  // case model.conn {
-  //   None ->
-  //     pure(model)
-
-  //   Some(conn) -> {
-  //     let ref = uuid.v7_string()
-
-  //     model
-  //     |> listen_for(ref:, handler:)
-  //     |> eff([
-  //       api.socket_req(ref:, req:)
-  //       |> api.encode_socket_req
-  //       |> json.to_string
-  //       |> ws.send(conn, _)
-  //     ])
-  //   }
-  // }
-}
-
-fn listen_for(
-  model model: Model,
-  ref ref: String,
-  handler handler: ApiRespHandler,
-) -> Model {
-  // Model(..model, reqs: {
-  //   model.reqs
-  //   |> dict.insert(ref, handler)
-  // })
-}
-
-// //
-
-// type NewMsg {
-//   NewGotItems(items: List(Record(api.Item)))
-// }
-
-// type NewSocket {
-//   NewSocket(
-//     reqs: Reqs,
-//     conn: Option(ws.WebSocket),
-//   )
-// }
-
-// type Reqs = Dict(Uuid, fn(Dynamic) -> Result(NewMsg, RecvErr))
-
-// type NoConn {
-//   NoConn
-// }
-
-// type NewReq(msg) {
-//   NewReq(
-//     ref: Uuid,
-//     req: api.Req,
-//     resp: fn(Dynamic) -> Result(msg, RecvErr)
-//   )
-// }
-
-// fn pop_req(
-//   reqs reqs: Reqs,
-//   ref ref: Uuid,
-// ) -> Result(#(Reqs, fn(Dynamic) -> Result(NewMsg, RecvErr)), Nil) {
-//   reqs
-//   |> dict.get(ref)
-//   |> result.map(pair.new(dict.delete(reqs, ref), _)) // TODO lazy
-// }
-
-// fn build_req(
-//   req req: api.Req,
-//   decoder decoder: Decoder(t),
-//   msg msg: fn(t) -> msg,
-// ) -> NewReq(msg) {
-//   let ref = uuid.v7()
-
-//   let resp =
-//     fn(dyn) {
-//       dyn
-//       |> decode.run(decoder)
-//       |> result.map(msg)
-//       |> result.map_error(DecodeErrs(ref:, errs: _))
-//     }
-
-//   NewReq(ref:, req:, resp:)
-// }
-
-// fn socket_listen(
-//   socket socket: NewSocket,
-//   req req: NewReq(NewMsg)
-// ) -> Result(NewSocket, NoConn) {
-//   socket.reqs
-//   |> generic_listen(conn: socket.conn, req:)
-//   |> result.map(fn(reqs) {
-//     NewSocket(..socket, reqs:)
-//   })
-// }
-
-// fn generic_listen(
-//   reqs reqs: Reqs,
-//   conn conn: Option(ws.WebSocket),
-//   req req: NewReq(NewMsg)
-// ) -> Result(Reqs, NoConn) {
-//   case conn {
-//     None ->
-//       Error(NoConn)
-
-//     Some(conn) -> {
-//       api.socket_req(ref: req.ref |> uuid.to_string(), req: req.req)
-//       |> api.encode_socket_req
-//       |> json.to_string
-//       |> ws.send(conn, _)
-
-//       Ok(reqs |> dict.insert(req.ref, req.resp))
-//     }
-//   }
-// }
-
-// type ApiErr
-
-// type RecvErr {
-//   NoRef(
-//     json: String,
-//   )
-//   UuidParseFailure(
-//     ref: String,
-//   )
-//   ReqNotFound(
-//     ref: Uuid,
-//     json: String,
-//   )
-//   RespNotFound(
-//     ref: Uuid,
-//     json: String,
-//   )
-//   JsonDecodeErr(
-//     ref: Uuid,
-//     err: json.DecodeError,
-//   )
-//   DecodeErrs(
-//     ref: Uuid,
-//     errs: List(decode.DecodeError),
-//   )
-// }
-
-// // impl server
-
-// fn exp_api_resp(
-//   ref ref: String,
-//   req req: api.ExpReq,
-// ) -> Result(Json, ApiErr) {
-//   case req {
-//     api.Items(generic.C(req:)) -> todo
-//     api.Items(generic.R(req:)) -> todo
-//     api.Items(generic.U(req:)) -> todo
-//     api.Items(generic.D(req:)) -> todo
-//     api.Items(generic.X(req:)) -> todo
-
-//     api.Items(generic.L(req:)) ->
-//       req
-//       |> list_items_exp_api_resp // process
-//       |> result.map(json_list_items.encode) // encode json
-//   }
-//   |> result.map(fn(json) {
-//     json.object([
-//       #("ref", json.string(ref)),
-//       #("resp", json),
-//     ])
-//   })
-// }
-
-// // json
-
-// type Transcoders(t) {
-//   Transcoders(
-//     decoder: fn() -> Decoder(t),
-//     encode: fn(t) -> Json,
-//   )
-// }
-
-// const json_list_items: Transcoders(Paginated(api.Item)) =
-//   Transcoders(
-//     decoder: decoder_list_items,
-//     encode: encode_list_items,
-//   )
-
-// // const json_read_item: Transcoders(Record(api.Item)) =
-// //   Transcoders(
-// //     decoder: decoder_list_items,
-// //     encode: encode_list_items,
-// //   )
-
-// type Paginated(t) {
-//   Paginated(
-//     resources: Records(t),
-//     pagination: Pagination,
-//   )
-// }
-
-// fn decoder_list_items() -> Decoder(Paginated(api.Item)) {
-//   decoder_paginated(api.decoder_item())
-// }
-
-// fn encode_list_items(
-//   value value: Paginated(api.Item)
-// ) -> Json {
-//   encode_paginated(value, api.encode_item)
-// }
-
-// fn decoder_paginated(
-//   decoder decoder: Decoder(t),
-// ) -> Decoder(Records(t)) {
-//   decode.list(generic.decoder_record(decoder))
-// }
-
-// fn encode_paginated(
-//   value value: Paginated(t),
-//   encode encode: fn(t) -> Json,
-// ) -> Json {
-//   json.array(value, generic.encode_record(_, encode))
-// }
-
-// // server
-
-// fn list_items_exp_api_resp(
-//   req req: generic.ListReq(api.Item),
-// ) -> Result(Records(api.Item), ApiErr) {
-//   todo
-// }
-
-// // client
-
-// type ClientReq(t) {
-//   ClientReq(
-//     ref: String,
-//     req: api.ExpReq,
-//     decoder: Decoder(t),
-//   )
-// }
-
-// fn client_recv(
-//   reqs reqs: Reqs,
-//   json json: String,
-// ) -> Result(#(Reqs, NewMsg), RecvErr) {
-//   use ref <- result.try(
-//     decode.at(["ref"], decode.string)
-//     |> json.parse(json, _)
-//     |> result.replace_error(NoRef(json:))
-//   )
-//   use ref <- result.try(
-//     uuid.from_string(ref)
-//     |> result.replace_error(UuidParseFailure(ref:))
-//   )
-//   use resp <- result.try(
-//     decode.at(["resp"], decode.dynamic)
-//     |> json.parse(json, _)
-//     |> result.replace_error(RespNotFound(ref:, json:))
-//   )
-//   use #(reqs, to_msg) <- result.try(
-//     pop_req(reqs, ref)
-//     |> result.replace_error(ReqNotFound(ref:, json:))
-//   )
-
-//   use msg <- result.try(resp |> to_msg)
-
-//   Ok(#(reqs, msg))
-// }
-
-// fn list_items_exp_api_req(
-//   pagination pagination: Option(Pagination),
-// ) -> fn(String) -> ClientReq(Records(api.Item)) {
-//   ClientReq(
-//     ref: _,
-//     req: api.Items(generic.L(generic.ListReq(pagination:))),
-//     decoder: json_list_items.decoder(),
-//   )
-// }
-
-// fn decoder_exp_api_resp(
-//   decoder decoder: Decoder(t),
-// ) -> Decoder(#(String, t)) {
-//   use ref <- decode.field("ref", decode.string)
-//   use resp <- decode.field("resp", decoder)
-
-//   decode.success(#(ref, resp))
-// }
