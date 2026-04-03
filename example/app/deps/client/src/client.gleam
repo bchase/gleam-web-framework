@@ -50,8 +50,6 @@ fn decoders() -> List(component.Option(Msg)) {
 type Model {
   Model(
     ws_url: String,
-    conn_: Result(ws.WebSocket, Int),
-    conn: Option(ws.WebSocket),
     items: client.ApiData(Dict(Id(client.Item), Record(client.Item))),
     item: Option(Record(client.Item)),
     uuid: Uuid,
@@ -60,7 +58,7 @@ type Model {
     //
     str: Option(Result(String, client.Err)),
     //
-    conn__: conn.Conn(Msg),
+    conn: conn.Conn(Msg),
   )
 }
 
@@ -96,8 +94,6 @@ pub fn exp_backoff_delay_ms(
 type Msg {
   NoOp
   // websockets
-  RecvWebSocketEvent(event: WebSocketEvent)
-  ReconnectWebsocket(delay: Bool)
   ConnMsg(msg: conn.ConnMsg(Api))
   RecvConnEvent(event: conn.ConnectionEvent)
   // ui
@@ -117,7 +113,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
       get_client: fn(model: Model) { model.client },
       set_client: fn(model: Model, client) { Model(..model, client:) },
       get_send: fn(model: Model) {
-        case conn.ws(model.conn__) {
+        case conn.ws(model.conn) {
           None -> None
           Some(conn) -> Some(ws.send(conn, _))
         }
@@ -140,8 +136,6 @@ fn init(_) -> #(Model, Effect(Msg)) {
 
   Model(
     ws_url:,
-    conn_: Error(0),
-    conn: None,
     items: NotAsked,
     item: None,
     uuid: uuid.v7(),
@@ -150,7 +144,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
     //
     str: None,
     //
-    conn__: conn,
+    conn: conn,
   )
   |> pair.new(effect.batch([
     conn_eff,
@@ -227,9 +221,9 @@ fn update(
       model
       |> conn.update(
         msg:,
-        conn: model.conn__,
+        conn: model.conn,
         get_client: fn(model: Model) { model.client },
-        set_conn: fn(model: Model, conn) { Model(..model, conn__: conn) },
+        set_conn: fn(model: Model, conn) { Model(..model, conn: conn) },
         wrap: ConnMsg,
       )
     }
@@ -328,84 +322,6 @@ fn update(
         Error(err) ->
           pure(Model(..model, items: Failure(err)))
       }
-
-    RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
-      io.println("WebSocket opened: " <> model.ws_url)
-
-      let model = Model(..model, conn: Some(conn), conn_: Ok(conn))
-
-      let #(model, list_items_eff) =
-        model
-        |> model.client.send(client.req_list_items(params: None, msg: RecvItems))
-
-      let #(model, subscribe_items_eff) =
-        model
-        |> model.client.send(client.req_subscribe_to_items(msg: fn(result) {
-          case result {
-            Ok(client.ItemsSubMsg(action:, item:)) -> RecvItem(action:, result: Ok(item))
-            Error(_) -> NoOp
-          }
-        }))
-
-      #(model, effect.batch([
-        list_items_eff,
-        subscribe_items_eff,
-      ]))
-    }
-
-    RecvWebSocketEvent(event: ws.OnClose(reason)) -> {
-      io.println_error("WebSocket closed: " <> reason |> string.inspect)
-
-      let conn_ =
-        case model.conn_ {
-          Ok(_conn) -> Error(0)
-          Error(attempt) -> Error(attempt + 1)
-        }
-
-      Model(..model, conn: None, conn_:)
-      |> eff([
-        effect.from(fn(dispatch) {
-          dispatch(ReconnectWebsocket(delay: True))
-        }),
-      ])
-    }
-
-    RecvWebSocketEvent(event: ws.InvalidUrl) -> {
-      io.println_error("Invalid URL: " <> model.ws_url)
-      pure(model)
-    }
-
-    RecvWebSocketEvent(event: ws.OnBinaryMessage(ba)) -> {
-      io.println_error("Ignoring WebSocket binary msg: " <> ba |> string.inspect)
-      pure(Model(..model, conn: None))
-    }
-
-    RecvWebSocketEvent(event: ws.OnTextMessage(msg)) -> {
-      model.client.recv(model, msg)
-    }
-
-    ReconnectWebsocket(delay:) -> {
-      case model.conn_, delay {
-        Ok(_conn), _ ->
-          pure(model)
-
-        Error(attempt), True -> {
-          Model(..model, conn_: Error(attempt))
-          |> pair.new(effect.batch([
-            send_after(
-              delay_ms: exp_backoff_delay_ms(attempt:),
-              msg: ReconnectWebsocket(delay: False)),
-          ]))
-        }
-
-        Error(_attempt), False -> {
-          model
-          |> pair.new(effect.batch([
-            ws.init(model.ws_url, RecvWebSocketEvent),
-          ]))
-        }
-      }
-    }
   }
 }
 
