@@ -383,7 +383,6 @@ fn send_after(
 ) -> Effect(msg) {
   effect.from(fn(dispatch) {
     global.set_timeout(delay_ms, fn() {
-      echo delay_ms
       dispatch(msg)
     })
     Nil
@@ -396,10 +395,11 @@ fn send_after(
 //
 //
 
-pub opaque type Conn {
+pub opaque type Conn(parent_msg) {
   Conn(
     ws_url: String,
     ws: Result(ws.WebSocket, Int),
+    notify: fn(ConnectionEvent) -> parent_msg,
   )
 }
 
@@ -409,24 +409,32 @@ pub opaque type ConnMsg(api) {
 }
 
 pub fn ws(
-  conn conn: Conn,
+  conn conn: Conn(parent_msg),
 ) -> Option(ws.WebSocket) {
   option.from_result(conn.ws)
 }
 
 pub fn is_connected(
-  conn conn: Conn,
+  conn conn: Conn(parent_msg),
 ) -> Bool {
   result.is_ok(conn.ws)
+}
+
+pub type ConnectionEvent {
+  Connected(reconnect: Bool)
+  Disconnected
+  WebSocketUrlInvalid
 }
 
 pub fn init(
   ws_url ws_url: String,
   wrap to_parent_msg: fn(ConnMsg(api)) -> parent_msg,
-) -> #(Conn, Effect(parent_msg)) {
+  notify notify: fn(ConnectionEvent) -> parent_msg,
+) -> #(Conn(parent_msg), Effect(parent_msg)) {
   Conn(
     ws_url:,
     ws: Error(0),
+    notify:,
   )
   |> pair.new(effect.batch([
     effect.from(fn(dispatch) {
@@ -477,18 +485,26 @@ pub fn init(
 // type Web
 
 fn set_websocket_conn(
-  conn conn: Conn,
+  model model,
+  conn conn: Conn(parent_msg),
   ws ws: ws.WebSocket,
-) -> #(Conn, Effect(ConnMsg(api))) {
+  set_conn set_conn: fn(model, Conn(parent_msg)) -> model,
+) -> #(model, Effect(parent_msg)) {
   io.println("WebSocket opened: " <> conn.ws_url)
 
-  pure(Conn(..conn, ws: Ok(ws)))
+  model
+  |> set_conn(Conn(..conn, ws: Ok(ws)))
+  |> pair.new(effect.batch([
+    effect.from(fn(dispatch) {
+      dispatch(conn.notify(Connected(reconnect: False)))
+    }),
+  ]))
 }
 
 fn reconnect_to_websocket_on_close(
-  conn conn: Conn,
+  conn conn: Conn(parent_msg),
   reason reason: ws.WebSocketCloseReason,
-) -> #(Conn, Effect(ConnMsg(api))) {
+) -> #(Conn(parent_msg), Effect(ConnMsg(api))) {
   io.println_error("WebSocket closed: " <> reason |> string.inspect)
 
   let ws =
@@ -506,9 +522,9 @@ fn reconnect_to_websocket_on_close(
 }
 
 fn attempt_reconnect_to_websocket(
-  conn conn: Conn,
+  conn conn: Conn(parent_msg),
   with_delay delay: Bool,
-) -> #(Conn, Effect(ConnMsg(api))) {
+) -> #(Conn(parent_msg), Effect(ConnMsg(api))) {
   case conn.ws, delay {
     Ok(_conn), _ ->
       pure(conn)
@@ -535,11 +551,11 @@ pub fn update(
   model model: model,
   get_client get_client: fn(model) -> ApiClient(api, model, parent_msg),
   wrap to_parent_msg: fn(ConnMsg(api)) -> parent_msg,
-  conn conn: Conn,
+  conn conn: Conn(parent_msg),
   msg msg: ConnMsg(api),
-  set_conn set_conn: fn(model, Conn) -> model,
+  set_conn set_conn: fn(model, Conn(parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
-  let map_parent= fn(t : #(Conn, Effect(ConnMsg(api)))) {
+  let map_parent= fn(t: #(Conn(parent_msg), Effect(ConnMsg(api)))) {
     model
     |> set_conn(t.0)
     |> pair.new(effect.batch([
@@ -547,29 +563,20 @@ pub fn update(
     ]))
   }
 
-  echo conn.ws_url
+  let client = get_client(model)
 
-echo msg
   case msg {
+    RecvWebSocketEvent(event: ws.OnBinaryMessage(ba)) ->
+      ignore_binary_msg(model:, ba:)
+
     RecvWebSocketEvent(event: ws.OnTextMessage(msg)) ->
-      model
-      |> get_client
-      |> fn(client) {
-        client.recv(model, msg)
-      }
+      client.recv(model, msg)
 
-    RecvWebSocketEvent(event: ws.InvalidUrl) -> {
-      io.println_error("Invalid URL: " <> conn.ws_url)
-      pure(model)
-    }
-
-    RecvWebSocketEvent(event: ws.OnBinaryMessage(ba)) -> {
-      io.println_error("Ignoring WebSocket binary msg: " <> ba |> string.inspect)
-      pure(model)
-    }
+    RecvWebSocketEvent(event: ws.InvalidUrl) ->
+      notify_invalid_url(model:, conn:)
 
     RecvWebSocketEvent(event: ws.OnOpen(ws)) ->
-      set_websocket_conn(conn:, ws:) |> map_parent
+      set_websocket_conn(model:, conn:, ws:, set_conn:)
 
     RecvWebSocketEvent(event: ws.OnClose(reason)) ->
       reconnect_to_websocket_on_close(conn:, reason:) |> map_parent
@@ -577,6 +584,28 @@ echo msg
     ReconnectWebSocket(with_delay:) ->
       attempt_reconnect_to_websocket(conn:, with_delay:) |> map_parent
   }
+}
+
+fn ignore_binary_msg(
+  model model: model,
+  ba ba: BitArray,
+) -> #(model, Effect(parent_msg)) {
+  io.println_error("Ignoring WebSocket binary msg: " <> ba |> string.inspect)
+  pure(model)
+}
+
+fn notify_invalid_url(
+  model model: model,
+  conn conn: Conn(parent_msg),
+) -> #(model, Effect(parent_msg)) {
+  io.println_error("Invalid URL: " <> conn.ws_url)
+
+  model
+  |> pair.new(effect.batch([
+    effect.from(fn(dispatch) {
+      dispatch(conn.notify(WebSocketUrlInvalid))
+    }),
+  ]))
 }
 
 // fn connect_to_websocket(

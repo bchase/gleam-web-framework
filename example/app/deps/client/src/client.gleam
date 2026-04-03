@@ -60,7 +60,7 @@ type Model {
     //
     str: Option(Result(String, client.Err)),
     //
-    conn__: conn.Conn,
+    conn__: conn.Conn(Msg),
   )
 }
 
@@ -99,6 +99,7 @@ type Msg {
   RecvWebSocketEvent(event: WebSocketEvent)
   ReconnectWebsocket(delay: Bool)
   ConnMsg(msg: conn.ConnMsg(Api))
+  RecvConnEvent(event: conn.ConnectionEvent)
   // ui
   SendIntToString(num: Int)
   GotItemForm(values: List(#(String, String)))
@@ -116,7 +117,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
       get_client: fn(model: Model) { model.client },
       set_client: fn(model: Model, client) { Model(..model, client:) },
       get_send: fn(model: Model) {
-        case conn.ws(model.conn__) |> echo {
+        case conn.ws(model.conn__) {
           None -> None
           Some(conn) -> Some(ws.send(conn, _))
         }
@@ -134,6 +135,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
     conn.init(
       ws_url:,
       wrap: ConnMsg,
+      notify: RecvConnEvent,
     )
 
   Model(
@@ -164,7 +166,6 @@ fn send_after(
 ) -> Effect(msg) {
   effect.from(fn(dispatch) {
     global.set_timeout(delay_ms, fn() {
-      echo delay_ms
       dispatch(msg)
     })
     Nil
@@ -192,10 +193,35 @@ fn update(
   model model: Model,
   msg msg: Msg,
 ) -> #(Model, Effect(Msg)) {
-  echo msg
+  // echo msg
   case msg {
     NoOp ->
       pure(model)
+
+    RecvConnEvent(event: conn.Connected(reconnect: False)) -> {
+      let #(model, list_items_eff) = model.client.send(model, client.req_list_items(None, msg: RecvItems))
+      let #(model, subscribe_items_eff) =
+        model.client.send(model, client.req_subscribe_to_items(msg: fn(result) {
+          case result {
+            Ok(client.ItemsSubMsg(action:, item:)) -> RecvItem(action:, result: Ok(item))
+            Error(_) -> NoOp
+          }
+        }))
+      model
+      |> eff([
+        list_items_eff,
+        subscribe_items_eff,
+      ])
+    }
+
+    RecvConnEvent(event: conn.Disconnected) |
+    RecvConnEvent(event: conn.Connected(reconnect: True)) -> {
+      pure(model)
+    }
+
+    RecvConnEvent(event: conn.WebSocketUrlInvalid) -> {
+      panic as { "WebSocket URL invalid" }
+    }
 
     ConnMsg(msg:) -> {
       model
@@ -206,7 +232,6 @@ fn update(
         set_conn: fn(model: Model, conn) { Model(..model, conn__: conn) },
         wrap: ConnMsg,
       )
-      |> echo
     }
 
     SendIntToString(num:) ->
