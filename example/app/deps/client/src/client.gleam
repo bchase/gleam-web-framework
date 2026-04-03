@@ -5,7 +5,6 @@ import plinth/javascript/global
 import plinth/browser/document
 import plinth/browser/element as dom_element
 import lustre/element/keyed
-import api/id.{type Id}
 import lustre/event
 import gleam/list
 import gleam/result
@@ -21,11 +20,12 @@ import gleam/pair
 import lustre/effect.{type Effect}
 import lustre
 import lustre_websocket.{type WebSocketEvent} as ws
-import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
-//
 import api/client.{type ApiClient, type Api, NotAsked, Loading, Failure, Success}
+import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
+import api/id.{type Id}
+import client/wrapped_client as conn
 
 pub fn main() -> Nil {
   register_web_component()
@@ -49,6 +49,7 @@ fn decoders() -> List(component.Option(Msg)) {
 
 type Model {
   Model(
+    ws_url: String,
     conn_: Result(ws.WebSocket, Int),
     conn: Option(ws.WebSocket),
     items: client.ApiData(Dict(Id(client.Item), Record(client.Item))),
@@ -58,6 +59,8 @@ type Model {
     client: ApiClient(Api, Model, Msg),
     //
     str: Option(Result(String, client.Err)),
+    //
+    conn__: conn.Conn,
   )
 }
 
@@ -95,6 +98,7 @@ type Msg {
   // websockets
   RecvWebSocketEvent(event: WebSocketEvent)
   ReconnectWebsocket(delay: Bool)
+  ConnMsg(msg: conn.ConnMsg(Api))
   // ui
   SendIntToString(num: Int)
   GotItemForm(values: List(#(String, String)))
@@ -112,16 +116,28 @@ fn init(_) -> #(Model, Effect(Msg)) {
       get_client: fn(model: Model) { model.client },
       set_client: fn(model: Model, client) { Model(..model, client:) },
       get_send: fn(model: Model) {
-        case model.conn {
+        case conn.ws(model.conn__) |> echo {
           None -> None
           Some(conn) -> Some(ws.send(conn, _))
         }
       },
       encode: client.encode_api,
-      on_no_conn: fn(_) { None },
+      on_no_conn: fn(_) {
+        echo "NO CONN MSG SEND"
+        None
+      },
+    )
+
+  let ws_url = "/ws/api"
+
+  let #(conn, conn_eff) =
+    conn.init(
+      ws_url:,
+      wrap: ConnMsg,
     )
 
   Model(
+    ws_url:,
     conn_: Error(0),
     conn: None,
     items: NotAsked,
@@ -131,15 +147,16 @@ fn init(_) -> #(Model, Effect(Msg)) {
     client:,
     //
     str: None,
+    //
+    conn__: conn,
   )
   |> pair.new(effect.batch([
-    effect.from(fn(dispatch) {
-      dispatch(ReconnectWebsocket(delay: False))
-    })
+    conn_eff,
+    // effect.from(fn(dispatch) {
+    //   dispatch(ReconnectWebsocket(delay: False))
+    // })
   ]))
 }
-
-const ws_url = "/ws/api"
 
 fn send_after(
   delay_ms delay_ms: Int,
@@ -179,6 +196,18 @@ fn update(
   case msg {
     NoOp ->
       pure(model)
+
+    ConnMsg(msg:) -> {
+      model
+      |> conn.update(
+        msg:,
+        conn: model.conn__,
+        get_client: fn(model: Model) { model.client },
+        set_conn: fn(model: Model, conn) { Model(..model, conn__: conn) },
+        wrap: ConnMsg,
+      )
+      |> echo
+    }
 
     SendIntToString(num:) ->
       model.client.send(model, client.req_int_to_string(num, RecvIntToString))
@@ -276,7 +305,7 @@ fn update(
       }
 
     RecvWebSocketEvent(event: ws.OnOpen(conn)) -> {
-      io.println("WebSocket opened: " <> ws_url)
+      io.println("WebSocket opened: " <> model.ws_url)
 
       let model = Model(..model, conn: Some(conn), conn_: Ok(conn))
 
@@ -317,7 +346,7 @@ fn update(
     }
 
     RecvWebSocketEvent(event: ws.InvalidUrl) -> {
-      io.println_error("Invalid URL: " <> ws_url)
+      io.println_error("Invalid URL: " <> model.ws_url)
       pure(model)
     }
 
@@ -347,7 +376,7 @@ fn update(
         Error(_attempt), False -> {
           model
           |> pair.new(effect.batch([
-            ws.init(ws_url, RecvWebSocketEvent),
+            ws.init(model.ws_url, RecvWebSocketEvent),
           ]))
         }
       }

@@ -81,6 +81,12 @@ pub type ApiData(t) {
   Success(data: t)
 }
 
+// pub fn map_api_client_model(
+//   client client: ApiClient(api, model_a, msg),
+//   apply f: fn(model_a) -> model_b,
+// ) -> ApiClient(api, model_b, msg) {
+// }
+
 pub fn init(
   get_client get_client: fn(model) -> ApiClient(req, model, msg),
   set_client set_client: fn(model, ApiClient(req, model, msg)) -> model,
@@ -149,6 +155,24 @@ pub fn init(
 //   })
 // }
 
+type PayloadType {
+  Response
+  Subscription
+}
+
+fn payload_type(
+  dyn: Dynamic,
+) -> #(PayloadType, Dynamic) {
+  let decoder: Decoder(Result(generic.SubscriptionMsg(Dynamic), err)) =
+    generic.decoder_subscription_msg(decode.dynamic)
+    |> generic.decoder_result_ok
+
+  case decode.run(dyn, decoder) {
+    Ok(Ok(generic.S(dyn))) -> #(Subscription, dyn)
+    _ -> #(Response, dyn)
+  }
+}
+
 fn recv(
   reqs reqs: Reqs(msg),
   json json: String,
@@ -178,24 +202,6 @@ fn recv(
     }
 
   Ok(#(reqs, msg))
-}
-
-type PayloadType {
-  Response
-  Subscription
-}
-
-fn payload_type(
-  dyn: Dynamic,
-) -> #(PayloadType, Dynamic) {
-  let decoder: Decoder(Result(generic.SubscriptionMsg(Dynamic), err)) =
-    generic.decoder_subscription_msg(decode.dynamic)
-    |> generic.decoder_result_ok
-
-  case decode.run(dyn, decoder) {
-    Ok(Ok(generic.S(dyn))) -> #(Subscription, dyn)
-    _ -> #(Response, dyn)
-  }
 }
 
 fn recv_ref_and_dyn(
