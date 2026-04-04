@@ -1,19 +1,32 @@
 import lustre/effect.{type Effect}
 import gleam/option.{type Option}
 import gleam/json.{type Json}
-import api/client.{type ApiClient, type ConnMsg}
+import api/client
 import lustre_websocket as ws
 import plinth/javascript/global
 
-pub const update = client.update
+pub type ApiClient(req, model, msg) = client.ApiClient(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg)
+
+pub type Msg = client.ConnMsg(ws.WebSocket, ws.WebSocketCloseReason)
+
+pub fn update(
+  model model: model,
+  client client: ApiClient(api, model, msg),
+  wrap wrap: fn(Msg) -> msg,
+  msg msg: Msg,
+  set_client set_client: fn(model, ApiClient(api, model, msg)) -> model,
+) -> #(model, Effect(msg)) {
+  client.update(model:, client:, wrap:, msg:, set_client:)
+}
+
 
 pub fn init(
   model model: model,
   ws_url ws_url: String,
   //
-  get_client get_client: fn(model) -> ApiClient(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg),
-  set_client set_client: fn(model, ApiClient(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg)) -> model,
-  wrap wrap: fn(ConnMsg(ws.WebSocket, ws.WebSocketCloseReason)) -> msg,
+  get_client get_client: fn(model) -> ApiClient(req, model, msg),
+  set_client set_client: fn(model, ApiClient(req, model, msg)) -> model,
+  wrap wrap: fn(Msg) -> msg,
   encode encode: fn(req) -> Json,
   notify notify: fn(client.ConnectionEvent) -> Option(msg),
   on_no_conn on_no_conn: fn(model) -> Option(msg),
@@ -22,7 +35,7 @@ pub fn init(
 }
 
 fn impl(
-  wrap wrap: fn(ConnMsg(ws.WebSocket, ws.WebSocketCloseReason)) -> msg,
+  wrap wrap: fn(Msg) -> msg,
 ) -> client.WebSocketImpl(ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, msg) {
   client.WebSocketImpl(connect:, send:, event:, wrap:, send_after:)
 }
@@ -38,7 +51,7 @@ fn send(
 
 fn event(
   event event: ws.WebSocketEvent,
-) -> ConnMsg(ws.WebSocket, ws.WebSocketCloseReason) {
+) -> Msg {
   case event {
     ws.InvalidUrl -> client.invalid_url
     ws.OnOpen(ws) -> client.ws_open(ws)

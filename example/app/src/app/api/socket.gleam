@@ -28,14 +28,14 @@ import mist
 //
 import lustre/effect.{type Effect}
 //
-import api.{type SocketResp, type Req, type Resp}
+import api.{type SocketResp, type Req, type Resp} as _
 // import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
 import api/generic.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created, type Sub}
 import api/id.{type Id, Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 //
 import api/server
-import api/client.{type Item, type ItemAttr}
+import api/shared.{type Item, type ItemAttr} as api
 
 pub type Context = types.Context(app.Config, app.PubSub, user.User)
 
@@ -129,26 +129,26 @@ fn init(
   #(Socket(self:, ctx:, conn:, subs: set.new()), Some(selector))
 }
 
-// fn init_items() -> Dict(Id(client.Item), Record(client.Item)) {
+// fn init_items() -> Dict(Id(api.Item), Record(api.Item)) {
 //   let ts = timestamp.unix_epoch
 //   [
 //     generic.Record(
 //       id: Id(uuid.v7_string()),
 //       created_at: ts,
 //       updated_at: ts,
-//       resource: client.Item(name: "zzz"),
+//       resource: api.Item(name: "zzz"),
 //     ),
 //     generic.Record(
 //       id: Id(uuid.v7_string()),
 //       created_at: ts,
 //       updated_at: ts,
-//       resource: client.Item(name: "aaa"),
+//       resource: api.Item(name: "aaa"),
 //     ),
 //   ]
 //   // |> list.sort(fn(a, b) {
 //   //   string.compare(a.resource.name, b.resource.name)
 //   // })
-//   |> list.map(fn(item: Record(client.Item)) {
+//   |> list.map(fn(item: Record(api.Item)) {
 //     #(item.id, item)
 //   })
 //   |> dict.from_list
@@ -172,7 +172,7 @@ fn update(
         get_self: fn(socket: Socket) { socket.self },
         server: Server(
           call: api_server,
-          decoder: client.decoder_api(),
+          decoder: api.decoder_api(),
         ),
       )
     }
@@ -372,7 +372,7 @@ type State {
 // }
 
 fn broadcast_item(
-  item item: Record(client.Item),
+  item item: Record(api.Item),
   action action: Action,
   ctx ctx: Context,
 ) -> Result(Nil, Err(err)) {
@@ -806,7 +806,7 @@ pub fn crud_items() -> server.CrudHandler(Item, Item, Item, ItemAttr, Context) {
     read: read_items,
     delete: delete_items,
     //
-    encode: client.encode_item,
+    encode: api.encode_item,
   )
 }
 
@@ -851,7 +851,7 @@ fn update_items(
 
     Ok(generic.Record(resource: item, ..) as record) -> {
       let updated_at = timestamp.system_time()
-      let item = client.Item(..item, name: req.data.name)
+      let item = api.Item(..item, name: req.data.name)
       let record = generic.Record(..record, resource: item, updated_at:)
       let _broadcasted = broadcast_item(item: record, action: Updated, ctx:)
       Ok(record)
@@ -886,12 +886,12 @@ fn delete_items(
 }
 
 fn sub_subscribe_to_items(
-  sub sub: Sub(client.ItemsSubMsg),
+  sub sub: Sub(api.ItemsSubMsg),
   send send: fn(SocketResp) -> Msg,
-) -> server.SubHandler(client.ItemsSubMsg, Context, Selector(Msg), Msg) {
+) -> server.SubHandler(api.ItemsSubMsg, Context, Selector(Msg), Msg) {
   server.SubHandler(
     run: subscribe_to_items,
-    encode: client.encode_items_sub_msg,
+    encode: api.encode_items_sub_msg,
     sub:,
     send:,
   )
@@ -920,8 +920,8 @@ fn subscribe_to_items(
     to: "items",
     in: fn(rs: PubSub) { rs.items },
     wrap: fn(t) {
-      client.ItemsSubMsg(item: t.0, action: t.1)
-      |> sub_socket_resp(ref:, encode: client.encode_items_sub_msg)
+      api.ItemsSubMsg(item: t.0, action: t.1)
+      |> sub_socket_resp(ref:, encode: api.encode_items_sub_msg)
       |> send
     }
   )
@@ -932,7 +932,7 @@ fn subscribe_to_items(
 // codegen server
 
 fn api_server(
-  req req: generic.SocketReq(client.Api),
+  req req: generic.SocketReq(api.Api),
   ctx ctx: Context,
   subs subs: Set(String),
   send send: fn(SocketResp) -> Msg
@@ -940,7 +940,7 @@ fn api_server(
   let SocketReq(ref:, req:) = req
 
   case req {
-    client.Items(crud:) -> {
+    api.Items(crud:) -> {
       crud_items()
       |> server.process_crud(crud:, ref:, ctx:)
       |> fn(resp) {
@@ -948,7 +948,7 @@ fn api_server(
       }
     }
 
-    client.IntToString(func:) -> {
+    api.IntToString(func:) -> {
       func_int_to_string()
       |> server.process_func(func:, ref:, ctx:)
       |> fn(resp) {
@@ -956,7 +956,7 @@ fn api_server(
       }
     }
 
-    client.SubscribeToItems(sub:) -> {
+    api.SubscribeToItems(sub:) -> {
       sub_subscribe_to_items(sub:, send:)
       |> server.process_sub(sub:, ref:, ctx:, subs:)
       // |> fn(t) {

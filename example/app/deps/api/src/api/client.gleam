@@ -26,6 +26,32 @@ pub type WebSocketImpl(ws, ws_event, close_reason, msg) {
   )
 }
 
+fn zero_impl(
+  zero zero: msg,
+) -> WebSocketImpl(ws, ws_event, close_reason, msg) {
+  WebSocketImpl(
+    connect: fn(_, _) { effect.none() },
+    send: fn(_, _) { effect.none() },
+    wrap: fn(_) { zero },
+    event: fn(_) { NoOp },
+    send_after: fn(_, _) { effect.none() },
+  )
+}
+
+pub fn zero_api_client(
+  zero zero: msg,
+) -> ApiClient(req, ws, ws_event, close_reason, model, msg) {
+  ApiClient(
+    ws: no_ws_conn,
+    reqs: req.empty_reqs(),
+    ws_url: "",
+    impl: zero_impl(zero),
+    notify: fn(_) { None },
+    send: fn(model, _) { #(model, effect.none()) },
+    recv: fn(model, _) { #(model, effect.none()) },
+  )
+}
+
 pub type ApiClient(req, ws, ws_event, close_reason, model, msg) {
   ApiClient(
     //
@@ -237,6 +263,7 @@ fn recv_ref_and_dyn(
 //
 
 pub opaque type ConnMsg(ws, close_reason) {
+  NoOp
   RecvWebSocketInvalidUrlErr
   RecvWebSocketBinaryMessage(msg: BitArray)
   RecvWebSocketTextMessage(msg: String)
@@ -263,11 +290,11 @@ pub fn update(
   // get_client get_client: fn(model) -> ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
   wrap to_parent_msg: fn(ConnMsg(ws, close_reason)) -> parent_msg,
   msg msg: ConnMsg(ws, close_reason),
-  set_conn set_conn: fn(model, ApiClient(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
+  set_client set_client: fn(model, ApiClient(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
   let map_parent = fn(t: #(ApiClient(api, ws, ws_event, close_reason, model, parent_msg), Effect(ConnMsg(ws, close_reason)))) {
     model
-    |> set_conn(t.0)
+    |> set_client(t.0)
     |> pair.new(effect.batch([
       t.1 |> effect.map(to_parent_msg),
     ]))
@@ -276,6 +303,9 @@ pub fn update(
   // let client = get_client(model)
 
   case msg {
+    NoOp ->
+      pure(model)
+
     RecvWebSocketBinaryMessage(msg: ba) ->
       ignore_binary_msg(model:, ba:)
 
@@ -286,7 +316,7 @@ pub fn update(
       notify_invalid_url(model:, client:)
 
     RecvWebSocketOpen(ws:) ->
-      set_websocket_conn(model:, client:, ws:, set_conn:)
+      set_websocket_conn(model:, client:, ws:, set_client:)
 
     RecvWebSocketClose(reason:) ->
       reconnect_to_websocket_on_close(client:, reason:) |> map_parent
@@ -294,7 +324,7 @@ pub fn update(
     GotReconnectWebSocket(with_delay:) ->
       client
       |> attempt_reconnect_to_websocket(with_delay:)
-      |> pair.map_first(set_conn(model, _))
+      |> pair.map_first(set_client(model, _))
   }
 }
 
@@ -302,12 +332,12 @@ fn set_websocket_conn(
   model model,
   client client: ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
   ws ws: ws,
-  set_conn set_conn: fn(model, ApiClient(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
+  set_client set_client: fn(model, ApiClient(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
   io.println("WebSocket opened: " <> client.ws_url)
 
   model
-  |> set_conn(ApiClient(..client, ws: Conn(ws: Ok(ws))))
+  |> set_client(ApiClient(..client, ws: Conn(ws: Ok(ws))))
   |> pair.new(effect.batch([
     Connected(reconnect: False)
     |> client.notify // TODO duped notify

@@ -5,7 +5,7 @@ import fpo/pubsub
 import app/pubsub.{type TextMsg} as _
 import app/types/err
 import bravo/uset.{}
-import api/client as api
+import api/shared as api
 import api/generic.{type Record, type Action}
 import api/id.{type Id}
 
