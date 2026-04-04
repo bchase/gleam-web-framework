@@ -19,7 +19,6 @@ pub fn update(
   client.update(model:, client:, wrap:, msg:, set_client:)
 }
 
-
 pub fn init(
   model model: model,
   ws_url ws_url: String,

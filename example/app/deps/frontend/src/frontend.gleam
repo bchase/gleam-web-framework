@@ -1,4 +1,3 @@
-import plinth/browser/shadow
 import plinth/javascript/global
 import plinth/browser/document
 import plinth/browser/element as dom_element
@@ -10,7 +9,6 @@ import gleam/dict.{type Dict}
 import gleam/string
 import gleam/io
 import gleam/option.{type Option, Some, None}
-import lustre/component
 import lustre/attribute as attr
 import lustre/element.{type Element}
 import lustre/element/html
@@ -18,33 +16,40 @@ import gleam/pair
 import lustre/effect.{type Effect}
 import lustre
 import youid/uuid.{type Uuid}
-import gleam/javascript/array
 import shared/api.{type Api}
 import api/types.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
 import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
 import frontend/client.{type ApiClient}
 
+const lustre_app_target_selector = "body"
+
 pub fn main() -> Nil {
-  register_web_component()
-  Nil
-}
+  // register_web_component()
 
-const tag_name = "fpo-example-client-component"
-
-fn register_web_component() -> Nil {
-  let component = lustre.component(init, update, view, decoders())
-  let assert Ok(_) = lustre.register(component, tag_name)
+  let assert Ok(_) =
+    lustre.application(init, update, view)
+    |> lustre.start(onto: lustre_app_target_selector, with: Nil)
 
   Nil
 }
 
-fn decoders() -> List(component.Option(Msg)) {
-  [
-    // component.on_attribute_change("", fn(str) { Error(Nil) }),
-    // component.on_property_change("", decode.string |> decode.map(msg)),
-  ]
-}
+// import lustre/component
+// import plinth/browser/shadow
+// import gleam/javascript/array
+//
+// const tag_name = "fpo-example-client-component"
+// fn register_web_component() -> Nil {
+//   let component = lustre.component(init, update, view, decoders())
+//   let assert Ok(_) = lustre.register(component, tag_name)
+//   Nil
+// }
+// fn decoders() -> List(component.Option(Msg)) {
+//   [
+//     // component.on_attribute_change("", fn(str) { Error(Nil) }),
+//     // component.on_property_change("", decode.string |> decode.map(msg)),
+//   ]
+// }
 
 type Model {
   Model(
@@ -237,23 +242,6 @@ fn update(
   }
 }
 
-fn set_focus(
-  id id: String,
-) -> Effect(Msg) {
-  effect.from(fn(_) {
-    global.set_timeout(100, fn() {
-      {
-        use wc <- result.try(document.get_elements_by_tag_name(tag_name) |> array.to_list |> list.first)
-        use sr <- result.try(shadow.shadow_root(wc))
-        use el <- result.try(shadow.query_selector(sr, "#" <> id))
-        Ok(dom_element.focus(el))
-      }
-      |> result.unwrap(Nil)
-    })
-    Nil
-  })
-}
-
 fn view(
   model model: Model,
 ) -> Element(Msg) {
@@ -394,4 +382,24 @@ fn eff(
   effs effs: List(Effect(Msg))
 ) -> #(Model, Effect(Msg)) {
   model |> pair.new(effect.batch(effs))
+}
+
+// dom helpers
+
+fn set_focus(
+  id id: String,
+) -> Effect(Msg) {
+  effect.from(fn(_) {
+    global.set_timeout(100, fn() {
+      {
+        // use wc <- result.try(document.get_elements_by_tag_name(tag_name) |> array.to_list |> list.first)
+        // use sr <- result.try(shadow.shadow_root(wc))
+        // use el <- result.try(shadow.query_selector(sr, "#" <> id))
+        use el <- result.try(document.query_selector("#" <> id))
+        Ok(dom_element.focus(el))
+      }
+      |> result.unwrap(Nil)
+    })
+    Nil
+  })
 }

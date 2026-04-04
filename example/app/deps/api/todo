@@ -1,16 +1,16 @@
 
 clean up
 X - separate generic from future-codegen logic
+X - adjust lustre
+  X * refactor away from web component
+  X * fix `set_focus`
+\ - mv logic
+  X * `api` impl (e.g. `Item`)  -->  `shared` (`shared/api`)
+  X * `client`                  -->  `frontend`
+    * `api` generic             -->  `fpo`
   - rename
     * `ApiClient`?
     * `ConnMsg`?
-. - mv logic
-  X * `api` impl (e.g. `Item`)  -->  `shared` (`shared/api`)
-    * `client`                  -->  `front-end`
-    * `api` generic             -->  `fpo`
-  - adjust lustre
-    * refactor away from web component
-    * fix `set_focus`
   - handle `todo`s in err paths (and use errs instead of `Result(t, Nil)`)
   - clean up
     * dead code, comments

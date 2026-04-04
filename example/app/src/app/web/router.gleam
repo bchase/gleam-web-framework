@@ -87,14 +87,18 @@ fn dev(
     pure(spec.LustreResponse(
       status: 200,
       headers: dict.new(),
-      element: html.div([], [
-        html.script([
-          attr.type_("module"),
-          attr.src("/static/js/frontend.js"),
-        ], ""),
+      element: html.html([], [
+        html.head([], [
+          html.script([
+            attr.type_("module"),
+            attr.src("/static/js/frontend.js"),
+          ], ""),
 
-        html.div([], [
-          element.element("fpo-example-client-component", [], []),
+          // html.div([], [
+          //   element.element("fpo-example-client-component", [], []),
+          // ]),
+        ]),
+        html.body([], [
         ]),
       ]),
     ))
