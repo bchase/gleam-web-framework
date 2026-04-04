@@ -22,7 +22,7 @@ import gleam/javascript/array
 import api/shared.{type Api} as api
 import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
-import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client} as _
+import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
 import client/api_client_js.{type ApiClient} as client
 
 pub fn main() -> Nil {
@@ -196,13 +196,8 @@ fn update(
     RecvItem(action: Created, result: Ok(item)) |
     RecvItem(action: Updated, result: Ok(item)) -> {
       Model(..model, uuid: uuid.v7(), item: None, items: {
-        case model.items {
-          NotAsked | Loading | Failure(err: _) ->
-            Success(dict.new())
-
-          Success(items) ->
-            Success(items)
-        }
+        model.items
+        |> success_or(default: dict.new())
         |> map_success(dict.insert(_, item.id, item))
       })
       |> eff([
@@ -255,18 +250,6 @@ fn update(
         Error(err) ->
           pure(Model(..model, items: Failure(err)))
       }
-  }
-}
-
-fn map_success(
-  data data: ApiData(a),
-  apply f: fn(a) -> b,
-) -> ApiData(b) {
-  case data {
-    NotAsked -> NotAsked
-    Loading -> Loading
-    Failure(err:) -> Failure(err:)
-    Success(data:) -> Success(data: f(data))
   }
 }
 

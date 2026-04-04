@@ -74,6 +74,33 @@ pub type ApiData(t) {
   Success(data: t)
 }
 
+pub fn success_or(
+  data data: ApiData(a),
+  default default: a,
+) -> ApiData(a) {
+  case data {
+    Success(data:_) ->
+      data
+
+    NotAsked | Loading | Failure(err:_) ->
+      Success(data: default)
+  }
+}
+
+pub fn map_success(
+  data data: ApiData(a),
+  apply f: fn(a) -> b,
+) -> ApiData(b) {
+  case data {
+    NotAsked -> NotAsked
+    Loading -> Loading
+    Failure(err:) -> Failure(err:)
+    Success(data:) -> Success(data: f(data))
+  }
+}
+
+//
+
 pub fn init(
   model model: model,
   ws_url ws_url: String,
