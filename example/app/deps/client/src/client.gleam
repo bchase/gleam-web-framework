@@ -111,12 +111,13 @@ fn update(
 
     RecvWebSocketConnEvent(event:) -> {
       case event {
-        Connected(reconnect: True) |
-        Disconnected |
         WebSocketUrlInvalid ->
+          panic as "invalid websocket url"
+
+        Disconnected ->
           pure(model)
 
-        Connected(reconnect: False) -> {
+        Connected(reconnect: _) -> {
           let #(model, list_items_eff) = model |> model.client.send(api.req_list_items(None, RecvItems))
           let #(model, sub_items_eff) = model |> model.client.send(api.req_subscribe_to_items(fn(result) {
             case result {

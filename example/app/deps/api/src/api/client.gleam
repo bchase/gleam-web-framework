@@ -15,6 +15,22 @@ import youid/uuid.{type Uuid}
 
 pub type Err = req.Err
 
+pub type ApiClient(req, ws, ws_event, close_reason, model, msg) {
+  ApiClient(
+    // mutable
+    ws: Conn(ws),
+    reqs: Reqs(msg),
+    reconnected: Bool,
+    // static
+    ws_url: String,
+    impl: WebSocketImpl(ws, ws_event, close_reason, msg),
+    notify: fn(ConnectionEvent) -> Option(msg),
+    // public "methods"
+    send: fn(model, Req(req, msg)) -> #(model, Effect(msg)),
+    recv: fn(model, String) -> #(model, Effect(msg)),
+  )
+}
+
 pub type WebSocketImpl(ws, ws_event, close_reason, msg) {
   WebSocketImpl(
     connect: fn(String, fn(ws_event) -> ConnMsg(ws, close_reason)) -> Effect(ConnMsg(ws, close_reason)),
@@ -26,24 +42,13 @@ pub type WebSocketImpl(ws, ws_event, close_reason, msg) {
   )
 }
 
-fn zero_impl(
-  zero zero: msg,
-) -> WebSocketImpl(ws, ws_event, close_reason, msg) {
-  WebSocketImpl(
-    connect: fn(_, _) { effect.none() },
-    send: fn(_, _) { effect.none() },
-    wrap: fn(_) { zero },
-    event: fn(_) { NoOp },
-    send_after: fn(_, _) { effect.none() },
-  )
-}
-
 pub fn zero_api_client(
   zero zero: msg,
 ) -> ApiClient(req, ws, ws_event, close_reason, model, msg) {
   ApiClient(
     ws: no_ws_conn,
     reqs: req.empty_reqs(),
+    reconnected: False,
     ws_url: "",
     impl: zero_impl(zero),
     notify: fn(_) { None },
@@ -58,18 +63,15 @@ pub fn zero_api_client(
   )
 }
 
-pub type ApiClient(req, ws, ws_event, close_reason, model, msg) {
-  ApiClient(
-    //
-    ws: Conn(ws),
-    reqs: Reqs(msg),
-    // static
-    ws_url: String,
-    impl: WebSocketImpl(ws, ws_event, close_reason, msg),
-    notify: fn(ConnectionEvent) -> Option(msg),
-    // public "methods"
-    send: fn(model, Req(req, msg)) -> #(model, Effect(msg)),
-    recv: fn(model, String) -> #(model, Effect(msg)),
+fn zero_impl(
+  zero zero: msg,
+) -> WebSocketImpl(ws, ws_event, close_reason, msg) {
+  WebSocketImpl(
+    connect: fn(_, _) { effect.none() },
+    send: fn(_, _) { effect.none() },
+    wrap: fn(_) { zero },
+    event: fn(_) { NoOp },
+    send_after: fn(_, _) { effect.none() },
   )
 }
 
@@ -105,7 +107,13 @@ pub fn map_success(
   }
 }
 
-//
+// INIT
+
+pub fn is_connected(
+  client client: ApiClient(req, ws, ws_event, close_reason, model, msg),
+) -> Bool {
+  result.is_ok(client.ws.ws)
+}
 
 pub fn init(
   model model: model,
@@ -129,6 +137,7 @@ pub fn init(
   ApiClient(
     ws: no_ws_conn,
     reqs: req.empty_reqs(),
+    reconnected: False,
     //
     ws_url:,
     impl:,
@@ -157,7 +166,7 @@ pub opaque type Conn(ws) {
 
 const no_ws_conn = Conn(ws: Error(0))
 
-// SEND
+// SEND (INIT)
 
 fn send_model(
   get_client get_client: fn(model) -> ApiClient(req, ws, ws_event, close_reason, model, msg),
@@ -191,7 +200,7 @@ fn send_model(
   }
 }
 
-// RECEIVE
+// RECEIVE (INIT)
 
 type PayloadType {
   Response
@@ -293,7 +302,7 @@ fn recv_ref_and_dyn(
   Ok(#(ref, resp))
 }
 
-//
+// UPDATE
 
 pub opaque type ConnMsg(ws, close_reason) {
   NoOp
@@ -367,12 +376,20 @@ fn set_websocket_conn(
   ws ws: ws,
   set_client set_client: fn(model, ApiClient(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
-  io.println("WebSocket opened: " <> client.ws_url)
+  let reconnect = client.reconnected
+
+  let type_ =
+    case reconnect {
+      True -> "reconnect"
+      False -> "initial connect"
+    }
+
+  io.println("WebSocket opened: `" <> client.ws_url <> "` (" <> type_ <> ")")
 
   model
-  |> set_client(ApiClient(..client, ws: Conn(ws: Ok(ws))))
+  |> set_client(ApiClient(..client, reconnected: True, ws: Conn(ws: Ok(ws))))
   |> pair.new(effect.batch([
-    Connected(reconnect: False)
+    Connected(reconnect:)
     |> client.notify // TODO duped notify
     |> option.map(fn(msg) {
       effect.from(fn(dispatch) { dispatch(msg) })

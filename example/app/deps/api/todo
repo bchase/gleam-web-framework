@@ -12,10 +12,8 @@ X - refactor
     X - make generic w/o ws impl
     X - make javascript impl
   X * unify `ApiClient` with `Conn` (ws reconnect logic)
-  - reconnect detection
-    * track reconnect client-side
-    * track reconnect server-side (did server socket come down or did conn just drop?)
-      - ... think this only matters for subscriptions, but they should probably be tracked separately then...
+X - reconnect detection
+  X * track reconnect client-side
   - handle `todo`s in err paths (and use errs instead of `Result(t, Nil)`)
 
 clean up
