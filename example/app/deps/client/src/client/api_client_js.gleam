@@ -1,0 +1,61 @@
+import lustre/effect.{type Effect}
+import gleam/option.{type Option}
+import gleam/json.{type Json}
+import api/client.{type ApiClient, type ConnMsg}
+import lustre_websocket as ws
+import plinth/javascript/global
+
+pub const update = client.update
+
+pub fn init(
+  model model: model,
+  ws_url ws_url: String,
+  //
+  get_client get_client: fn(model) -> ApiClient(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg),
+  set_client set_client: fn(model, ApiClient(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg)) -> model,
+  wrap wrap: fn(ConnMsg(ws.WebSocket, ws.WebSocketCloseReason)) -> msg,
+  encode encode: fn(req) -> Json,
+  notify notify: fn(client.ConnectionEvent) -> Option(msg),
+  on_no_conn on_no_conn: fn(model) -> Option(msg),
+) -> #(model, Effect(msg)) {
+  client.init(model:, ws_url:, get_client:, set_client:, encode:, notify:, on_no_conn:, impl: impl(wrap:))
+}
+
+fn impl(
+  wrap wrap: fn(ConnMsg(ws.WebSocket, ws.WebSocketCloseReason)) -> msg,
+) -> client.WebSocketImpl(ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, msg) {
+  client.WebSocketImpl(connect:, send:, event:, wrap:, send_after:)
+}
+
+const connect = ws.init
+
+fn send(
+  msg msg: String,
+  ws ws: ws.WebSocket,
+) -> Effect(msg) {
+  ws.send(ws, msg)
+}
+
+fn event(
+  event event: ws.WebSocketEvent,
+) -> ConnMsg(ws.WebSocket, ws.WebSocketCloseReason) {
+  case event {
+    ws.InvalidUrl -> client.invalid_url
+    ws.OnOpen(ws) -> client.ws_open(ws)
+    ws.OnTextMessage(msg) -> client.ws_text_message(msg)
+    ws.OnBinaryMessage(msg) -> client.ws_binary_message(msg)
+    ws.OnClose(reason) -> client.ws_close(reason)
+  }
+}
+
+fn send_after(
+  delay_ms delay_ms: Int,
+  msg msg: msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    global.set_timeout(delay_ms, fn() {
+      dispatch(msg)
+    })
+    Nil
+  })
+}
