@@ -4,13 +4,14 @@ X - reimpl items crud w/ new types & helpers
 X - tag crud action resp with `Action` & use in client
 X - reimpl subs
 X - basic reconnect
-  - refactor
-    * separate `api/client.ApiClient` (javascript target) from `app/api.Api` (shared api def)
-      - maybe leave room for erlang target by providing javascript implementation?
-    * unify `ApiClient` with `Conn`
-. - conn helpers
-  . * wrap ws conn (client?) in lustre app?
-  . * helper to detect dis/connected `Bool`
+X - conn helpers
+  X * wrap ws conn (client?) in lustre app?
+  X * helper to detect dis/connected `Bool`
+X - refactor
+  X * separate `api/client.ApiClient` (javascript target) from `app/api.Api` (shared api def)
+    X - make generic w/o ws impl
+    X - make javascript impl
+  X * unify `ApiClient` with `Conn` (ws reconnect logic)
   - reconnect detection
     * track reconnect client-side
     * track reconnect server-side (did server socket come down or did conn just drop?)

@@ -100,23 +100,6 @@ fn init(_) -> #(Model, Effect(Msg)) {
   )
 }
 
-fn set_focus(
-  id id: String,
-) -> Effect(Msg) {
-  effect.from(fn(_) {
-    global.set_timeout(100, fn() {
-      {
-        use wc <- result.try(document.get_elements_by_tag_name(tag_name) |> array.to_list |> list.first)
-        use sr <- result.try(shadow.shadow_root(wc))
-        use el <- result.try(shadow.query_selector(sr, "#" <> id))
-        Ok(dom_element.focus(el))
-      }
-      |> result.unwrap(Nil)
-    })
-    Nil
-  })
-}
-
 fn update(
   model model: Model,
   msg msg: Msg,
@@ -251,6 +234,23 @@ fn update(
           pure(Model(..model, items: Failure(err)))
       }
   }
+}
+
+fn set_focus(
+  id id: String,
+) -> Effect(Msg) {
+  effect.from(fn(_) {
+    global.set_timeout(100, fn() {
+      {
+        use wc <- result.try(document.get_elements_by_tag_name(tag_name) |> array.to_list |> list.first)
+        use sr <- result.try(shadow.shadow_root(wc))
+        use el <- result.try(shadow.query_selector(sr, "#" <> id))
+        Ok(dom_element.focus(el))
+      }
+      |> result.unwrap(Nil)
+    })
+    Nil
+  })
 }
 
 fn view(

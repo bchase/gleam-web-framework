@@ -47,8 +47,14 @@ pub fn zero_api_client(
     ws_url: "",
     impl: zero_impl(zero),
     notify: fn(_) { None },
-    send: fn(model, _) { #(model, effect.none()) },
-    recv: fn(model, _) { #(model, effect.none()) },
+    send: fn(model, _) {
+      io.println_error("WARNING `zero_api_client.send` called (actual client not yet initialized)")
+      #(model, effect.none())
+    },
+    recv: fn(model, _) {
+      io.println_error("WARNING `zero_api_client.recv` called (actual client not yet initialized)")
+      #(model, effect.none())
+    },
   )
 }
 
