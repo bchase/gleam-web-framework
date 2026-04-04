@@ -20,7 +20,7 @@ import lustre
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
 import shared/api.{type Api}
-import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
+import api/types.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
 import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
 import client/api_client_js.{type ApiClient} as client
@@ -155,7 +155,7 @@ fn update(
       model
       |> model.client.send(api.req_delete_items(
         id: item_id,
-        confirm: generic.ConfirmDelete,
+        confirm: types.ConfirmDelete,
         msg: fn(t) { RecvItem(action: t.0, result: t.1) },
       ))
 
@@ -214,7 +214,7 @@ fn update(
 
     RecvItems(result:) ->
       case result {
-        Ok(generic.Paginated(resources: new, ..)) ->
+        Ok(types.Paginated(resources: new, ..)) ->
           pure(Model(..model, items: {
             case model.items {
               NotAsked | Loading | Failure(err: _) -> dict.new()

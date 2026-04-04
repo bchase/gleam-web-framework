@@ -1,7 +1,7 @@
 import gleam/float
 import gleam/int
 import api/client/req.{type RecvErr, type Req, type Reqs, NoConn, clear_req_and_log_err}
-import api/generic
+import api/types
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/io
@@ -210,12 +210,12 @@ type PayloadType {
 fn payload_type(
   dyn: Dynamic,
 ) -> #(PayloadType, Dynamic) {
-  let decoder: Decoder(Result(generic.SubscriptionMsg(Dynamic), err)) =
-    generic.decoder_subscription_msg(decode.dynamic)
-    |> generic.decoder_result_ok
+  let decoder: Decoder(Result(types.SubscriptionMsg(Dynamic), err)) =
+    types.decoder_subscription_msg(decode.dynamic)
+    |> types.decoder_result_ok
 
   case decode.run(dyn, decoder) {
-    Ok(Ok(generic.S(dyn))) -> #(Subscription, dyn)
+    Ok(Ok(types.S(dyn))) -> #(Subscription, dyn)
     _ -> #(Response, dyn)
   }
 }

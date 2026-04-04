@@ -19,25 +19,22 @@ import gleam/http/response.{type Response}
 import gleam/json.{type Json}
 import gleam/time/timestamp.{type Timestamp}
 import fpo/types/err.{type Err}
-import fpo/types
+import fpo/types as fpo
 import app/types.{type PubSub} as app
-import lustre
-import lustre/runtime/server/runtime
-import lustre/server_component
 import mist
 //
 import lustre/effect.{type Effect}
 //
 import api.{type SocketResp, type Req, type Resp} as _
-// import api/generic.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
-import api/generic.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created, type Sub}
+// import api/types.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
+import api/types.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created, type Sub}
 import api/id.{type Id, Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 //
 import api/server
-import api/shared.{type Item, type ItemAttr} as api
+import shared/api.{type Item, type ItemAttr} as api
 
-pub type Context = types.Context(app.Config, app.PubSub, user.User)
+pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
 
 pub fn start(
   req req: Request(mist.Connection),
@@ -132,13 +129,13 @@ fn init(
 // fn init_items() -> Dict(Id(api.Item), Record(api.Item)) {
 //   let ts = timestamp.unix_epoch
 //   [
-//     generic.Record(
+//     types.Record(
 //       id: Id(uuid.v7_string()),
 //       created_at: ts,
 //       updated_at: ts,
 //       resource: api.Item(name: "zzz"),
 //     ),
-//     generic.Record(
+//     types.Record(
 //       id: Id(uuid.v7_string()),
 //       created_at: ts,
 //       updated_at: ts,
@@ -179,7 +176,7 @@ fn update(
 
     mist.Custom(Broadcast(msg:)) -> {
       msg
-      |> generic.encode_socket_resp
+      |> types.encode_socket_resp
       |> json.to_string
       |> send(socket)
 
@@ -223,22 +220,22 @@ type State {
 
 //     api.CrudItems(crud:) ->
 //       case crud {
-//         generic.List(pagination: _) -> {
+//         types.List(pagination: _) -> {
 //           let assert Ok(items) =
 //             uset.tab2list(socket.ctx.cfg.items)
 
 //           let items =
 //             items
 //             |> list.map(pair.second)
-//             |> generic.ManyRecords(None)
+//             |> types.ManyRecords(None)
 //             |> api.GotItems
 
 //           #(Ok(items), socket, None)
 //         }
 
-//         generic.Create(new:) -> {
+//         types.Create(new:) -> {
 //           let ts = timestamp.system_time()
-//           let item = generic.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new)
+//           let item = types.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new)
 
 //           let _broadcasted =
 //             broadcast_item(item:, action: Created, ctx: socket.ctx)
@@ -250,32 +247,32 @@ type State {
 //           #(Ok(api.GotItem(item:, action: Created)), socket, None)
 //         }
 
-//         generic.Update(id:, new:) -> {
+//         types.Update(id:, new:) -> {
 //           case uset.lookup(socket.ctx.cfg.items, id) {
 //             Error(err) ->
 //               case err {
 //                 bravo.Empty ->
-//                   #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
+//                   #(Error(types.Client(types.NotFound(id.id, None))), socket, None)
 //                 _ ->
 //                   todo
 //               }
 
-//             Ok(generic.Record(resource: item, ..) as record) -> {
+//             Ok(types.Record(resource: item, ..) as record) -> {
 //               let updated_at = timestamp.system_time()
 //               let item = api.Item(..item, name: new.name)
-//               let record = generic.Record(..record, resource: item, updated_at:)
+//               let record = types.Record(..record, resource: item, updated_at:)
 //               let _broadcasted = broadcast_item(item: record, action: Updated, ctx: socket.ctx)
 //               #(Ok(api.GotItem(item: record, action: Updated)), socket, None)
 //             }
 //           }
 //         }
 
-//         generic.Delete(id:, confirm: _) -> {
+//         types.Delete(id:, confirm: _) -> {
 //           case uset.lookup(socket.ctx.cfg.items, id) {
 //             Error(err) ->
 //               case err {
 //                 bravo.Empty ->
-//                   #(Error(generic.Client(generic.NotFound(id.id, None))), socket, None)
+//                   #(Error(types.Client(types.NotFound(id.id, None))), socket, None)
 //                 _ ->
 //                   todo
 //               }
@@ -288,7 +285,7 @@ type State {
 //           }
 //         }
 
-//         generic.Get(id:) -> todo
+//         types.Get(id:) -> todo
 //       }
 
 //     api.Subscribe(subs:) -> {
@@ -677,11 +674,11 @@ fn send(
 // TODO mv `server`
 
 type ApiServer(req, context) =
-  fn(generic.SocketReq(req), context, Set(String)) -> Result(SocketResp, generic.Err)
+  fn(types.SocketReq(req), context, Set(String)) -> Result(SocketResp, types.Err)
 
 type Server(req, context, msg) {
   Server(
-    call: fn(generic.SocketReq(req), context, Set(String), fn(SocketResp) -> msg) -> #(Set(String), SocketResp, Option(Selector(msg))),
+    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> msg) -> #(Set(String), SocketResp, Option(Selector(msg))),
     decoder: Decoder(req),
   )
 }
@@ -710,7 +707,7 @@ fn serve(
         }
 
       resp
-      |> generic.encode_socket_resp
+      |> types.encode_socket_resp
       |> json.to_string
       |> send(socket)
 
@@ -740,7 +737,7 @@ type ParseErr {
 fn parse_socket_req(
   json json: String,
   decoder decoder: Decoder(req),
-) -> Result(generic.SocketReq(req), ParseErr) {
+) -> Result(types.SocketReq(req), ParseErr) {
   {
     let parse = fn(decoder) {
       use ref <- result.try(
@@ -793,7 +790,7 @@ pub fn func_int_to_string() -> server.FuncHandler(Int, String, Context) {
 fn int_to_string(
   num num: Int,
   ctx ctx: Context,
-) -> Result(String, generic.Err) {
+) -> Result(String, types.Err) {
   Ok(int.to_string(num))
 }
 
@@ -813,7 +810,7 @@ pub fn crud_items() -> server.CrudHandler(Item, Item, Item, ItemAttr, Context) {
 fn list_items(
   req _req: ListReq(Item, key),
   ctx ctx: Context,
-) -> Result(Paginated(Item), generic.Err) {
+) -> Result(Paginated(Item), types.Err) {
   let assert Ok(items) =
     uset.tab2list(ctx.cfg.items)
 
@@ -821,16 +818,16 @@ fn list_items(
     items
     |> list.map(pair.second)
 
-  let pagination = generic.Pagination(0, 0) // TODO next
-  Ok(generic.Paginated(resources: items, pagination:))
+  let pagination = types.Pagination(0, 0) // TODO next
+  Ok(types.Paginated(resources: items, pagination:))
 }
 fn create_items(
   req req: CreateReq(Item, Item),
   ctx ctx: Context,
-) -> Result(Record(Item), generic.Err) {
+) -> Result(Record(Item), types.Err) {
   let id = Id(uuid.v7_string())
   let ts = timestamp.system_time()
-  let item = generic.Record(id:, created_at: ts, updated_at: ts, resource: req.data)
+  let item = types.Record(id:, created_at: ts, updated_at: ts, resource: req.data)
   let assert Ok(_inserted) = ctx.cfg.items |> uset.insert(item.id, item)
   let _broadcasted = broadcast_item(item:, action: Created, ctx:)
   Ok(item)
@@ -838,21 +835,21 @@ fn create_items(
 fn update_items(
   req req: UpdateReq(Item, Item),
   ctx ctx: Context,
-) -> Result(Record(Item), generic.Err) {
+) -> Result(Record(Item), types.Err) {
   case uset.lookup(ctx.cfg.items, req.id) {
     Error(err) ->
       case err {
         bravo.Empty ->
-          Error(generic.Client(generic.NotFound(req.id.id, None)))
+          Error(types.Client(types.NotFound(req.id.id, None)))
 
         _ ->
           todo
       }
 
-    Ok(generic.Record(resource: item, ..) as record) -> {
+    Ok(types.Record(resource: item, ..) as record) -> {
       let updated_at = timestamp.system_time()
       let item = api.Item(..item, name: req.data.name)
-      let record = generic.Record(..record, resource: item, updated_at:)
+      let record = types.Record(..record, resource: item, updated_at:)
       let _broadcasted = broadcast_item(item: record, action: Updated, ctx:)
       Ok(record)
     }
@@ -861,18 +858,18 @@ fn update_items(
 fn read_items(
   req req: ReadReq(Item),
   ctx ctx,
-) -> Result(Record(Item), generic.Err) {
+) -> Result(Record(Item), types.Err) {
   todo
 }
 fn delete_items(
   req req: DeleteReq(Item),
   ctx ctx: Context,
-) -> Result(Record(Item), generic.Err) {
+) -> Result(Record(Item), types.Err) {
   case uset.lookup(ctx.cfg.items, req.id) {
     Error(err) ->
       case err {
         bravo.Empty ->
-          Error(generic.Client(generic.NotFound(req.id.id, None)))
+          Error(types.Client(types.NotFound(req.id.id, None)))
         _ ->
           todo
       }
@@ -901,13 +898,13 @@ fn sub_socket_resp(
   value value: t,
   ref ref: Uuid,
   encode encode: fn(t) -> Json,
-) -> generic.SocketResp {
-  generic.S(Ok(value))
-  |> generic.encode_subscription_msg(
-    generic.encode_result(_, encode, fn(_) { json.null() })
+) -> types.SocketResp {
+  types.S(Ok(value))
+  |> types.encode_subscription_msg(
+    types.encode_result(_, encode, fn(_) { json.null() })
   )
   |> Ok
-  |> generic.SocketResp(ref:, action: None)
+  |> types.SocketResp(ref:, action: None)
 }
 
 fn subscribe_to_items(
@@ -915,7 +912,7 @@ fn subscribe_to_items(
   ref ref: Uuid,
   ctx ctx: Context,
   send send: fn(SocketResp) -> Msg, // TODO rename ... `wrap`?
-) -> Result(Selector(Msg), generic.Err) {
+) -> Result(Selector(Msg), types.Err) {
   let _ = subscribe(
     to: "items",
     in: fn(rs: PubSub) { rs.items },
@@ -926,13 +923,13 @@ fn subscribe_to_items(
     }
   )
   |> run(ctx, Nil)
-  |> result.replace_error(generic.Server(generic.ServerErr("failed to subscribe (`" <> "subscribe_to_items" <> "`)")))
+  |> result.replace_error(types.Server(types.ServerErr("failed to subscribe (`" <> "subscribe_to_items" <> "`)")))
 }
 
 // codegen server
 
 fn api_server(
-  req req: generic.SocketReq(api.Api),
+  req req: types.SocketReq(api.Api),
   ctx ctx: Context,
   subs subs: Set(String),
   send send: fn(SocketResp) -> Msg

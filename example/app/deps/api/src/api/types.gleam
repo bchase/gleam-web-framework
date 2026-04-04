@@ -4,7 +4,6 @@ import gleam/dynamic/decode.{type Decoder}
 import gleam/function
 import gleam/json.{type Json}
 import gleam/option.{type Option}
-import gleam/order.{type Order}
 import gleam/time/timestamp.{type Timestamp}
 import youid/uuid.{type Uuid}
 
@@ -230,19 +229,6 @@ pub type Action {
 
 // JSON HELPERS
 
-// pub fn encode_crud_simple(
-//   crud crud: CrudSimple(t),
-//   encode encode: fn(t) -> Json,
-// ) -> Json {
-//   encode_crud(crud, encode, encode, encode)
-// }
-
-// pub fn decoder_crud_simple(
-//   decoder decoder: Decoder(t),
-// ) -> Decoder(CrudSimple(t)) {
-//   decoder_crud(decoder, decoder, decoder)
-// }
-
 fn encode_timestamp(
   timestamp timestamp: Timestamp,
 ) -> Json {
@@ -265,7 +251,7 @@ fn decoder_timestamp() -> Decoder(Timestamp) {
 // TODO impl `Result` / `Nil` in deriv
 
 pub fn encode_nil(
-  value value: Nil,
+  value _value: Nil,
 ) -> Json {
   json.null()
 }

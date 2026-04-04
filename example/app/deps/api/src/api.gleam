@@ -1,5 +1,5 @@
-import api/generic.{type Action, type Crud, type Paginated, decoder_action, decoder_crud, decoder_paginated, decoder_record, encode_action, encode_crud, encode_paginated, encode_record}
 import api/id.{type Id}
+import api/types.{type Action, type Crud, type Paginated, decoder_action, decoder_crud, decoder_paginated, decoder_record, encode_action, encode_crud, encode_paginated, encode_record}
 import deriv/util as deriv
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode.{type Decoder}
@@ -16,30 +16,30 @@ fn encode_id(value, _) { id.encode_id(value) }
 fn decoder_id(_) { id.decoder_id() }
 // TODO detect phantom types in `deriv`
 
-pub type Record(t) = generic.Record(t)
+pub type Record(t) = types.Record(t)
 
-pub type SocketReq = generic.SocketReq(Req)
-pub type SocketResp = generic.SocketResp
-pub type Err = generic.Err
+pub type SocketReq = types.SocketReq(Req)
+pub type SocketResp = types.SocketResp
+pub type Err = types.Err
 
 pub fn socket_req(
   ref ref: Uuid,
   req req: Req,
-) -> generic.SocketReq(Req) {
-  generic.SocketReq(ref:, req:)
+) -> types.SocketReq(Req) {
+  types.SocketReq(ref:, req:)
 }
 
 pub fn socket_resp(
   ref ref: Uuid,
   action action: Option(Action),
   result result: Result(Json, Err),
-) -> generic.SocketResp {
-  generic.SocketResp(ref:, action:, result:)
+) -> types.SocketResp {
+  types.SocketResp(ref:, action:, result:)
 }
 
 pub fn zero_err(
 ) -> Err {
-  generic.Server(err: generic.ServerErr(""))
+  types.Server(err: types.ServerErr(""))
 }
 
 // domain

@@ -1,5 +1,5 @@
 import api
-import api/generic.{type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
+import api/types.{type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
 import api/id.{type Id}
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
@@ -156,7 +156,7 @@ pub fn send(
       let send_eff =
         req.req
         |> SocketReq(ref: req.ref)
-        |> generic.encode_socket_req(encode)
+        |> types.encode_socket_req(encode)
         |> json.to_string
         |> send
 
@@ -257,7 +257,7 @@ pub fn build_req(
   let ref = uuid.v7()
   Req(ref:, req:, resp: fn(dyn) {
     dyn
-    |> decode.run(generic.decoder_result(decoder, generic.decoder_err()))
+    |> decode.run(types.decoder_result(decoder, types.decoder_err()))
     |> result.map(result.map_error(_, ApiErr))
     |> result.map(msg)
     |> result.map_error(DecodeErrs(ref:, errs: _))
@@ -265,7 +265,7 @@ pub fn build_req(
   })
 }
 
-pub const paginated = generic.decoder_paginated
+pub const paginated = types.decoder_paginated
 
 pub fn action(
   msg msg: fn(#(Action, Result(Record(t), Err))) -> msg,

@@ -4,7 +4,7 @@ import youid/uuid.{type Uuid}
 import gleam/result
 import gleam/option.{type Option, None, Some}
 import gleam/json.{type Json}
-import api/generic.{type Err, List, Create, Read, Update, Delete, type Paginated, encode_paginated, encode_record, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketResp, SocketResp, type Func, Created, Updated, Deleted, type Sub, type Record}
+import api/types.{type Err, List, Create, Read, Update, Delete, type Paginated, encode_paginated, encode_record, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketResp, SocketResp, type Func, Created, Updated, Deleted, type Sub, type Record}
 
 pub type App(t, err, ctx) { App(run: fn(ctx) -> Result(t, err)) }
 fn run(app: App(t, err, ctx), ctx: ctx) -> Result(t, err) { app.run(ctx) }
@@ -99,7 +99,7 @@ pub fn process_sub(
 
   case set.contains(subs, sub_str)  {
     True -> {
-      let resp = SocketResp(ref:, action:, result: Error(generic.Server(generic.ServerErr("already subscribed: " <> sub_str))))
+      let resp = SocketResp(ref:, action:, result: Error(types.Server(types.ServerErr("already subscribed: " <> sub_str))))
       #(subs, resp, None)
     }
 
@@ -107,9 +107,9 @@ pub fn process_sub(
       case handler.run(sub, ref, ctx, handler.send) {
         Ok(listner) -> {
           let ack =
-            generic.S(Ok(Nil))
-            |> generic.encode_subscription_msg(
-              generic.encode_result(_, generic.encode_nil, fn(_) { json.null() })
+            types.S(Ok(Nil))
+            |> types.encode_subscription_msg(
+              types.encode_result(_, types.encode_nil, fn(_) { json.null() })
             )
 
           let resp = SocketResp(ref:, action:, result: Ok(ack))
