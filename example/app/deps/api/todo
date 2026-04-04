@@ -1,28 +1,19 @@
 
-todo
-X - reimpl items crud w/ new types & helpers
-X - tag crud action resp with `Action` & use in client
-X - reimpl subs
-X - basic reconnect
-X - conn helpers
-  X * wrap ws conn (client?) in lustre app?
-  X * helper to detect dis/connected `Bool`
-X - refactor
-  X * separate `api/client.ApiClient` (javascript target) from `app/api.Api` (shared api def)
-    X - make generic w/o ws impl
-    X - make javascript impl
-  X * unify `ApiClient` with `Conn` (ws reconnect logic)
-X - reconnect detection
-  X * track reconnect client-side
-  - handle `todo`s in err paths (and use errs instead of `Result(t, Nil)`)
-
 clean up
-  - mv generic logic from `client` & `app` into `api`
-  - separate generic from future-codegen logic
+X - separate generic from future-codegen logic
+  - mv logic
+    * `api` generic             -->  `fpo`
+    * `api` impl (e.g. `Item`)  -->  `shared` (`shared/api`)
+    * `client`                  -->  `front-end`
+  - rename
+    * `ApiClient`?
+    * `ConnMsg`?
+  - handle `todo`s in err paths (and use errs instead of `Result(t, Nil)`)
   - clean up
     * dead code, comments
     * duped types, e.g. `SocketResp`, `Err`
     * tk
+  - consolidate/colocate `SocketReq` & `SocketResp` en/decode, if possible?
 
 next
   - impl unsubscribe

@@ -102,30 +102,6 @@ pub type Resp {
   RespOther
 }
 
-pub fn encode_socket_req(
-  value: generic.SocketReq(Req),
-) -> Json {
-  generic.encode_socket_req(value, encode_req)
-}
-
-pub fn decoder_socket_req(
-) -> Decoder(generic.SocketReq(Req)) {
-  generic.decoder_socket_req(decoder_req())
-}
-
-pub const encode_socket_resp = generic.encode_socket_resp
-// pub fn encode_socket_resp(
-//   value: generic.SocketResp,
-// ) -> Json {
-//   generic.encode_socket_resp(value, encode_resp)
-// }
-
-pub fn decoder_socket_resp(
-) -> Decoder(generic.SocketResp) {
-  // generic.decoder_socket_resp(decoder_resp())
-  todo as "this should now be handled as `Dynamic` decode, but if not, reimpl `decoder_socket_resp`"
-}
-
 fn encode_nil(
   value _value: Nil,
 ) -> Json {

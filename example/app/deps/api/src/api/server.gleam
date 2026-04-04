@@ -9,11 +9,8 @@ import api/shared.{type Api, type Item, type ItemAttr, decoder_api, encode_item}
 import api/generic.{type Err, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketReq, type SocketResp, SocketResp, type Func, type Action, Created, Updated, Deleted, type Sub, encode_action, decoder_action}
 
 pub type App(t, err, ctx) { App(run: fn(ctx) -> Result(t, err)) }
-fn run(app: App(t, err, ctx), ctx: ctx) -> Result(t, err) { todo }
+fn run(app: App(t, err, ctx), ctx: ctx) -> Result(t, err) { app.run(ctx) }
 fn pure(x: t) { App(run: fn(_) { Ok(x) }) }
-// fn to_app(
-//   f f: fn(SocketReq(api), ctx) ->
-// )
 fn app_to_func(
   app app: fn(param) -> App(return, err, context),
   err err: fn(err) -> Err,
