@@ -23,7 +23,7 @@ import shared/api.{type Api}
 import api/types.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
 import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
-import client/api_client_js.{type ApiClient} as client
+import frontend/client.{type ApiClient}
 
 pub fn main() -> Nil {
   register_web_component()

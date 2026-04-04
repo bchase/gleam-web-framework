@@ -1,0 +1,1 @@
+../../../deps/frontend/dist/frontend.js

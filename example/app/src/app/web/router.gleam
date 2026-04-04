@@ -90,7 +90,7 @@ fn dev(
       element: html.div([], [
         html.script([
           attr.type_("module"),
-          attr.src("/static/js/client.js"),
+          attr.src("/static/js/frontend.js"),
         ], ""),
 
         html.div([], [
