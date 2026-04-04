@@ -1,0 +1,275 @@
+import api
+import api/generic.{type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
+import api/id.{type Id}
+import gleam/dict.{type Dict}
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode.{type Decoder}
+import gleam/io
+import gleam/json.{type Json}
+import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
+import lustre/effect.{type Effect}
+import youid/uuid.{type Uuid}
+
+pub opaque type Req(req, msg) {
+  Req(
+    ref: Uuid,
+    req: req,
+    resp: HandlerFunc(msg),
+  )
+}
+
+pub opaque type Reqs(msg) {
+  Reqs(
+    dict: Dict(Uuid, HandlerFunc(msg)),
+  )
+}
+
+pub fn empty_reqs() -> Reqs(msg) {
+  Reqs(dict: dict.new())
+}
+
+pub type HandlerFunc(msg) = fn(Dynamic) -> HandlerResult(msg)
+
+pub type HandlerResult(msg) {
+  HandlerResult(
+    result: Result(msg, RecvErr),
+    err: fn(RecvErr) -> msg,
+  )
+}
+
+pub type Err {
+  ApiErr(err: api.Err)
+  RecvErr(err: RecvErr)
+}
+
+pub type RecvErr {
+  NoRef(
+    json: String,
+  )
+  RefParseFailure(
+    ref: String,
+    err: String,
+  )
+  ReqNotFound(
+    ref: Uuid,
+    json: String,
+  )
+  ResultNotFound(
+    ref: Uuid,
+    json: String,
+  )
+  DecodeErrs(
+    ref: Uuid,
+    errs: List(decode.DecodeError),
+  )
+}
+
+pub type NoConn {
+  NoConn
+}
+
+//
+
+pub type ApiClient(req, model, msg) {
+  ApiClient(
+    reqs: Reqs(msg),
+    send: fn(model, Req(req, msg)) -> #(model, Effect(msg)),
+    recv: fn(model, String) -> #(model, Effect(msg)),
+  )
+}
+
+pub type ApiData(t) {
+  NotAsked
+  Loading
+  Failure(err: Err)
+  Success(data: t)
+}
+
+pub fn get_req(
+  reqs reqs: Reqs(msg),
+  ref ref: Uuid,
+) -> Result(#(Reqs(msg), HandlerFunc(msg)), Nil) {
+  use f <- result.try(dict.get(reqs.dict, ref))
+  Ok(#(reqs, f))
+}
+
+pub fn pop_req(
+  reqs reqs: Reqs(msg),
+  ref ref: Uuid,
+) -> Result(#(Reqs(msg), HandlerFunc(msg)), Nil) {
+  use f <- result.try(dict.get(reqs.dict, ref))
+
+  let reqs = Reqs(dict: dict.delete(reqs.dict, ref))
+
+  Ok(#(reqs, f))
+}
+
+pub fn insert_req(
+  reqs reqs: Reqs(msg),
+  req req: Req(req, msg),
+) -> Reqs(msg) {
+  Reqs(dict: reqs.dict |> dict.insert(req.ref, req.resp))
+}
+
+pub fn clear_req_and_log_err(
+  reqs reqs: Reqs(msg),
+  err err: RecvErr,
+) -> Reqs(msg) {
+  io.println_error("`RecvErr`:\n" <> err |> string.inspect)
+
+  case err {
+    NoRef(..) |
+    RefParseFailure(..) ->
+      reqs
+
+    ReqNotFound(ref:, ..) |
+    ResultNotFound(ref:, ..) |
+    DecodeErrs(ref:, ..) ->
+    // JsonDecodeErr(ref:, ..) ->
+      case pop_req(reqs, ref) {
+        Error(Nil) ->
+          reqs
+
+        Ok(#(reqs, _req)) ->
+          reqs
+      }
+  }
+}
+
+// SEND
+
+pub fn send(
+  reqs reqs: Reqs(msg),
+  req req: Req(req, msg),
+  send send: Option(fn(String) -> Effect(msg)),
+  encode encode: fn(req) -> Json,
+) -> Result(#(Reqs(msg), Effect(msg)), NoConn) {
+  case send {
+    None ->
+      Error(NoConn)
+
+    Some(send) -> {
+      let reqs = insert_req(reqs, req)
+
+      let send_eff =
+        req.req
+        |> SocketReq(ref: req.ref)
+        |> generic.encode_socket_req(encode)
+        |> json.to_string
+        |> send
+
+      Ok(#(reqs, send_eff))
+    }
+  }
+}
+
+pub fn func(
+  req req: fn(Func(param, return)) -> req,
+  param param: param,
+  decoder decoder: Decoder(return),
+  msg msg: fn(Result(return, Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(Func(FuncReq(param:)))
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  build_req(req:, decoder:, msg:, err:)
+}
+
+pub fn sub(
+  sub sub: Sub(sub_msg),
+  req req: fn(Sub(sub_msg)) -> req,
+  decoder decoder: Decoder(sub_msg),
+  msg msg: fn(Result(sub_msg, Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(sub)
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  build_req(req:, decoder:, msg:, err:)
+}
+
+pub fn list(
+  req req: fn(Crud(t, create, update, key)) -> req,
+  params params: Option(Params(key)),
+  decoder decoder: Decoder(Paginated(t)),
+  msg msg: fn(Result(Paginated(t), Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(List(ListReq(params:)))
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  build_req(req:, decoder:, msg:, err:)
+}
+
+pub fn read(
+  req req: fn(Crud(t, create, update, key)) -> req,
+  id id: Id(t),
+  decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(Read(ReadReq(id:)))
+  let decoder = decoder_record(decoder)
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  build_req(req:, decoder:, msg:, err:)
+}
+
+pub fn create(
+  req req: fn(Crud(t, create, update, key)) -> req,
+  data data: create,
+  decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(Create(CreateReq(data:)))
+  let decoder = decoder_record(decoder)
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  build_req(req:, decoder:, msg:, err:)
+}
+
+pub fn update(
+  req req: fn(Crud(t, create, update, key)) -> req,
+  id id: Id(t),
+  data data: update,
+  decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(Update(UpdateReq(id:, data:)))
+  let decoder = decoder_record(decoder)
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  build_req(req:, decoder:, msg:, err:)
+}
+
+pub fn delete(
+  req req: fn(Crud(t, create, update, key)) -> req,
+  id id: Id(t),
+  confirm confirm: ConfirmDelete,
+  decoder decoder: Decoder(t),
+  msg msg: fn(Result(Record(t), Err)) -> msg,
+) -> Req(req, msg) {
+  let req = req(Delete(DeleteReq(id:, confirm:)))
+  let decoder = decoder_record(decoder)
+  let err = fn(err) { msg(Error(RecvErr(err))) }
+  build_req(req:, decoder:, msg:, err:)
+}
+
+pub fn build_req(
+  req req: req,
+  decoder decoder: Decoder(t),
+  msg msg: fn(Result(t, Err)) -> msg,
+  err err: fn(RecvErr) -> msg
+) -> Req(req, msg) {
+  let ref = uuid.v7()
+  Req(ref:, req:, resp: fn(dyn) {
+    dyn
+    |> decode.run(generic.decoder_result(decoder, generic.decoder_err()))
+    |> result.map(result.map_error(_, ApiErr))
+    |> result.map(msg)
+    |> result.map_error(DecodeErrs(ref:, errs: _))
+    |> HandlerResult(result: _, err:)
+  })
+}
+
+pub const paginated = generic.decoder_paginated
+
+pub fn action(
+  msg msg: fn(#(Action, Result(Record(t), Err))) -> msg,
+  action action: Action,
+) -> fn(Result(Record(t), Err)) -> msg {
+  fn(result) { msg(#(action, result)) }
+}

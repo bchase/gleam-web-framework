@@ -25,7 +25,7 @@ import gleam/javascript/array
 import api/client.{type ApiClient, type Api, NotAsked, Loading, Failure, Success}
 import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
-import client/wrapped_client as conn
+import client/wrapped_client.{type Conn, type ConnMsg, type ConnectionEvent} as conn
 
 pub fn main() -> Nil {
   register_web_component()
@@ -58,7 +58,7 @@ type Model {
     //
     str: Option(Result(String, client.Err)),
     //
-    conn: conn.Conn(Msg),
+    conn: Conn(Msg),
   )
 }
 
@@ -94,8 +94,8 @@ pub fn exp_backoff_delay_ms(
 type Msg {
   NoOp
   // websockets
-  ConnMsg(msg: conn.ConnMsg(Api))
-  RecvConnEvent(event: conn.ConnectionEvent)
+  ConnMsg(msg: ConnMsg(Api))
+  RecvConnEvent(event: ConnectionEvent)
   // ui
   SendIntToString(num: Int)
   GotItemForm(values: List(#(String, String)))

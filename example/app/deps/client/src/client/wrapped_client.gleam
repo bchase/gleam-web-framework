@@ -22,7 +22,7 @@ pub fn is_connected(
   result.is_ok(conn.ws)
 }
 
-const base_delay_ms = 1000 // 1s
+const base_delay_ms = 1_000 // 1s
 const max_delay_ms = 60_000 // 60s
 
 pub opaque type Conn(parent_msg) {
@@ -36,6 +36,15 @@ pub opaque type Conn(parent_msg) {
 pub opaque type ConnMsg(api) {
   RecvWebSocketEvent(event: WebSocketEvent)
   ReconnectWebSocket(with_delay: Bool)
+}
+
+pub opaque type InternalConnMsg(ws, close_reason) {
+  RecvWebSocketInvalidUrlErr
+  RecvWebSocketBinaryMessage(msg: BitArray)
+  RecvWebSocketTextMessage(msg: String)
+  RecvWebSocketOpen(ws: ws)
+  RecvWebSocketClose(reason: close_reason)
+  GotReconnectWebSocket(with_delay: Bool)
 }
 
 pub type ConnectionEvent {
@@ -59,6 +68,45 @@ pub fn init(
       dispatch(to_parent_msg(ReconnectWebSocket(with_delay: False)))
     }),
   ]))
+}
+
+pub fn update_(
+  model model: model,
+  get_client get_client: fn(model) -> ApiClient(api, model, parent_msg),
+  wrap to_parent_msg: fn(ConnMsg(api)) -> parent_msg,
+  conn conn: Conn(parent_msg),
+  msg msg: InternalConnMsg(ws, close_reason),
+  set_conn set_conn: fn(model, Conn(parent_msg)) -> model,
+) -> #(model, Effect(parent_msg)) {
+  let map_parent= fn(t: #(Conn(parent_msg), Effect(ConnMsg(api)))) {
+    model
+    |> set_conn(t.0)
+    |> pair.new(effect.batch([
+      t.1 |> effect.map(to_parent_msg),
+    ]))
+  }
+
+  let client = get_client(model)
+
+  case msg {
+    RecvWebSocketBinaryMessage(msg: ba) ->
+      ignore_binary_msg(model:, ba:)
+
+    RecvWebSocketTextMessage(msg:) ->
+      client.recv(model, msg)
+
+    RecvWebSocketInvalidUrlErr ->
+      notify_invalid_url(model:, conn:)
+
+    RecvWebSocketOpen(ws:) ->
+      set_websocket_conn(model:, conn:, ws: todo, set_conn:)
+
+    RecvWebSocketClose(reason:) ->
+      reconnect_to_websocket_on_close(conn:, reason: todo) |> map_parent
+
+    GotReconnectWebSocket(with_delay:) ->
+      attempt_reconnect_to_websocket(conn:, with_delay:) |> map_parent
+  }
 }
 
 pub fn update(

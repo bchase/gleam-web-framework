@@ -1,0 +1,34 @@
+
+todo
+X - reimpl items crud w/ new types & helpers
+X - tag crud action resp with `Action` & use in client
+X - reimpl subs
+X - basic reconnect
+  - refactor
+    * separate `api/client.ApiClient` (javascript target) from `app/api.Api` (shared api def)
+      - maybe leave room for erlang target by providing javascript implementation?
+    * unify `ApiClient` with `Conn`
+. - conn helpers
+  . * wrap ws conn (client?) in lustre app?
+  . * helper to detect dis/connected `Bool`
+  - reconnect detection
+    * track reconnect client-side
+    * track reconnect server-side (did server socket come down or did conn just drop?)
+      - ... think this only matters for subscriptions, but they should probably be tracked separately then...
+  - handle `todo`s in err paths (and use errs instead of `Result(t, Nil)`)
+
+clean up
+  - mv generic logic from `client` & `app` into `api`
+  - separate generic from future-codegen logic
+  - clean up
+    * dead code, comments
+    * duped types, e.g. `SocketResp`, `Err`
+    * tk
+
+next
+  - impl unsubscribe
+  - send msg to client to notify un/successful subscription
+
+maybe
+  - conv `FuncReq` to plain `fn(param) -> Result(return, Err)`
+  - configurable timeout callbacks for hung reqs
