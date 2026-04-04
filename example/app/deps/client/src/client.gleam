@@ -1,5 +1,3 @@
-import gleam/float
-import gleam/int
 import plinth/browser/shadow
 import plinth/javascript/global
 import plinth/browser/document
@@ -19,14 +17,12 @@ import lustre/element/html
 import gleam/pair
 import lustre/effect.{type Effect}
 import lustre
-import lustre_websocket.{type WebSocketEvent} as ws
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
 import api/shared.{type Api} as api
 import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
-import api/client.{type ApiData, type Err as ApiErr, type ConnMsg, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client} as _
-// import client/wrapped_client.{type Conn, type ConnMsg, type ConnectionEvent} as conn
+import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client} as _
 import client/api_client_js.{type ApiClient} as client
 
 pub fn main() -> Nil {
@@ -62,40 +58,11 @@ type Model {
   )
 }
 
-pub fn exp_backoff_delay_ms(
-  attempt attempt: Int
-) -> Int {
-  let attempt =
-    case attempt < 1 {
-      True -> 1
-      False -> attempt
-    }
-
-  let base_delay = 1000 // 1s
-  let max_delay = 60_000 // 60s
-
-  let exp_delay =
-    case int.power(2, int.to_float(attempt)) {
-      Error(Nil) ->
-        max_delay
-
-      Ok(mul) ->
-        base_delay
-        |> int.to_float
-        |> float.multiply(mul)
-        |> float.round()
-    }
-
-  exp_delay
-  |> int.clamp(min: base_delay, max: max_delay)
-  |> int.random
-}
-
 type Msg {
   NoOp
   // websockets
   ConnMsg(msg: client.Msg)
-  RecvConnEvent(event: ConnectionEvent)
+  RecvWebSocketConnEvent(event: ConnectionEvent)
   // ui
   SendIntToString(num: Int)
   GotItemForm(values: List(#(String, String)))
@@ -129,10 +96,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
       echo "NO CONN MSG SEND"
       None
     },
-    notify: fn(event) {
-      echo event
-      None
-    },
+    notify: fn(event) { Some(RecvWebSocketConnEvent(event:)) },
   )
 }
 
@@ -162,37 +126,32 @@ fn update(
     NoOp ->
       pure(model)
 
-    RecvConnEvent(event: Connected(reconnect: False)) -> {
-      let #(model, list_items_eff) = model.client.send(model, api.req_list_items(None, msg: RecvItems))
-      let #(model, subscribe_items_eff) =
-        model.client.send(model, api.req_subscribe_to_items(msg: fn(result) {
-          case result {
-            Ok(api.ItemsSubMsg(action:, item:)) -> RecvItem(action:, result: Ok(item))
-            Error(_) -> NoOp
-          }
-        }))
-      model
-      |> eff([
-        list_items_eff,
-        subscribe_items_eff,
-      ])
-    }
+    RecvWebSocketConnEvent(event:) -> {
+      case event {
+        Connected(reconnect: True) |
+        Disconnected |
+        WebSocketUrlInvalid ->
+          pure(model)
 
-    RecvConnEvent(event: Disconnected) |
-    RecvConnEvent(event: Connected(reconnect: True)) -> {
-      pure(model)
-    }
+        Connected(reconnect: False) -> {
+          let #(model, list_items_eff) = model |> model.client.send(api.req_list_items(None, RecvItems))
+          let #(model, sub_items_eff) = model |> model.client.send(api.req_subscribe_to_items(fn(result) {
+            case result {
+              Ok(api.ItemsSubMsg(action:, item:)) -> RecvItem(action:, result: Ok(item))
+              Error(_) -> NoOp
+            }
+          }))
 
-    RecvConnEvent(event: WebSocketUrlInvalid) -> {
-      panic as { "WebSocket URL invalid" }
+          model
+          |> pair.new(effect.batch([
+            list_items_eff,
+            sub_items_eff,
+          ]))
+        }
+      }
     }
 
     ConnMsg(msg:) -> {
-        // msg:,
-        // conn: model.conn,
-        // get_client: fn(model: Model) { model.client },
-        // set_conn: fn(model: Model, conn) { Model(..model, conn: conn) },
-        // wrap: ConnMsg,
       model
       |> client.update(
         client: model.client,
