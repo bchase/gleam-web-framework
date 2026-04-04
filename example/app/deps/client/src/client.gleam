@@ -19,7 +19,7 @@ import lustre/effect.{type Effect}
 import lustre
 import youid/uuid.{type Uuid}
 import gleam/javascript/array
-import api/shared.{type Api} as api
+import shared/api.{type Api}
 import api/generic.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
 import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
