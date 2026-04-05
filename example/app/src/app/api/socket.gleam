@@ -1,39 +1,45 @@
-import gleam/set.{type Set}
+import api/server
+import api/types.{type Paginated, type Record, type ListReq, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type Action, SocketReq, Updated, Deleted, Created, type Sub, type SocketResp,}
+import api/types/id.{Id}
+import app/types.{type PubSub} as app
+import app/user
 import bravo
 import bravo/uset
-import gleam/pair
-import gleam/int
-import gleam/bool
-import gleam/dict.{type Dict}
+import fpo/monad/app.{subscribe, broadcast, run, pure} as _
+import fpo/types as fpo
+import fpo/types/err.{type Err}
 import gleam/dynamic/decode.{type Decoder}
-import app/user
-import gleam/string
-import gleam/io
-import gleam/option.{type Option, Some, None}
-import gleam/result
-import gleam/list
-import youid/uuid.{type Uuid}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
+import gleam/int
+import gleam/io
 import gleam/json.{type Json}
-import gleam/time/timestamp.{type Timestamp}
-import fpo/types/err.{type Err}
-import fpo/types as fpo
-import app/types.{type PubSub} as app
+import gleam/list
+import gleam/option.{type Option, Some, None}
+import gleam/pair
+import gleam/result
+import gleam/set.{type Set}
+import gleam/string
+import gleam/time/timestamp
 import mist
-//
-import lustre/effect.{type Effect}
-//
-import api/types.{type Id, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created, type Sub, type SocketResp,}
-import api/client/req.{type Req}
-import api/types/id.{Id}
-import fpo/monad/app.{subscribe, broadcast, run, pure} as _
-//
-import api/server
 import shared/api.{type Item, type ItemAttr} as api
+import youid/uuid.{type Uuid}
 
 pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
+
+type Socket {
+  Socket(
+    self: Subject(Msg),
+    ctx: Context,
+    subs: Set(String),
+  )
+}
+
+type Msg {
+  NoOp
+  Broadcast(msg: SocketResp)
+}
 
 pub fn start(
   req req: Request(mist.Connection),
@@ -47,108 +53,17 @@ pub fn start(
   )
 }
 
-type Msg {
-  NoOp
-  Broadcast(msg: SocketResp)
-}
-
-type Socket {
-  Socket(
-    self: Subject(Msg),
-    ctx: Context,
-    conn: mist.WebsocketConnection,
-    subs: Set(String),
-    // state: State,
-  )
-}
-
-// //
-
-// type Sub {
-//   PersonChanged(
-//     person: Person,
-//     action: Action
-//   )
-// }
-
-// type SubErr
-
-// fn subscriptions(
-//   msg msg: fn(List(Sub)) -> msg,
-//   err err: fn(Err) -> msg,
-// ) {
-//   todo
-// }
-
-// fn subscribe(
-//   sub sub: Sub,
-//   msg msg: fn(List(Sub)) -> msg,
-//   err err: fn(Err) -> msg,
-// ) {
-//   todo
-// }
-
-// fn unsubscribe(
-//   sub sub: Sub,
-//   msg msg: fn(List(Sub)) -> msg,
-//   err err: fn(Err) -> msg,
-// ) {
-//   todo
-// }
-
-//
-
 fn init(
-  conn conn: mist.WebsocketConnection,
+  conn _conn: mist.WebsocketConnection,
   ctx ctx: Context,
 ) -> #(Socket, Option(Selector(Msg))) {
   let self = process.new_subject()
 
-  let selector: Selector(Msg) =
+  #(Socket(self:, ctx:, subs: set.new()), Some(
     process.new_selector()
     |> process.select(self)
-    // |> process.select_map(self, fn(msg) {
-    //   case msg {
-    //   }
-    // })
-    // |> process.select_map(self, fn(msg) {
-    //   case msg {
-    //     mist.Text(..) -> NoOp
-    //     mist.Binary(_) -> todo
-    //     mist.Closed -> todo
-    //     mist.Shutdown -> todo
-    //     mist.Custom(_) -> todo
-    //   }
-    // })
-    // |> process.select_map(self, ApiSocketMsg)
-
-  #(Socket(self:, ctx:, conn:, subs: set.new()), Some(selector))
+  ))
 }
-
-// fn init_items() -> Dict(Id(api.Item), Record(api.Item)) {
-//   let ts = timestamp.unix_epoch
-//   [
-//     types.Record(
-//       id: Id(uuid.v7_string()),
-//       created_at: ts,
-//       updated_at: ts,
-//       resource: api.Item(name: "zzz"),
-//     ),
-//     types.Record(
-//       id: Id(uuid.v7_string()),
-//       created_at: ts,
-//       updated_at: ts,
-//       resource: api.Item(name: "aaa"),
-//     ),
-//   ]
-//   // |> list.sort(fn(a, b) {
-//   //   string.compare(a.resource.name, b.resource.name)
-//   // })
-//   |> list.map(fn(item: Record(api.Item)) {
-//     #(item.id, item)
-//   })
-//   |> dict.from_list
-// }
 
 fn update(
   socket socket: Socket,
@@ -162,7 +77,7 @@ fn update(
     }
 
     mist.Text(msg) -> {
-      serve(socket:, msg:, send:, send_resp: Broadcast, ctx: socket.ctx,
+      serve(socket:, conn:, msg:, send:, send_resp: Broadcast, ctx: socket.ctx,
         get_subs: fn(socket: Socket) { socket.subs },
         set_subs: fn(socket: Socket, subs) { Socket(..socket, subs:) },
         get_self: fn(socket: Socket) { socket.self },
@@ -177,7 +92,7 @@ fn update(
       msg
       |> types.encode_socket_resp
       |> json.to_string
-      |> send(socket)
+      |> send(conn)
 
       mist.continue(socket)
     }
@@ -195,177 +110,10 @@ fn update(
 }
 
 fn close(
-  socket socket: Socket,
+  socket _socket: Socket,
 ) -> Nil {
   Nil
 }
-
-type State {
-  State(
-    // people: List(Person),
-    items: Dict(Id(api.Item), Record(api.Item)),
-  )
-}
-
-// fn process(
-//   socket socket: Socket,
-//   req req: Req,
-// ) -> #(Result(Resp, api.Err), Socket, Option(Selector(Msg))) {
-//   let ctx = socket.ctx
-
-//   case req {
-//     api.ReqOther ->
-//       todo
-
-//     api.CrudItems(crud:) ->
-//       case crud {
-//         types.List(pagination: _) -> {
-//           let assert Ok(items) =
-//             uset.tab2list(socket.ctx.cfg.items)
-
-//           let items =
-//             items
-//             |> list.map(pair.second)
-//             |> types.ManyRecords(None)
-//             |> api.GotItems
-
-//           #(Ok(items), socket, None)
-//         }
-
-//         types.Create(new:) -> {
-//           let ts = timestamp.system_time()
-//           let item = types.Record(id: id.Id(uuid.v7_string()), created_at: ts, updated_at: ts, resource: new)
-
-//           let _broadcasted =
-//             broadcast_item(item:, action: Created, ctx: socket.ctx)
-
-//           let assert Ok(_inserted) =
-//             socket.ctx.cfg.items
-//             |> uset.insert(item.id, item)
-
-//           #(Ok(api.GotItem(item:, action: Created)), socket, None)
-//         }
-
-//         types.Update(id:, new:) -> {
-//           case uset.lookup(socket.ctx.cfg.items, id) {
-//             Error(err) ->
-//               case err {
-//                 bravo.Empty ->
-//                   #(Error(types.Client(types.NotFound(id.id, None))), socket, None)
-//                 _ ->
-//                   todo
-//               }
-
-//             Ok(types.Record(resource: item, ..) as record) -> {
-//               let updated_at = timestamp.system_time()
-//               let item = api.Item(..item, name: new.name)
-//               let record = types.Record(..record, resource: item, updated_at:)
-//               let _broadcasted = broadcast_item(item: record, action: Updated, ctx: socket.ctx)
-//               #(Ok(api.GotItem(item: record, action: Updated)), socket, None)
-//             }
-//           }
-//         }
-
-//         types.Delete(id:, confirm: _) -> {
-//           case uset.lookup(socket.ctx.cfg.items, id) {
-//             Error(err) ->
-//               case err {
-//                 bravo.Empty ->
-//                   #(Error(types.Client(types.NotFound(id.id, None))), socket, None)
-//                 _ ->
-//                   todo
-//               }
-
-//             Ok(item) -> {
-//               let assert Ok(_deleted) = uset.delete_key(socket.ctx.cfg.items, item.id)
-//               let _broadcasted = broadcast_item(item:, action: Deleted, ctx: socket.ctx)
-//               #(Ok(api.GotItem(item:, action: Deleted)), socket, None)
-//             }
-//           }
-//         }
-
-//         types.Get(id:) -> todo
-//       }
-
-//     api.Subscribe(subs:) -> {
-//       let added =
-//         case dict.is_empty(subs) {
-//           True ->
-//             None
-
-//           False -> {
-//             let selector =
-//               process.new_selector()
-//               |> process.select(process.new_subject())
-//               // |> todo
-
-//             subs
-//             |> dict.to_list
-//             |> list.fold(#(dict.new(), selector), fn(acc, t) {
-//               let #(ref, sub) = t
-//               let #(subs, selector) = acc
-
-//               let result =
-//                 case sub {
-//                   api.SubItem(id:) -> todo
-//                   api.SubItems -> {
-//                     subscribe(
-//                       to: "items",
-//                       in: fn(rs: PubSub) { rs.items },
-//                       wrap: fn(t) {
-//                         let #(item, action) = t
-//                         Broadcast(ref:, resp: api.GotItem(item:, action:))
-//                       })
-//                     |> run(ctx, Nil)
-//                     // |> result.map(fn(selector) {
-//                     //   selector
-//                     //   // |> process.map_selector(fn(msg) {
-//                     //   //   todo as "get `msg` this into the actor"
-//                     //   // })
-//                     // })
-//                   }
-//                 }
-
-//               case result {
-//                 Ok(new_selector) -> {
-//                   let selector =
-//                     selector
-//                     |> process.merge_selector(new_selector)
-//                     // |> todo
-
-//                   #(dict.insert(subs, ref, sub), selector)
-//                 }
-
-//                 Error(err) -> {
-//                   io.println_error("Failed to subscribe:")
-//                   io.println_error(sub |> string.inspect)
-//                   io.println_error(err |> string.inspect)
-//                   acc
-//                 }
-//               }
-//             })
-//             |> Some
-//           }
-//         }
-
-//       case added {
-//         None ->
-//           #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, None)
-
-//         Some(#(subs, selector)) -> {
-//           let socket =
-//             Socket(..socket, subs: {
-//               socket.subs
-//               |> dict.merge(subs)
-//               // |> list.append(subs)
-//             })
-
-//           #(Ok(api.SubscribedTo(all_subs: socket.subs)), socket, Some(selector))
-//         }
-//       }
-//     }
-//   }
-// }
 
 fn broadcast_item(
   item item: Record(api.Item),
@@ -385,9 +133,9 @@ fn broadcast_item(
 
 fn send(
   msg msg: String,
-  socket socket: Socket,
-) -> mist.Next(Socket, Msg) {
-  case mist.send_text_frame(socket.conn, msg) {
+  conn conn: mist.WebsocketConnection,
+) -> Nil {
+  case mist.send_text_frame(conn, msg) {
     Ok(Nil) ->
       Nil
 
@@ -396,284 +144,9 @@ fn send(
       io.println_error(err |> string.inspect)
     }
   }
-
-  mist.continue(socket)
 }
 
-// fn decoder_socket_req() -> Decoder(SocketReq) {
-//   todo
-// }
-
-// fn decoder_req() -> Decoder(Req) {
-//   todo
-// }
-
-// fn decoder_socket_resp() -> Decoder(SocketResp) {
-//   todo
-// }
-
-// fn decoder_resp() -> Decoder(Resp) {
-//   todo
-// }
-
-// fn encode_resp(
-//   ref ref: Uuid,
-//   resp resp: Resp,
-// ) -> Json {
-//   todo
-// }
-
-// // api
-
-// pub type SocketReq {
-//   SocketReq(
-//     ref: Uuid,
-//     req: Req,
-//   )
-// }
-
-// pub type Req {
-//   ReqPeople(
-//     req: Crud(Person)
-//   )
-// }
-
-// pub type SocketResp {
-//   SocketResp(
-//     ref: Uuid,
-//     result: Result(String, Err)
-//   )
-// }
-
-// pub type Resp {
-//   RespPeople(
-//     resp: Got(Person),
-//   )
-// }
-
-// domain
-
-// pub type Person {
-//   Person(
-//     id: Id(Person),
-//     name: String,
-//   )
-// }
-
-// // generic
-
-// pub type Err {
-//   NotFound(id: String)
-//   RespDecodeErr(err: String)
-//   RespWrongDecode(expected: String, got: String)
-//   Err(err: String)
-// }
-
-// pub type Id(resource) {
-//   Id(id: String)
-// }
-
-// pub type CrudPlus(resource, msg) {
-//   Crud(Crud(resource))
-//   Custom(msg)
-// }
-
-// pub type Crud(resource) {
-//   List
-//   Get(
-//     id: Id(resource),
-//   )
-//   Create(
-//     name: String,
-//   )
-//   Update(
-//     id: Id(resource), name: String,
-//   )
-//   Delete(
-//     id: Id(resource),
-//   )
-// }
-
-// pub type Action {
-//   Created
-//   Updated
-//   Deleted
-// }
-
-// pub type GotResult(resource) = Result(Got(resource), Err)
-
-// pub type Got(resource) {
-//   GotMany(
-//     payload: List(resource),
-//   )
-//   GotOne(
-//     payload: resource,
-//     action: Option(Action),
-//   )
-// }
-
-// fn decoder_person() -> Decoder(Person) {
-//   todo
-// }
-
-// client helpers
-
-// fn list_people(
-//   socket socket: ws.WebSocket,
-//   msg msg: fn(List(Person)) -> msg,
-//   err err: fn(Err) -> msg,
-// ) -> Effect(Nil) {
-//   effect.from(fn(dispatch) {
-//     // todo this doesn't work, because there's no way to assoc send w/ recv
-//     //      orig ref/uuid approach might be needed...
-
-//     // TODO async
-
-//     ReqPeople(List)
-//     |> ws.send(socket, _)
-
-//     // dispatch(None)
-
-//     todo
-//   })
-// }
-
-// client
-
-// type ClientState {
-//   ClientState(
-//     listeners: Dict(Uuid, fn(Result(Resp, Err)) -> ClientMsg),
-//     people: List(Person),
-//   )
-// }
-
-// type ClientMsg {
-//   FetchPeople
-//   // GotResp(resp: SocketResp)
-//   GotPeople(people: List(Person))
-// }
-
-// fn listen_for(
-//   ref ref: Uuid,
-//   err err: fn(Err) -> ClientMsg,
-//   msg msg: fn(Resp) -> ClientMsg,
-// ) {
-// }
-
-// fn client_update(
-//   model model: ClientState,
-//   msg msg: ClientMsg,
-// ) -> #(ClientState, Effect(ClientMsg)) {
-//   case msg {
-//     FetchPeople -> {
-//       #(model, effect.none())
-//     }
-
-//     GotPeople(people:) -> {
-//       #(ClientState(..model, people:), effect.none())
-//     }
-
-//     // GotResp(resp: SocketResp(ref:, result: Error(err))) -> {
-//     //   model
-//     // }
-
-//     // GotResp(resp: SocketResp(ref:, result: Ok(json))) -> {
-//     //   case json.parse(json, decoder_resp()) {
-//     //     Ok(_) -> todo
-//     //     Error(_) -> todo
-//     //   }
-//     // }
-//   }
-// }
-
-// //
-
-// // fn list(
-// //   result result: Result(String, Err),
-// //   decoder decoder: Decoder(t),
-// // ) -> Result(t, Err) {
-// //   case result {
-// //     Ok(json) ->
-// //       json
-// //       |> json.parse(decoder)
-// //       |> result.map_error(string.inspect)
-// //       |> result.map_error(RespDecodeErr)
-
-// //     Error(err) ->
-// //       Error(err)
-// //   }
-// // }
-
-// // fn list_people_(
-// //   ref ref: Uuid,
-// //   result result: Result(SocketResp, Err),
-// // ) -> Result(Result(List(Person), Err), Nil) {
-// //   list(ref:, result:, decoder: decode.list(decoder_person()))
-// // }
-
-// // fn list(
-// //   ref ref: Uuid,
-// //   result result: Result(SocketResp, Err),
-// //   decoder decoder: Decoder(t),
-// // ) -> Result(Result(t, Err), Nil) {
-// //   case result {
-// //     Ok(SocketResp(ref: resp_ref, result: Ok(json))) if resp_ref == ref ->
-// //       case json.parse(json, decoder) {
-// //         Ok(x) ->
-// //           Ok(Ok(x))
-
-// //         Error(err) ->
-// //           Ok(Error(RespDecodeErr(err: err |> string.inspect)))
-// //       }
-
-// //     Ok(SocketResp(ref: resp_ref, result: Error(err))) if resp_ref == ref ->
-// //       Ok(Error(err))
-
-// //     Ok(SocketResp(..)) ->
-// //       Error(Nil)
-
-// //     Error(err) ->
-// //       Ok(Error(err))
-// //   }
-// // }
-
-// // fn list_people(
-// //   ref ref: Uuid,
-// //   result result: Result(SocketResp, Err),
-// // ) -> Result(Result(List(Person), Err), Nil) {
-// //   case result {
-// //     Ok(SocketResp(ref: resp_ref, result: Ok(json))) if resp_ref == ref ->
-// //       case json.parse(json, decoder_resp()) {
-// //         Ok(RespPeople(GotMany(payload:))) ->
-// //           Ok(Ok(payload))
-
-// //         Ok(resp) ->
-// //           Ok(Error(RespWrongDecode(
-// //             expected: "RespPeople(GotMany(..))",
-// //             got: resp |> string.inspect,
-// //           )))
-
-// //         Error(err) ->
-// //           Ok(Error(RespDecodeErr(err: err |> string.inspect)))
-// //       }
-
-// //     Ok(SocketResp(ref: resp_ref, result: Error(err))) if resp_ref == ref ->
-// //       Ok(Error(err))
-
-// //     Ok(SocketResp(..)) ->
-// //       Error(Nil)
-
-// //     Error(err) ->
-// //       Ok(Error(err))
-// //   }
-// // }
-
-
-
 // TODO mv `server`
-
-type ApiServer(req, context) =
-  fn(types.SocketReq(req), context, Set(String)) -> Result(SocketResp, types.Err)
 
 type Server(req, context, msg) {
   Server(
@@ -684,10 +157,11 @@ type Server(req, context, msg) {
 
 fn serve(
   socket socket: socket,
+  conn conn: mist.WebsocketConnection,
   msg msg: String,
   ctx ctx: context,
   server server: Server(req, context, msg),
-  send send: fn(String, socket) -> mist.Next(socket, msg),
+  send send: fn(String, mist.WebsocketConnection) -> Nil,
   get_self get_self: fn(socket) -> Subject(msg),
   get_subs get_subs: fn(socket) -> Set(String),
   set_subs set_subs: fn(socket, Set(String)) -> socket,
@@ -708,7 +182,7 @@ fn serve(
       resp
       |> types.encode_socket_resp
       |> json.to_string
-      |> send(socket)
+      |> send(conn)
 
       let socket =
         socket
@@ -955,13 +429,6 @@ fn api_server(
     api.SubscribeToItems(sub:) -> {
       sub_subscribe_to_items(sub:, send:)
       |> server.process_sub(sub:, ref:, ctx:, subs:)
-      // |> fn(t) {
-      //   let #(subs, resp, selector) = t
-      //   // let selector =
-
-      //   // #(subs, resp, Some(selector))
-      //   todo
-      // }
     }
   }
 }
