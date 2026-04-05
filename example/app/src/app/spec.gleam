@@ -76,7 +76,7 @@ fn api_websocket(
   req req: Request(mist.Connection),
   ctx ctx: Context(Config, PubSub, User),
 ) -> Response(mist.ResponseData) {
-  socket.start(req:, ctx:)
+  socket.start(req:, ctx:, server: socket.api_server())
 }
 
 fn register_server_components() {

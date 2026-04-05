@@ -26,13 +26,17 @@ import mist
 import shared/api.{type Item, type ItemAttr} as api
 import youid/uuid.{type Uuid}
 
-pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
-
 type Socket(context) {
   Socket(
     self: Subject(Msg),
-    ctx: context,
     subs: Set(String),
+  )
+}
+
+pub type Server(req, context) {
+  Server(
+    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> Msg) -> #(Set(String), SocketResp, Option(Selector(Msg))),
+    decoder: Decoder(req),
   )
 }
 
@@ -43,33 +47,25 @@ pub opaque type Msg {
 
 pub fn start(
   req req: Request(mist.Connection),
-  ctx ctx: Context,
-) -> Response(mist.ResponseData) {
-  start_(req:, ctx:, server: api_server())
-}
-
-pub fn start_(
-  req req: Request(mist.Connection),
   ctx ctx: fpo.Context(config, pubsub, user),
   server server: Server(api, fpo.Context(config, pubsub, user))
 ) -> Response(mist.ResponseData) {
   mist.websocket(
     request: req,
-    on_init: init(conn: _, ctx:),
+    on_init: init,
     handler: fn(socket, msg, conn) {
-      update(socket:, msg:, conn:, server:)
+      update(socket:, msg:, conn:, server:, ctx:)
     },
     on_close: close,
   )
 }
 
 fn init(
-  conn _conn: mist.WebsocketConnection,
-  ctx ctx: context,
+  _conn: mist.WebsocketConnection,
 ) -> #(Socket(context), Option(Selector(Msg))) {
   let self = process.new_subject()
 
-  #(Socket(self:, ctx:, subs: set.new()), Some(
+  #(Socket(self:, subs: set.new()), Some(
     process.new_selector()
     |> process.select(self)
   ))
@@ -79,24 +75,25 @@ fn update(
   socket socket: Socket(context),
   msg msg: mist.WebsocketMessage(Msg),
   conn conn: mist.WebsocketConnection,
-  server server: Server(api, context)
+  server server: Server(api, context),
+  ctx ctx: context,
 ) -> mist.Next(Socket(context), Msg) {
   case msg {
     mist.Custom(msg) ->
-      update_custom_msg(socket:, msg:, conn:)
+      update_custom(socket:, msg:, conn:)
+
+    mist.Text(msg) ->
+      respond_using(server:, socket:, msg:, conn:, ctx:)
 
     mist.Binary(msg) ->
       ignore_binary_msg_with_warning(socket:, msg:)
-
-    mist.Text(msg) ->
-      respond_to(socket:, msg:, conn:, server:)
 
     mist.Closed | mist.Shutdown ->
       stop_after_running_closed_callback(socket:, close:)
   }
 }
 
-fn update_custom_msg(
+fn update_custom(
   socket socket: Socket(context),
   msg msg: Msg,
   conn conn: mist.WebsocketConnection,
@@ -124,96 +121,22 @@ fn ignore_binary_msg_with_warning(
   mist.continue(socket)
 }
 
-fn respond_to(
-  socket socket: Socket(context),
-  msg msg: String,
-  conn conn: mist.WebsocketConnection,
-  server server: Server(api, context),
-) -> mist.Next(Socket(context), Msg) {
-  serve(socket:, conn:, msg:, send:, send_resp: Broadcast, ctx: socket.ctx,
-    get_subs: fn(socket: Socket(context)) { socket.subs },
-    set_subs: fn(socket: Socket(context), subs) { Socket(..socket, subs:) },
-    get_self: fn(socket: Socket(context)) { socket.self },
-    server:,
-  )
-}
-
-fn stop_after_running_closed_callback(
-  socket socket: Socket(context),
-  close close: fn(Socket(context)) -> Nil,
-) -> mist.Next(Socket(context), Msg) {
-  let _ = close(socket)
-  mist.stop()
-}
-
-fn close(
-  socket _socket: Socket(context),
-) -> Nil {
-  Nil
-}
-
-fn broadcast_item(
-  item item: Record(api.Item),
-  action action: Action,
-  ctx ctx: Context,
-) -> Result(Nil, Err(err)) {
-  {
-    use <- broadcast(
-      in: fn(rs: PubSub) { rs.items },
-      to: "items",
-      msg: #(item, action),
-    )
-    pure(Nil)
-  }
-  |> run(ctx, Nil)
-}
-
-fn send(
-  msg msg: String,
-  conn conn: mist.WebsocketConnection,
-) -> Nil {
-  case mist.send_text_frame(conn, msg) {
-    Ok(Nil) ->
-      Nil
-
-    Error(err) -> {
-      io.println_error("SOCKET SEND ERR:")
-      io.println_error(err |> string.inspect)
-    }
-  }
-}
-
-// TODO mv `server`
-
-pub type Server(req, context) {
-  Server(
-    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> Msg) -> #(Set(String), SocketResp, Option(Selector(Msg))),
-    decoder: Decoder(req),
-  )
-}
-
-fn serve(
-  socket socket: socket,
-  conn conn: mist.WebsocketConnection,
-  msg msg: String,
-  ctx ctx: context,
+fn respond_using(
   server server: Server(req, context),
-  send send: fn(String, mist.WebsocketConnection) -> Nil,
-  get_self get_self: fn(socket) -> Subject(Msg),
-  get_subs get_subs: fn(socket) -> Set(String),
-  set_subs set_subs: fn(socket, Set(String)) -> socket,
-  send_resp send_resp: fn(SocketResp) -> Msg,
-) -> mist.Next(socket, Msg) {
+  socket socket: Socket(context),
+  msg msg: String,
+  conn conn: mist.WebsocketConnection,
+  ctx ctx: context,
+) -> mist.Next(Socket(context), Msg) {
   case parse_socket_req(msg, server.decoder) {
     Ok(req) -> {
-      let subs = get_subs(socket)
-      let #(subs, resp, selector) = server.call(req, ctx, subs, send_resp)
+      let #(subs, resp, selector) = server.call(req, ctx, socket.subs, Broadcast)
 
       let selector =
         {
           use selector <- option.map(selector)
           selector
-          |> process.select(get_self(socket))
+          |> process.select(socket.self)
         }
 
       resp
@@ -222,8 +145,7 @@ fn serve(
       |> send(conn)
 
       let socket =
-        socket
-        |> set_subs(subs)
+        Socket(..socket, subs: subs)
 
       case selector {
         None ->
@@ -241,9 +163,39 @@ fn serve(
   }
 }
 
+fn stop_after_running_closed_callback(
+  socket socket: Socket(context),
+  close close: fn(Socket(context)) -> Nil,
+) -> mist.Next(Socket(context), Msg) {
+  close(socket)
+  mist.stop()
+}
+
+fn close(
+  socket _socket: Socket(context),
+) -> Nil {
+  Nil
+}
+
+fn send(
+  msg msg: String,
+  conn conn: mist.WebsocketConnection,
+) -> Nil {
+  case mist.send_text_frame(conn, msg) {
+    Ok(Nil) ->
+      Nil
+
+    Error(err) -> {
+      io.println_error("SOCKET SEND ERR:")
+      io.println_error(err |> string.inspect)
+    }
+  }
+}
+
 type ParseErr {
   ParseErr
 }
+
 fn parse_socket_req(
   json json: String,
   decoder decoder: Decoder(req),
@@ -436,9 +388,27 @@ fn subscribe_to_items(
   |> result.replace_error(types.Server(types.ServerErr("failed to subscribe (`" <> "subscribe_to_items" <> "`)")))
 }
 
+fn broadcast_item(
+  item item: Record(api.Item),
+  action action: Action,
+  ctx ctx: Context,
+) -> Result(Nil, Err(err)) {
+  {
+    use <- broadcast(
+      in: fn(rs: PubSub) { rs.items },
+      to: "items",
+      msg: #(item, action),
+    )
+    pure(Nil)
+  }
+  |> run(ctx, Nil)
+}
+
 // codegen server
 
-fn api_server() -> Server(api.Api, Context) {
+pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
+
+pub fn api_server() -> Server(api.Api, Context) {
   Server(
     call: call_api_server,
     decoder: api.decoder_api(),
