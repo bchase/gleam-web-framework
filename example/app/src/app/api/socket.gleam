@@ -28,15 +28,15 @@ import youid/uuid.{type Uuid}
 
 pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
 
-type Socket {
+type Socket(config, pubsub, user) {
   Socket(
     self: Subject(Msg),
-    ctx: Context,
+    ctx: fpo.Context(config, pubsub, user),
     subs: Set(String),
   )
 }
 
-type Msg {
+pub opaque type Msg {
   NoOp
   Broadcast(msg: SocketResp)
 }
@@ -45,18 +45,28 @@ pub fn start(
   req req: Request(mist.Connection),
   ctx ctx: Context,
 ) -> Response(mist.ResponseData) {
+  start_(req:, ctx:, server: api_server())
+}
+
+pub fn start_(
+  req req: Request(mist.Connection),
+  ctx ctx: fpo.Context(config, pubsub, user),
+  server server: Server(api, fpo.Context(config, pubsub, user))
+) -> Response(mist.ResponseData) {
   mist.websocket(
     request: req,
     on_init: init(conn: _, ctx:),
-    handler: update,
+    handler: fn(socket, msg, conn) {
+      update(socket:, msg:, conn:, server:)
+    },
     on_close: close,
   )
 }
 
 fn init(
   conn _conn: mist.WebsocketConnection,
-  ctx ctx: Context,
-) -> #(Socket, Option(Selector(Msg))) {
+  ctx ctx: fpo.Context(config, pubsub, user),
+) -> #(Socket(config, pubsub, user), Option(Selector(Msg))) {
   let self = process.new_subject()
 
   #(Socket(self:, ctx:, subs: set.new()), Some(
@@ -66,29 +76,36 @@ fn init(
 }
 
 fn update(
-  socket socket: Socket,
+  socket socket: Socket(config, pubsub, user),
   msg msg: mist.WebsocketMessage(Msg),
   conn conn: mist.WebsocketConnection,
-) -> mist.Next(Socket, Msg) {
+  server server: Server(api, fpo.Context(config, pubsub, user))
+) -> mist.Next(Socket(config, pubsub, user), Msg) {
   case msg {
-    mist.Binary(_) -> {
-      io.println_error("WEBSOCKET IGNORING BINARY MSG")
+    mist.Custom(msg) ->
+      update_custom_msg(socket:, msg:, conn:)
+
+    mist.Binary(msg) ->
+      ignore_binary_msg_with_warning(socket:, msg:)
+
+    mist.Text(msg) ->
+      respond_to(socket:, msg:, conn:, server:)
+
+    mist.Closed | mist.Shutdown ->
+      stop_after_running_closed_callback(socket:, close:)
+  }
+}
+
+fn update_custom_msg(
+  socket socket: Socket(config, pubsub, user),
+  msg msg: Msg,
+  conn conn: mist.WebsocketConnection,
+) {
+  case msg {
+    NoOp ->
       mist.continue(socket)
-    }
 
-    mist.Text(msg) -> {
-      serve(socket:, conn:, msg:, send:, send_resp: Broadcast, ctx: socket.ctx,
-        get_subs: fn(socket: Socket) { socket.subs },
-        set_subs: fn(socket: Socket, subs) { Socket(..socket, subs:) },
-        get_self: fn(socket: Socket) { socket.self },
-        server: Server(
-          call: api_server,
-          decoder: api.decoder_api(),
-        ),
-      )
-    }
-
-    mist.Custom(Broadcast(msg:)) -> {
+    Broadcast(msg:) -> {
       msg
       |> types.encode_socket_resp
       |> json.to_string
@@ -96,21 +113,41 @@ fn update(
 
       mist.continue(socket)
     }
-
-    mist.Custom(NoOp) -> {
-      mist.continue(socket)
-    }
-
-    mist.Closed | mist.Shutdown -> {
-      let _ = close(socket:)
-
-      mist.stop()
-    }
   }
 }
 
+fn ignore_binary_msg_with_warning(
+  socket socket: Socket(config, pubsub, user),
+  msg msg: BitArray,
+) -> mist.Next(Socket(config, pubsub, user), Msg) {
+  io.println_error("[WARNING] websocket ignoring binary msg: " <> string.inspect(msg))
+  mist.continue(socket)
+}
+
+fn respond_to(
+  socket socket: Socket(config, pubsub, user),
+  msg msg: String,
+  conn conn: mist.WebsocketConnection,
+  server server: Server(a, fpo.Context(config, pubsub, user)),
+) -> mist.Next(Socket(config, pubsub, user), Msg) {
+  serve(socket:, conn:, msg:, send:, send_resp: Broadcast, ctx: socket.ctx,
+    get_subs: fn(socket: Socket(config, pubsub, user)) { socket.subs },
+    set_subs: fn(socket: Socket(config, pubsub, user), subs) { Socket(..socket, subs:) },
+    get_self: fn(socket: Socket(config, pubsub, user)) { socket.self },
+    server:,
+  )
+}
+
+fn stop_after_running_closed_callback(
+  socket socket: Socket(config, pubsub, user),
+  close close: fn(Socket(config, pubsub, user)) -> Nil,
+) -> mist.Next(Socket(config, pubsub, user), Msg) {
+  let _ = close(socket)
+  mist.stop()
+}
+
 fn close(
-  socket _socket: Socket,
+  socket _socket: Socket(config, pubsub, user),
 ) -> Nil {
   Nil
 }
@@ -148,9 +185,9 @@ fn send(
 
 // TODO mv `server`
 
-type Server(req, context, msg) {
+pub type Server(req, context) {
   Server(
-    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> msg) -> #(Set(String), SocketResp, Option(Selector(msg))),
+    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> Msg) -> #(Set(String), SocketResp, Option(Selector(Msg))),
     decoder: Decoder(req),
   )
 }
@@ -160,13 +197,13 @@ fn serve(
   conn conn: mist.WebsocketConnection,
   msg msg: String,
   ctx ctx: context,
-  server server: Server(req, context, msg),
+  server server: Server(req, context),
   send send: fn(String, mist.WebsocketConnection) -> Nil,
-  get_self get_self: fn(socket) -> Subject(msg),
+  get_self get_self: fn(socket) -> Subject(Msg),
   get_subs get_subs: fn(socket) -> Set(String),
   set_subs set_subs: fn(socket, Set(String)) -> socket,
-  send_resp send_resp: fn(SocketResp) -> msg,
-) -> mist.Next(socket, msg) {
+  send_resp send_resp: fn(SocketResp) -> Msg,
+) -> mist.Next(socket, Msg) {
   case parse_socket_req(msg, server.decoder) {
     Ok(req) -> {
       let subs = get_subs(socket)
@@ -262,7 +299,7 @@ pub fn func_int_to_string() -> server.FuncHandler(Int, String, Context) {
 
 fn int_to_string(
   num num: Int,
-  ctx ctx: Context,
+  ctx ctx: fpo.Context(config, pubsub, user),
 ) -> Result(String, types.Err) {
   Ok(int.to_string(num))
 }
@@ -401,7 +438,14 @@ fn subscribe_to_items(
 
 // codegen server
 
-fn api_server(
+fn api_server() -> Server(api.Api, Context) {
+  Server(
+    call: call_api_server,
+    decoder: api.decoder_api(),
+  )
+}
+
+fn call_api_server(
   req req: types.SocketReq(api.Api),
   ctx ctx: Context,
   subs subs: Set(String),
