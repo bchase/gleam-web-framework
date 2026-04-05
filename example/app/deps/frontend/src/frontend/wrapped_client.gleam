@@ -8,7 +8,7 @@
 // import gleam/pair
 // import lustre/effect.{type Effect}
 // import lustre_websocket.{type WebSocketEvent} as ws
-// import api/client.{type ApiClient}
+// import api/client.{type Client}
 
 // pub fn ws(
 //   conn conn: Conn(parent_msg),
@@ -72,7 +72,7 @@
 
 // pub fn update_(
 //   model model: model,
-//   get_client get_client: fn(model) -> ApiClient(api, model, parent_msg),
+//   get_client get_client: fn(model) -> Client(api, model, parent_msg),
 //   wrap to_parent_msg: fn(ConnMsg(api)) -> parent_msg,
 //   conn conn: Conn(parent_msg),
 //   msg msg: InternalConnMsg(ws, close_reason),
@@ -111,7 +111,7 @@
 
 // pub fn update(
 //   model model: model,
-//   get_client get_client: fn(model) -> ApiClient(api, model, parent_msg),
+//   get_client get_client: fn(model) -> Client(api, model, parent_msg),
 //   wrap to_parent_msg: fn(ConnMsg(api)) -> parent_msg,
 //   conn conn: Conn(parent_msg),
 //   msg msg: ConnMsg(api),

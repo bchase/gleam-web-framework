@@ -5,16 +5,16 @@ import api/client
 import lustre_websocket as ws
 import plinth/javascript/global
 
-pub type ApiClient(req, model, msg) = client.ApiClient(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg)
+pub type Client(req, model, msg) = client.Client(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg)
 
 pub type Msg = client.ConnMsg(ws.WebSocket, ws.WebSocketCloseReason)
 
 pub fn update(
   model model: model,
-  client client: ApiClient(api, model, msg),
+  client client: Client(api, model, msg),
   wrap wrap: fn(Msg) -> msg,
   msg msg: Msg,
-  set_client set_client: fn(model, ApiClient(api, model, msg)) -> model,
+  set_client set_client: fn(model, Client(api, model, msg)) -> model,
 ) -> #(model, Effect(msg)) {
   client.update(model:, client:, wrap:, msg:, set_client:)
 }
@@ -23,8 +23,8 @@ pub fn init(
   model model: model,
   ws_url ws_url: String,
   //
-  get_client get_client: fn(model) -> ApiClient(req, model, msg),
-  set_client set_client: fn(model, ApiClient(req, model, msg)) -> model,
+  get_client get_client: fn(model) -> Client(req, model, msg),
+  set_client set_client: fn(model, Client(req, model, msg)) -> model,
   wrap wrap: fn(Msg) -> msg,
   encode encode: fn(req) -> Json,
   notify notify: fn(client.ConnectionEvent) -> Option(msg),

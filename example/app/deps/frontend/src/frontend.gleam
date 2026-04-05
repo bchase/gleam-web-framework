@@ -20,7 +20,7 @@ import shared/api.{type Api}
 import api/types.{type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/id.{type Id}
 import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
-import frontend/client.{type ApiClient}
+import frontend/client.{type Client}
 
 const lustre_app_target_selector = "body"
 
@@ -57,7 +57,7 @@ type Model {
     item: Option(Record(api.Item)),
     uuid: Uuid,
     //
-    client: ApiClient(Api, Model, Msg),
+    client: Client(Api, Model, Msg),
     //
     str: Option(Result(String, ApiErr)),
   )

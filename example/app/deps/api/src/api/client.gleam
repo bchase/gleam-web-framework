@@ -15,8 +15,8 @@ import youid/uuid.{type Uuid}
 
 pub type Err = req.Err
 
-pub type ApiClient(req, ws, ws_event, close_reason, model, msg) {
-  ApiClient(
+pub type Client(req, ws, ws_event, close_reason, model, msg) {
+  Client(
     // mutable
     ws: Conn(ws),
     reqs: Reqs(msg),
@@ -44,8 +44,8 @@ pub type WebSocketImpl(ws, ws_event, close_reason, msg) {
 
 pub fn zero_api_client(
   zero zero: msg,
-) -> ApiClient(req, ws, ws_event, close_reason, model, msg) {
-  ApiClient(
+) -> Client(req, ws, ws_event, close_reason, model, msg) {
+  Client(
     ws: no_ws_conn,
     reqs: req.empty_reqs(),
     reconnected: False,
@@ -110,7 +110,7 @@ pub fn map_success(
 // INIT
 
 pub fn is_connected(
-  client client: ApiClient(req, ws, ws_event, close_reason, model, msg),
+  client client: Client(req, ws, ws_event, close_reason, model, msg),
 ) -> Bool {
   result.is_ok(client.ws.ws)
 }
@@ -119,8 +119,8 @@ pub fn init(
   model model: model,
   ws_url ws_url: String,
   //
-  get_client get_client: fn(model) -> ApiClient(req, ws, ws_event, close_reason, model, msg),
-  set_client set_client: fn(model, ApiClient(req, ws, ws_event, close_reason, model, msg)) -> model,
+  get_client get_client: fn(model) -> Client(req, ws, ws_event, close_reason, model, msg),
+  set_client set_client: fn(model, Client(req, ws, ws_event, close_reason, model, msg)) -> model,
   encode encode: fn(req) -> Json,
   notify notify: fn(ConnectionEvent) -> Option(msg),
   on_no_conn on_no_conn: fn(model) -> Option(msg), // TODO maybe rm and use `notify` instead?
@@ -134,7 +134,7 @@ pub fn init(
     }
   }
 
-  ApiClient(
+  Client(
     ws: no_ws_conn,
     reqs: req.empty_reqs(),
     reconnected: False,
@@ -169,8 +169,8 @@ const no_ws_conn = Conn(ws: Error(0))
 // SEND (INIT)
 
 fn send_model(
-  get_client get_client: fn(model) -> ApiClient(req, ws, ws_event, close_reason, model, msg),
-  set_client set_client: fn(model, ApiClient(req, ws, ws_event, close_reason, model, msg)) -> model,
+  get_client get_client: fn(model) -> Client(req, ws, ws_event, close_reason, model, msg),
+  set_client set_client: fn(model, Client(req, ws, ws_event, close_reason, model, msg)) -> model,
   get_send get_send: fn(model) -> Option(fn(String) -> Effect(msg)),
   encode encode: fn(req) -> Json,
   on_no_conn handle_no_conn: fn(model) -> Option(msg),
@@ -183,7 +183,7 @@ fn send_model(
   case req.send(req:, reqs: client.reqs, send:, encode:) {
     Ok(#(reqs, send_eff)) ->
       model
-      |> set_client(ApiClient(..client, reqs:))
+      |> set_client(Client(..client, reqs:))
       |> pair.new(send_eff)
 
     Error(NoConn) ->
@@ -221,8 +221,8 @@ fn payload_type(
 }
 
 fn recv_model(
-  get_client get_client: fn(model) -> ApiClient(req, ws, ws_event, close_reason, model, msg),
-  set_client set_client: fn(model, ApiClient(req, ws, ws_event, close_reason, model, msg)) -> model,
+  get_client get_client: fn(model) -> Client(req, ws, ws_event, close_reason, model, msg),
+  set_client set_client: fn(model, Client(req, ws, ws_event, close_reason, model, msg)) -> model,
   model model: model,
   json json: String,
 ) -> #(model, Effect(msg)) {
@@ -231,14 +231,14 @@ fn recv_model(
   case recv_reqs(json:, reqs: client.reqs) {
     Ok(#(reqs, msg)) ->
       model
-      |> set_client(ApiClient(..client, reqs:))
+      |> set_client(Client(..client, reqs:))
       |> pair.new(effect.from(fn(dispatch) {
         dispatch(msg)
       }))
 
     Error(err) ->
       model
-      |> set_client(ApiClient(..client, reqs: {
+      |> set_client(Client(..client, reqs: {
         client.reqs
         |> clear_req_and_log_err(err:)
       }))
@@ -328,13 +328,13 @@ pub type ConnectionEvent {
 
 pub fn update(
   model model: model,
-  client client: ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
-  // get_client get_client: fn(model) -> ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
+  client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
+  // get_client get_client: fn(model) -> Client(api, ws, ws_event, close_reason, model, parent_msg),
   wrap to_parent_msg: fn(ConnMsg(ws, close_reason)) -> parent_msg,
   msg msg: ConnMsg(ws, close_reason),
-  set_client set_client: fn(model, ApiClient(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
+  set_client set_client: fn(model, Client(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
-  let map_parent = fn(t: #(ApiClient(api, ws, ws_event, close_reason, model, parent_msg), Effect(ConnMsg(ws, close_reason)))) {
+  let map_parent = fn(t: #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(ConnMsg(ws, close_reason)))) {
     model
     |> set_client(t.0)
     |> pair.new(effect.batch([
@@ -372,9 +372,9 @@ pub fn update(
 
 fn set_websocket_conn(
   model model,
-  client client: ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
+  client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
   ws ws: ws,
-  set_client set_client: fn(model, ApiClient(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
+  set_client set_client: fn(model, Client(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
   let reconnect = client.reconnected
 
@@ -387,7 +387,7 @@ fn set_websocket_conn(
   io.println("WebSocket opened: `" <> client.ws_url <> "` (" <> type_ <> ")")
 
   model
-  |> set_client(ApiClient(..client, reconnected: True, ws: Conn(ws: Ok(ws))))
+  |> set_client(Client(..client, reconnected: True, ws: Conn(ws: Ok(ws))))
   |> pair.new(effect.batch([
     Connected(reconnect:)
     |> client.notify // TODO duped notify
@@ -399,9 +399,9 @@ fn set_websocket_conn(
 }
 
 fn reconnect_to_websocket_on_close(
-  client client: ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
+  client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
   reason reason: close_reason,
-) -> #(ApiClient(api, ws, ws_event, close_reason, model, parent_msg), Effect(ConnMsg(ws, close_reason))) {
+) -> #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(ConnMsg(ws, close_reason))) {
   io.println_error("WebSocket closed: " <> reason |> string.inspect)
 
   let ws =
@@ -410,7 +410,7 @@ fn reconnect_to_websocket_on_close(
       Conn(ws: Error(attempt)) -> Conn(ws: Error(attempt + 1))
     }
 
-  ApiClient(..client, ws:)
+  Client(..client, ws:)
   |> eff([
     effect.from(fn(dispatch) {
       dispatch(GotReconnectWebSocket(with_delay: True))
@@ -422,9 +422,9 @@ const base_delay_ms = 1_000 // 1s
 const max_delay_ms = 60_000 // 60s
 
 fn attempt_reconnect_to_websocket(
-  client client: ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
+  client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
   with_delay delay: Bool,
-) -> #(ApiClient(api, ws, ws_event, close_reason, model, parent_msg), Effect(parent_msg)) {
+) -> #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(parent_msg)) {
   case client.ws, delay {
     Conn(ws: Ok(_conn)), _ ->
       pure(client)
@@ -458,7 +458,7 @@ fn ignore_binary_msg(
 
 fn notify_invalid_url(
   model model: model,
-  client client: ApiClient(api, ws, ws_event, close_reason, model, parent_msg),
+  client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
 ) -> #(model, Effect(parent_msg)) {
   io.println_error("Invalid URL: " <> client.ws_url)
 
