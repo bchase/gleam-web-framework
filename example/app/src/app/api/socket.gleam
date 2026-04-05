@@ -5,238 +5,76 @@ import app/types.{type PubSub} as app
 import app/user
 import bravo
 import bravo/uset
+import fpo/api/erl/server.{type Server, Server, type Msg} as erl_server
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 import fpo/types as fpo
 import fpo/types/err.{type Err}
-import gleam/dynamic/decode.{type Decoder}
-import gleam/erlang/process.{type Selector, type Subject}
+import gleam/erlang/process.{type Selector}
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import gleam/int
-import gleam/io
 import gleam/json.{type Json}
 import gleam/list
-import gleam/option.{type Option, Some, None}
+import gleam/option.{type Option, None}
 import gleam/pair
 import gleam/result
 import gleam/set.{type Set}
-import gleam/string
 import gleam/time/timestamp
 import mist
 import shared/api.{type Item, type ItemAttr} as api
 import youid/uuid.{type Uuid}
-
-type Socket(context) {
-  Socket(
-    self: Subject(Msg),
-    subs: Set(String),
-  )
-}
-
-pub type Server(req, context) {
-  Server(
-    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> Msg) -> #(Set(String), SocketResp, Option(Selector(Msg))),
-    decoder: Decoder(req),
-  )
-}
-
-pub opaque type Msg {
-  NoOp
-  Broadcast(msg: SocketResp)
-}
 
 pub fn start(
   req req: Request(mist.Connection),
   ctx ctx: fpo.Context(config, pubsub, user),
   server server: Server(api, fpo.Context(config, pubsub, user))
 ) -> Response(mist.ResponseData) {
-  mist.websocket(
-    request: req,
-    on_init: init,
-    handler: fn(socket, msg, conn) {
-      update(socket:, msg:, conn:, server:, ctx:)
-    },
-    on_close: close,
+  erl_server.start(req:, ctx:, server:)
+}
+
+//
+
+pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
+
+// codegen server
+
+pub fn api_server() -> Server(api.Api, Context) {
+  Server(
+    call: call_api_server,
+    decoder: api.decoder_api(),
   )
 }
 
-fn init(
-  _conn: mist.WebsocketConnection,
-) -> #(Socket(context), Option(Selector(Msg))) {
-  let self = process.new_subject()
+fn call_api_server(
+  req req: types.SocketReq(api.Api),
+  ctx ctx: Context,
+  subs subs: Set(String),
+  send send: fn(SocketResp) -> Msg
+) -> #(Set(String), SocketResp, Option(Selector(Msg))) {
+  let SocketReq(ref:, req:) = req
 
-  #(Socket(self:, subs: set.new()), Some(
-    process.new_selector()
-    |> process.select(self)
-  ))
-}
-
-fn update(
-  socket socket: Socket(context),
-  msg msg: mist.WebsocketMessage(Msg),
-  conn conn: mist.WebsocketConnection,
-  server server: Server(api, context),
-  ctx ctx: context,
-) -> mist.Next(Socket(context), Msg) {
-  case msg {
-    mist.Custom(msg) ->
-      update_custom(socket:, msg:, conn:)
-
-    mist.Text(msg) ->
-      respond_using(server:, socket:, msg:, conn:, ctx:)
-
-    mist.Binary(msg) ->
-      ignore_binary_msg_with_warning(socket:, msg:)
-
-    mist.Closed | mist.Shutdown ->
-      stop_after_running_closed_callback(socket:, close:)
-  }
-}
-
-fn update_custom(
-  socket socket: Socket(context),
-  msg msg: Msg,
-  conn conn: mist.WebsocketConnection,
-) {
-  case msg {
-    NoOp ->
-      mist.continue(socket)
-
-    Broadcast(msg:) -> {
-      msg
-      |> types.encode_socket_resp
-      |> json.to_string
-      |> send(conn)
-
-      mist.continue(socket)
-    }
-  }
-}
-
-fn ignore_binary_msg_with_warning(
-  socket socket: Socket(context),
-  msg msg: BitArray,
-) -> mist.Next(Socket(context), Msg) {
-  io.println_error("[WARNING] websocket ignoring binary msg: " <> string.inspect(msg))
-  mist.continue(socket)
-}
-
-fn respond_using(
-  server server: Server(req, context),
-  socket socket: Socket(context),
-  msg msg: String,
-  conn conn: mist.WebsocketConnection,
-  ctx ctx: context,
-) -> mist.Next(Socket(context), Msg) {
-  case parse_socket_req(msg, server.decoder) {
-    Ok(req) -> {
-      let #(subs, resp, selector) = server.call(req, ctx, socket.subs, Broadcast)
-
-      let selector =
-        {
-          use selector <- option.map(selector)
-          selector
-          |> process.select(socket.self)
-        }
-
-      resp
-      |> types.encode_socket_resp
-      |> json.to_string
-      |> send(conn)
-
-      let socket =
-        Socket(..socket, subs: subs)
-
-      case selector {
-        None ->
-          mist.continue(socket)
-
-        Some(selector) ->
-          socket
-          |> mist.continue
-          |> mist.with_selector(selector)
+  case req {
+    api.Items(crud:) -> {
+      crud_items()
+      |> server.process_crud(crud:, ref:, ctx:)
+      |> fn(resp) {
+        #(subs, resp, None)
       }
     }
 
-    Error(ParseErr) ->
-      todo as "ParseErr"
-  }
-}
-
-fn stop_after_running_closed_callback(
-  socket socket: Socket(context),
-  close close: fn(Socket(context)) -> Nil,
-) -> mist.Next(Socket(context), Msg) {
-  close(socket)
-  mist.stop()
-}
-
-fn close(
-  socket _socket: Socket(context),
-) -> Nil {
-  Nil
-}
-
-fn send(
-  msg msg: String,
-  conn conn: mist.WebsocketConnection,
-) -> Nil {
-  case mist.send_text_frame(conn, msg) {
-    Ok(Nil) ->
-      Nil
-
-    Error(err) -> {
-      io.println_error("SOCKET SEND ERR:")
-      io.println_error(err |> string.inspect)
-    }
-  }
-}
-
-type ParseErr {
-  ParseErr
-}
-
-fn parse_socket_req(
-  json json: String,
-  decoder decoder: Decoder(req),
-) -> Result(types.SocketReq(req), ParseErr) {
-  {
-    let parse = fn(decoder) {
-      use ref <- result.try(
-        decode.at(["ref"], decode.string)
-        |> json.parse(json, _)
-        // |> result.replace_error(NoRef(json:))
-        |> result.replace_error(Nil)
-      )
-
-      use ref <- result.try(
-        uuid.from_string(ref)
-        |> result.map_error(fn(err) {
-          // RefParseFailure(ref:, err: err |> string.inspect)
-          Nil
-        })
-      )
-
-      use req <- result.try(
-        decode.at(["req"], decode.dynamic)
-        |> json.parse(json, _)
-        // |> result.replace_error(RespNotFound(ref:, json:))
-        |> result.replace_error(Nil)
-      )
-
-      Ok(#(ref, req))
-    }
-
-    case parse(json) {
-      Ok(#(ref, dyn)) -> {
-        let assert Ok(req) = decode.run(dyn, decoder)
-        Ok(SocketReq(ref:, req:))
+    api.IntToString(func:) -> {
+      func_int_to_string()
+      |> server.process_func(func:, ref:, ctx:)
+      |> fn(resp) {
+        #(subs, resp, None)
       }
+    }
 
-      Error(_) -> todo
+    api.SubscribeToItems(sub:) -> {
+      sub_subscribe_to_items(sub:, send:)
+      |> server.process_sub(sub:, ref:, ctx:, subs:)
     }
   }
-  |> result.replace_error(ParseErr)
 }
 
 // domain server impl
@@ -251,7 +89,7 @@ pub fn func_int_to_string() -> server.FuncHandler(Int, String, Context) {
 
 fn int_to_string(
   num num: Int,
-  ctx ctx: fpo.Context(config, pubsub, user),
+  ctx _ctx: fpo.Context(config, pubsub, user),
 ) -> Result(String, types.Err) {
   Ok(int.to_string(num))
 }
@@ -402,47 +240,4 @@ fn broadcast_item(
     pure(Nil)
   }
   |> run(ctx, Nil)
-}
-
-// codegen server
-
-pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
-
-pub fn api_server() -> Server(api.Api, Context) {
-  Server(
-    call: call_api_server,
-    decoder: api.decoder_api(),
-  )
-}
-
-fn call_api_server(
-  req req: types.SocketReq(api.Api),
-  ctx ctx: Context,
-  subs subs: Set(String),
-  send send: fn(SocketResp) -> Msg
-) -> #(Set(String), SocketResp, Option(Selector(Msg))) {
-  let SocketReq(ref:, req:) = req
-
-  case req {
-    api.Items(crud:) -> {
-      crud_items()
-      |> server.process_crud(crud:, ref:, ctx:)
-      |> fn(resp) {
-        #(subs, resp, None)
-      }
-    }
-
-    api.IntToString(func:) -> {
-      func_int_to_string()
-      |> server.process_func(func:, ref:, ctx:)
-      |> fn(resp) {
-        #(subs, resp, None)
-      }
-    }
-
-    api.SubscribeToItems(sub:) -> {
-      sub_subscribe_to_items(sub:, send:)
-      |> server.process_sub(sub:, ref:, ctx:, subs:)
-    }
-  }
 }

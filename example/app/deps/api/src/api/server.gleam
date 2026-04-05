@@ -21,7 +21,7 @@ fn app_to_func(
   }
 }
 
-// generic
+// server definition
 
 pub type CrudHandler(resource, create, update, key, context) {
   CrudHandler(
