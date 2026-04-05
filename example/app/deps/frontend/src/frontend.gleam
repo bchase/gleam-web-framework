@@ -1,25 +1,25 @@
-import plinth/javascript/global
-import plinth/browser/document
-import plinth/browser/element as dom_element
-import lustre/element/keyed
-import lustre/event
-import gleam/list
-import gleam/result
+import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
+import api/types.{type Id, type Record, type Action, Created, Updated, Deleted, type Paginated}
+import fpo/api/js/client.{type Client}
 import gleam/dict.{type Dict}
-import gleam/string
 import gleam/io
+import gleam/list
 import gleam/option.{type Option, Some, None}
+import gleam/pair
+import gleam/result
+import gleam/string
+import lustre
 import lustre/attribute as attr
+import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
-import gleam/pair
-import lustre/effect.{type Effect}
-import lustre
-import youid/uuid.{type Uuid}
+import lustre/element/keyed
+import lustre/event
+import plinth/browser/document
+import plinth/browser/element as dom_element
+import plinth/javascript/global
 import shared/api.{type Api}
-import api/types.{type Id, type Record, type Action, Created, Updated, Deleted, type Paginated}
-import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
-import fpo/api/js/client.{type Client}
+import youid/uuid.{type Uuid}
 
 const lustre_app_target_selector = "body"
 

@@ -1,10 +1,10 @@
-import gleam/string
-import gleam/set.{type Set}
-import youid/uuid.{type Uuid}
-import gleam/result
-import gleam/option.{type Option, None, Some}
-import gleam/json.{type Json}
 import api/types.{type Err, List, Create, Read, Update, Delete, type Paginated, encode_paginated, encode_record, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketResp, SocketResp, type Func, Created, Updated, Deleted, type Sub, type Record}
+import gleam/json.{type Json}
+import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/set.{type Set}
+import gleam/string
+import youid/uuid.{type Uuid}
 
 pub type App(t, err, ctx) { App(run: fn(ctx) -> Result(t, err)) }
 fn run(app: App(t, err, ctx), ctx: ctx) -> Result(t, err) { app.run(ctx) }
