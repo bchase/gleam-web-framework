@@ -66,7 +66,7 @@ type Model {
 type Msg {
   NoOp
   // websockets
-  ConnMsg(msg: client.Msg)
+  Msg(msg: client.Msg)
   RecvWebSocketConnEvent(event: ConnectionEvent)
   // ui
   SendIntToString(num: Int)
@@ -95,7 +95,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
     ws_url:,
     get_client: fn(model: Model) { model.client },
     set_client: fn(model: Model, client) { Model(..model, client:) },
-    wrap: ConnMsg,
+    wrap: Msg,
     encode: api.encode_api,
     on_no_conn: fn(_) {
       echo "NO CONN MSG SEND"
@@ -140,13 +140,13 @@ fn update(
       }
     }
 
-    ConnMsg(msg:) -> {
+    Msg(msg:) -> {
       model
       |> client.update(
         client: model.client,
         msg:,
         set_client: fn(model: Model, client) { Model(..model, client:) },
-        wrap: ConnMsg,
+        wrap: Msg,
       )
     }
 

@@ -7,7 +7,7 @@ import plinth/javascript/global
 
 pub type Client(req, model, msg) = client.Client(req, ws.WebSocket, ws.WebSocketEvent, ws.WebSocketCloseReason, model, msg)
 
-pub type Msg = client.ConnMsg(ws.WebSocket, ws.WebSocketCloseReason)
+pub type Msg = client.Msg(ws.WebSocket, ws.WebSocketCloseReason)
 
 pub fn update(
   model model: model,

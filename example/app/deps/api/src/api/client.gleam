@@ -33,10 +33,10 @@ pub type Client(req, ws, ws_event, close_reason, model, msg) {
 
 pub type WebSocketImpl(ws, ws_event, close_reason, msg) {
   WebSocketImpl(
-    connect: fn(String, fn(ws_event) -> ConnMsg(ws, close_reason)) -> Effect(ConnMsg(ws, close_reason)),
+    connect: fn(String, fn(ws_event) -> Msg(ws, close_reason)) -> Effect(Msg(ws, close_reason)),
     send: fn(String, ws) -> Effect(msg),
-    wrap: fn(ConnMsg(ws, close_reason)) -> msg,
-    event: fn(ws_event) -> ConnMsg(ws, close_reason),
+    wrap: fn(Msg(ws, close_reason)) -> msg,
+    event: fn(ws_event) -> Msg(ws, close_reason),
     //
     send_after: fn(Int, msg) -> Effect(msg),
   )
@@ -304,7 +304,7 @@ fn recv_ref_and_dyn(
 
 // UPDATE
 
-pub opaque type ConnMsg(ws, close_reason) {
+pub opaque type Msg(ws, close_reason) {
   NoOp
   RecvWebSocketInvalidUrlErr
   RecvWebSocketBinaryMessage(msg: BitArray)
@@ -330,11 +330,11 @@ pub fn update(
   model model: model,
   client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
   // get_client get_client: fn(model) -> Client(api, ws, ws_event, close_reason, model, parent_msg),
-  wrap to_parent_msg: fn(ConnMsg(ws, close_reason)) -> parent_msg,
-  msg msg: ConnMsg(ws, close_reason),
+  wrap to_parent_msg: fn(Msg(ws, close_reason)) -> parent_msg,
+  msg msg: Msg(ws, close_reason),
   set_client set_client: fn(model, Client(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
-  let map_parent = fn(t: #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(ConnMsg(ws, close_reason)))) {
+  let map_parent = fn(t: #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(Msg(ws, close_reason)))) {
     model
     |> set_client(t.0)
     |> pair.new(effect.batch([
@@ -401,7 +401,7 @@ fn set_websocket_conn(
 fn reconnect_to_websocket_on_close(
   client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
   reason reason: close_reason,
-) -> #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(ConnMsg(ws, close_reason))) {
+) -> #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(Msg(ws, close_reason))) {
   io.println_error("WebSocket closed: " <> reason |> string.inspect)
 
   let ws =
