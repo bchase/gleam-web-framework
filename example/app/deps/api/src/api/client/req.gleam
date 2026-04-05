@@ -70,22 +70,7 @@ pub type NoConn {
   NoConn
 }
 
-//
-
-pub type ApiClient(req, model, msg) {
-  ApiClient(
-    reqs: Reqs(msg),
-    send: fn(model, Req(req, msg)) -> #(model, Effect(msg)),
-    recv: fn(model, String) -> #(model, Effect(msg)),
-  )
-}
-
-pub type ApiData(t) {
-  NotAsked
-  Loading
-  Failure(err: Err)
-  Success(data: t)
-}
+// REQS
 
 pub fn get_req(
   reqs reqs: Reqs(msg),
@@ -164,6 +149,8 @@ pub fn send(
     }
   }
 }
+
+// DEFINITION HELPERS
 
 pub fn func(
   req req: fn(Func(param, return)) -> req,
