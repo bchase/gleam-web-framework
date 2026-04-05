@@ -25,10 +25,9 @@ import mist
 //
 import lustre/effect.{type Effect}
 //
-import api.{type SocketResp, type Req, type Resp} as _
-// import api/types.{SocketReq, SocketResp, type Record, type Action, Created, Updated, Deleted}
-import api/types.{List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created, type Sub}
-import api/id.{type Id, Id}
+import api/types.{type Id, List, ListReq, Create, Read, Update, Delete, CreateReq, ReadReq, UpdateReq, DeleteReq, type Params, type Paginated, encode_paginated, encode_record, type Record, type ConfirmDelete, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, SocketResp, type Func, type Action, SocketReq, Updated, Deleted, Created, type Sub, type SocketResp,}
+import api/client/req.{type Req}
+import api/types/id.{Id}
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 //
 import api/server

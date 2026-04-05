@@ -1,6 +1,4 @@
-import api
-import api/types.{type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
-import api/id.{type Id}
+import api/types.{type Id, type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
@@ -40,7 +38,7 @@ pub type HandlerResult(msg) {
 }
 
 pub type Err {
-  ApiErr(err: api.Err)
+  ApiErr(err: types.Err)
   RecvErr(err: RecvErr)
 }
 

@@ -1,6 +1,5 @@
 import api/client/req.{type Req, create, delete, func, list, read, update}
-import api/types.{type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Created, Deleted, Sub, Updated, decoder_action, decoder_crud, decoder_func, decoder_record, decoder_sub, encode_action, encode_crud, encode_func, encode_record, encode_sub}
-import api/id.{type Id}
+import api/types.{type Id, type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Created, Deleted, Sub, Updated, decoder_action, decoder_crud, decoder_func, decoder_record, decoder_sub, encode_action, encode_crud, encode_func, encode_record, encode_sub}
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}

@@ -11,12 +11,10 @@ pub type Msg = client.Msg(ws.WebSocket, ws.WebSocketCloseReason)
 
 pub fn update(
   model model: model,
-  client client: Client(api, model, msg),
-  wrap wrap: fn(Msg) -> msg,
   msg msg: Msg,
-  set_client set_client: fn(model, Client(api, model, msg)) -> model,
+  client client: Client(api, model, msg),
 ) -> #(model, Effect(msg)) {
-  client.update(model:, client:, wrap:, msg:, set_client:)
+  client.update(model:, client:, msg:)
 }
 
 pub fn init(
@@ -30,7 +28,7 @@ pub fn init(
   notify notify: fn(client.ConnectionEvent) -> Option(msg),
   on_no_conn on_no_conn: fn(model) -> Option(msg),
 ) -> #(model, Effect(msg)) {
-  client.init(model:, ws_url:, get_client:, set_client:, encode:, notify:, on_no_conn:, impl: impl(wrap:))
+  client.init(model:, ws_url:, get_client:, set_client:, wrap:, notify:, encode:, on_no_conn:, impl: impl(wrap:))
 }
 
 fn impl(

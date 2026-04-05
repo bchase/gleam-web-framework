@@ -8,9 +8,10 @@ X - adjust lustre
   X * `api` impl (e.g. `Item`)  -->  `shared` (`shared/api`)
   X * `client`                  -->  `frontend`
     * `api` generic             -->  `fpo`
-  - rename
-    * `ApiClient`?
-    * `ConnMsg`?
+\ - rename
+  X * `ApiClient`?
+  X * `ConnMsg`?
+    * other?
   - handle `todo`s in err paths (and use errs instead of `Result(t, Nil)`)
   - clean up
     * dead code, comments

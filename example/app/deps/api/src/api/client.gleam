@@ -21,9 +21,12 @@ pub type Client(req, ws, ws_event, close_reason, model, msg) {
     ws: Conn(ws),
     reqs: Reqs(msg),
     reconnected: Bool,
-    // static
+    // static ws
     ws_url: String,
     impl: WebSocketImpl(ws, ws_event, close_reason, msg),
+    // static parent
+    set_client: fn(model, Client(req, ws, ws_event, close_reason, model, msg)) -> model,
+    wrap: fn(Msg(ws, close_reason)) -> msg,
     notify: fn(ConnectionEvent) -> Option(msg),
     // public "methods"
     send: fn(model, Req(req, msg)) -> #(model, Effect(msg)),
@@ -51,6 +54,8 @@ pub fn zero_api_client(
     reconnected: False,
     ws_url: "",
     impl: zero_impl(zero),
+    set_client: fn(model, _) { model },
+    wrap: fn(_) { zero },
     notify: fn(_) { None },
     send: fn(model, _) {
       io.println_error("WARNING `zero_api_client.send` called (actual client not yet initialized)")
@@ -121,9 +126,10 @@ pub fn init(
   //
   get_client get_client: fn(model) -> Client(req, ws, ws_event, close_reason, model, msg),
   set_client set_client: fn(model, Client(req, ws, ws_event, close_reason, model, msg)) -> model,
-  encode encode: fn(req) -> Json,
+  wrap wrap: fn(Msg(ws, close_reason)) -> msg,
   notify notify: fn(ConnectionEvent) -> Option(msg),
   on_no_conn on_no_conn: fn(model) -> Option(msg), // TODO maybe rm and use `notify` instead?
+  encode encode: fn(req) -> Json,
   //
   impl impl: WebSocketImpl(ws, ws_event, close_reason, msg),
 ) -> #(model, Effect(msg)) {
@@ -141,6 +147,8 @@ pub fn init(
     //
     ws_url:,
     impl:,
+    set_client:,
+    wrap:,
     notify:,
     //
     send: fn(model, req) {
@@ -328,17 +336,14 @@ pub type ConnectionEvent {
 
 pub fn update(
   model model: model,
-  client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
-  // get_client get_client: fn(model) -> Client(api, ws, ws_event, close_reason, model, parent_msg),
-  wrap to_parent_msg: fn(Msg(ws, close_reason)) -> parent_msg,
   msg msg: Msg(ws, close_reason),
-  set_client set_client: fn(model, Client(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
+  client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
 ) -> #(model, Effect(parent_msg)) {
   let map_parent = fn(t: #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(Msg(ws, close_reason)))) {
     model
-    |> set_client(t.0)
+    |> client.set_client(t.0)
     |> pair.new(effect.batch([
-      t.1 |> effect.map(to_parent_msg),
+      t.1 |> effect.map(client.wrap),
     ]))
   }
 
@@ -358,15 +363,15 @@ pub fn update(
       notify_invalid_url(model:, client:)
 
     RecvWebSocketOpen(ws:) ->
-      set_websocket_conn(model:, client:, ws:, set_client:)
+      set_websocket_conn(model:, client:, ws:)
 
     RecvWebSocketClose(reason:) ->
-      reconnect_to_websocket_on_close(client:, reason:) |> map_parent
+      reconnect_to_websocket_on_close(model:, client:, reason:)
 
     GotReconnectWebSocket(with_delay:) ->
       client
       |> attempt_reconnect_to_websocket(with_delay:)
-      |> pair.map_first(set_client(model, _))
+      |> pair.map_first(client.set_client(model, _))
   }
 }
 
@@ -374,7 +379,6 @@ fn set_websocket_conn(
   model model,
   client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
   ws ws: ws,
-  set_client set_client: fn(model, Client(api, ws, ws_event, close_reason, model, parent_msg)) -> model,
 ) -> #(model, Effect(parent_msg)) {
   let reconnect = client.reconnected
 
@@ -387,7 +391,7 @@ fn set_websocket_conn(
   io.println("WebSocket opened: `" <> client.ws_url <> "` (" <> type_ <> ")")
 
   model
-  |> set_client(Client(..client, reconnected: True, ws: Conn(ws: Ok(ws))))
+  |> client.set_client(Client(..client, reconnected: True, ws: Conn(ws: Ok(ws))))
   |> pair.new(effect.batch([
     Connected(reconnect:)
     |> client.notify // TODO duped notify
@@ -399,9 +403,10 @@ fn set_websocket_conn(
 }
 
 fn reconnect_to_websocket_on_close(
+  model model: model,
   client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
   reason reason: close_reason,
-) -> #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(Msg(ws, close_reason))) {
+) -> #(model, Effect(parent_msg)) {
   io.println_error("WebSocket closed: " <> reason |> string.inspect)
 
   let ws =
@@ -416,6 +421,8 @@ fn reconnect_to_websocket_on_close(
       dispatch(GotReconnectWebSocket(with_delay: True))
     }),
   ])
+  |> pair.map_first(client.set_client(model, _))
+  |> pair.map_second(effect.map(_, client.wrap))
 }
 
 const base_delay_ms = 1_000 // 1s

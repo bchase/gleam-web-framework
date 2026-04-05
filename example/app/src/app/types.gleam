@@ -6,8 +6,7 @@ import app/pubsub.{type TextMsg} as _
 import app/types/err
 import bravo/uset.{}
 import shared/api
-import api/types.{type Record, type Action} as _
-import api/id.{type Id}
+import api/types.{type Id, type Record, type Action} as _
 
 pub type Err = err.Err
 

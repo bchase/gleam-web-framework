@@ -17,39 +17,19 @@ import lustre/effect.{type Effect}
 import lustre
 import youid/uuid.{type Uuid}
 import shared/api.{type Api}
-import api/types.{type Record, type Action, Created, Updated, Deleted, type Paginated}
-import api/id.{type Id}
+import api/types.{type Id, type Record, type Action, Created, Updated, Deleted, type Paginated}
 import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
 import frontend/client.{type Client}
 
 const lustre_app_target_selector = "body"
 
 pub fn main() -> Nil {
-  // register_web_component()
-
   let assert Ok(_) =
     lustre.application(init, update, view)
     |> lustre.start(onto: lustre_app_target_selector, with: Nil)
 
   Nil
 }
-
-// import lustre/component
-// import plinth/browser/shadow
-// import gleam/javascript/array
-//
-// const tag_name = "fpo-example-client-component"
-// fn register_web_component() -> Nil {
-//   let component = lustre.component(init, update, view, decoders())
-//   let assert Ok(_) = lustre.register(component, tag_name)
-//   Nil
-// }
-// fn decoders() -> List(component.Option(Msg)) {
-//   [
-//     // component.on_attribute_change("", fn(str) { Error(Nil) }),
-//     // component.on_property_change("", decode.string |> decode.map(msg)),
-//   ]
-// }
 
 type Model {
   Model(
@@ -66,7 +46,7 @@ type Model {
 type Msg {
   NoOp
   // websockets
-  Msg(msg: client.Msg)
+  ClientMsg(msg: client.Msg)
   RecvWebSocketConnEvent(event: ConnectionEvent)
   // ui
   SendIntToString(num: Int)
@@ -95,7 +75,7 @@ fn init(_) -> #(Model, Effect(Msg)) {
     ws_url:,
     get_client: fn(model: Model) { model.client },
     set_client: fn(model: Model, client) { Model(..model, client:) },
-    wrap: Msg,
+    wrap: ClientMsg,
     encode: api.encode_api,
     on_no_conn: fn(_) {
       echo "NO CONN MSG SEND"
@@ -140,15 +120,8 @@ fn update(
       }
     }
 
-    Msg(msg:) -> {
-      model
-      |> client.update(
-        client: model.client,
-        msg:,
-        set_client: fn(model: Model, client) { Model(..model, client:) },
-        wrap: Msg,
-      )
-    }
+    ClientMsg(msg:) ->
+      client.update(model:, client: model.client, msg:)
 
     SendIntToString(num:) ->
       model.client.send(model, api.req_int_to_string(num, RecvIntToString))
@@ -403,3 +376,23 @@ fn set_focus(
     Nil
   })
 }
+
+// import lustre/component
+// import plinth/browser/shadow
+// import gleam/javascript/array
+// const tag_name = "fpo-example-client-component"
+// fn register_web_component() -> Nil {
+//   let component = lustre.component(init, update, view, decoders())
+//   let assert Ok(_) = lustre.register(component, tag_name)
+//   Nil
+// }
+// fn decoders() -> List(component.Option(Msg)) {
+//   [
+//     // component.on_attribute_change("", fn(str) { Error(Nil) }),
+//     // component.on_property_change("", decode.string |> decode.map(msg)),
+//   ]
+// }
+// pub fn main() -> Nil {
+//   register_web_component()
+//   Nil
+// }

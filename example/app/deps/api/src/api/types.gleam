@@ -1,4 +1,4 @@
-import api/id.{type Id}
+import api/types/id
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/function
@@ -6,6 +6,10 @@ import gleam/json.{type Json}
 import gleam/option.{type Option}
 import gleam/time/timestamp.{type Timestamp}
 import youid/uuid.{type Uuid}
+
+// id
+
+pub type Id(resource) = id.Id(resource)
 
 // generic req
 
