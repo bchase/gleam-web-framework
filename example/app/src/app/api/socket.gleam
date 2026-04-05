@@ -28,10 +28,10 @@ import youid/uuid.{type Uuid}
 
 pub type Context = fpo.Context(app.Config, app.PubSub, user.User)
 
-type Socket(config, pubsub, user) {
+type Socket(context) {
   Socket(
     self: Subject(Msg),
-    ctx: fpo.Context(config, pubsub, user),
+    ctx: context,
     subs: Set(String),
   )
 }
@@ -65,8 +65,8 @@ pub fn start_(
 
 fn init(
   conn _conn: mist.WebsocketConnection,
-  ctx ctx: fpo.Context(config, pubsub, user),
-) -> #(Socket(config, pubsub, user), Option(Selector(Msg))) {
+  ctx ctx: context,
+) -> #(Socket(context), Option(Selector(Msg))) {
   let self = process.new_subject()
 
   #(Socket(self:, ctx:, subs: set.new()), Some(
@@ -76,11 +76,11 @@ fn init(
 }
 
 fn update(
-  socket socket: Socket(config, pubsub, user),
+  socket socket: Socket(context),
   msg msg: mist.WebsocketMessage(Msg),
   conn conn: mist.WebsocketConnection,
-  server server: Server(api, fpo.Context(config, pubsub, user))
-) -> mist.Next(Socket(config, pubsub, user), Msg) {
+  server server: Server(api, context)
+) -> mist.Next(Socket(context), Msg) {
   case msg {
     mist.Custom(msg) ->
       update_custom_msg(socket:, msg:, conn:)
@@ -97,7 +97,7 @@ fn update(
 }
 
 fn update_custom_msg(
-  socket socket: Socket(config, pubsub, user),
+  socket socket: Socket(context),
   msg msg: Msg,
   conn conn: mist.WebsocketConnection,
 ) {
@@ -117,37 +117,37 @@ fn update_custom_msg(
 }
 
 fn ignore_binary_msg_with_warning(
-  socket socket: Socket(config, pubsub, user),
+  socket socket: Socket(context),
   msg msg: BitArray,
-) -> mist.Next(Socket(config, pubsub, user), Msg) {
+) -> mist.Next(Socket(context), Msg) {
   io.println_error("[WARNING] websocket ignoring binary msg: " <> string.inspect(msg))
   mist.continue(socket)
 }
 
 fn respond_to(
-  socket socket: Socket(config, pubsub, user),
+  socket socket: Socket(context),
   msg msg: String,
   conn conn: mist.WebsocketConnection,
-  server server: Server(a, fpo.Context(config, pubsub, user)),
-) -> mist.Next(Socket(config, pubsub, user), Msg) {
+  server server: Server(api, context),
+) -> mist.Next(Socket(context), Msg) {
   serve(socket:, conn:, msg:, send:, send_resp: Broadcast, ctx: socket.ctx,
-    get_subs: fn(socket: Socket(config, pubsub, user)) { socket.subs },
-    set_subs: fn(socket: Socket(config, pubsub, user), subs) { Socket(..socket, subs:) },
-    get_self: fn(socket: Socket(config, pubsub, user)) { socket.self },
+    get_subs: fn(socket: Socket(context)) { socket.subs },
+    set_subs: fn(socket: Socket(context), subs) { Socket(..socket, subs:) },
+    get_self: fn(socket: Socket(context)) { socket.self },
     server:,
   )
 }
 
 fn stop_after_running_closed_callback(
-  socket socket: Socket(config, pubsub, user),
-  close close: fn(Socket(config, pubsub, user)) -> Nil,
-) -> mist.Next(Socket(config, pubsub, user), Msg) {
+  socket socket: Socket(context),
+  close close: fn(Socket(context)) -> Nil,
+) -> mist.Next(Socket(context), Msg) {
   let _ = close(socket)
   mist.stop()
 }
 
 fn close(
-  socket _socket: Socket(config, pubsub, user),
+  socket _socket: Socket(context),
 ) -> Nil {
   Nil
 }
