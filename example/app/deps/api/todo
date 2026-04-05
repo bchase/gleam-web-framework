@@ -1,27 +1,14 @@
 
 clean up
-X - separate generic from future-codegen logic
-X - adjust lustre
-  X * refactor away from web component
-  X * fix `set_focus`
-\ - mv logic
-  X * `api` impl (e.g. `Item`)  -->  `shared` (`shared/api`)
-  X * `client`                  -->  `frontend`
-    * `api` generic             -->  `fpo`
-\ - rename
-  X * `ApiClient`?
-  X * `ConnMsg`?
-    * other?
-  - handle `todo`s in err paths (and use errs instead of `Result(t, Nil)`)
+  - handle `todo`s in server err paths (and use errs instead of `Result(t, Nil)`)
   - clean up
     * dead code, comments
-    * duped types, e.g. `SocketResp`, `Err`
-    * tk
+    * evaluate err types, simplify if possible
   - consolidate/colocate `SocketReq` & `SocketResp` en/decode, if possible?
 
 next
-  - impl unsubscribe
   - send msg to client to notify un/successful subscription
+  - impl unsubscribe
 
 maybe
   - conv `FuncReq` to plain `fn(param) -> Result(return, Err)`

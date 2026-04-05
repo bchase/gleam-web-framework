@@ -1,4 +1,4 @@
-import api/types.{SocketReq, type SocketResp,}
+import api/types.{type SocketResp}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/http/request.{type Request}
@@ -6,11 +6,9 @@ import gleam/http/response.{type Response}
 import gleam/io
 import gleam/json
 import gleam/option.{type Option, Some, None}
-import gleam/result
 import gleam/set.{type Set}
 import gleam/string
 import mist
-import youid/uuid
 
 pub type Server(req, context) {
   Server(
@@ -116,7 +114,7 @@ fn respond_using(
   conn conn: mist.WebsocketConnection,
   ctx ctx: context,
 ) -> mist.Next(Socket(context), Msg) {
-  case parse_socket_req(msg, server.decoder) {
+  case json.parse(msg, types.decoder_socket_req(server.decoder)) {
     Ok(req) -> {
       let #(subs, resp, selector) = server.call(req, ctx, socket.subs, Broadcast)
 
@@ -146,8 +144,14 @@ fn respond_using(
       }
     }
 
-    Error(ParseErr) ->
-      todo as "ParseErr"
+    Error(err) -> {
+      io.println_error({
+        "`api/erl/server.respond_using` failed to parse msg: " <>
+          string.inspect(err)
+      })
+
+      mist.continue(socket)
+    }
   }
 }
 
@@ -178,51 +182,4 @@ fn send(
       io.println_error(err |> string.inspect)
     }
   }
-}
-
-type ParseErr {
-  ParseErr
-}
-
-fn parse_socket_req(
-  json json: String,
-  decoder decoder: Decoder(req),
-) -> Result(types.SocketReq(req), ParseErr) {
-  {
-    let parse = fn(decoder) {
-      use ref <- result.try(
-        decode.at(["ref"], decode.string)
-        |> json.parse(json, _)
-        // |> result.replace_error(NoRef(json:))
-        |> result.replace_error(Nil)
-      )
-
-      use ref <- result.try(
-        uuid.from_string(ref)
-        |> result.map_error(fn(err) {
-          // RefParseFailure(ref:, err: err |> string.inspect)
-          Nil
-        })
-      )
-
-      use req <- result.try(
-        decode.at(["req"], decode.dynamic)
-        |> json.parse(json, _)
-        // |> result.replace_error(RespNotFound(ref:, json:))
-        |> result.replace_error(Nil)
-      )
-
-      Ok(#(ref, req))
-    }
-
-    case parse(json) {
-      Ok(#(ref, dyn)) -> {
-        let assert Ok(req) = decode.run(dyn, decoder)
-        Ok(SocketReq(ref:, req:))
-      }
-
-      Error(_) -> todo
-    }
-  }
-  |> result.replace_error(ParseErr)
 }
