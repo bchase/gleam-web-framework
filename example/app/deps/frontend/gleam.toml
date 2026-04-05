@@ -12,6 +12,7 @@ api = { path = "../api" }
 plinth = ">= 0.10.2 and < 1.0.0"
 gleam_javascript = ">= 1.0.0 and < 2.0.0"
 shared = { path = "../shared" }
+fpo_api_js = { path = "../fpo_api_js" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
