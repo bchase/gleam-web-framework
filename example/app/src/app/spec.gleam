@@ -13,7 +13,8 @@ import cloak_wrapper/aes/gcm as aes_gcm
 import app/types.{type Config, type PubSub, type Err} as _
 //
 import app/web/components/counter_app
-import app/api/socket
+import app/api/server
+import fpo/api/erl/server as erl_server
 
 pub fn spec() -> Spec(Config, PubSub, User, Err) {
   // panic as "`register_server_components` needs to be fixed"
@@ -76,7 +77,7 @@ fn api_websocket(
   req req: Request(mist.Connection),
   ctx ctx: Context(Config, PubSub, User),
 ) -> Response(mist.ResponseData) {
-  socket.start(req:, ctx:, server: socket.api_server())
+  erl_server.start(req:, ctx:, server: server.api_server())
 }
 
 fn register_server_components() {
