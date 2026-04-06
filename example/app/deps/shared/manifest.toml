@@ -2,12 +2,12 @@
 # You typically do not need to edit this file
 
 packages = [
-  { name = "api", version = "1.0.0", build_tools = ["gleam"], requirements = ["deriv", "gleam_json", "gleam_stdlib", "gleam_time", "lustre", "youid"], source = "local", path = "../api" },
   { name = "argv", version = "1.0.2", build_tools = ["gleam"], requirements = [], otp_app = "argv", source = "hex", outer_checksum = "BA1FF0929525DEBA1CE67256E5ADF77A7CDDFE729E3E3F57A5BDCAA031DED09D" },
   { name = "birl", version = "1.9.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "gleam_time", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "9924A2C3EECD33A5C94CD6859570261F2620435C54DAC5F2B00E5E6C806EEC6F" },
   { name = "deriv", version = "2.0.0", build_tools = ["gleam"], requirements = ["argv", "birl", "formal", "glance", "glance_printer", "gleam_json", "gleam_regexp", "gleam_stdlib", "gleam_time", "glint", "lustre", "shellout", "simplifile", "tom", "youid"], source = "git", repo = "https://github.com/bchase/deriv", commit = "b5afc21dc12d5223f9b07a811a547bacc184f217" },
   { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
   { name = "formal", version = "3.0.1", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_time"], otp_app = "formal", source = "hex", outer_checksum = "8FBEB42758F90ACAA82A8B6B8FE11B4A3B2A2B290E97B4DDD4B7DCE98DEB885C" },
+  { name = "fpo_api", version = "1.0.0", build_tools = ["gleam"], requirements = ["deriv", "gleam_json", "gleam_stdlib", "gleam_time", "lustre", "youid"], source = "local", path = "../../../../deps/fpo_api" },
   { name = "glam", version = "2.0.3", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "glam", source = "hex", outer_checksum = "237C2CE218A2A0A5D46D625F8EF5B78F964BC91018B78D692B17E1AB84295229" },
   { name = "glance", version = "5.0.1", build_tools = ["gleam"], requirements = ["gleam_stdlib", "glexer"], otp_app = "glance", source = "hex", outer_checksum = "7F216D97935465FF4AC46699CD1C3E0FB19CB678B002E4ACAFCE256E96312F14" },
   { name = "glance_printer", version = "3.0.0", build_tools = ["gleam"], requirements = ["glam", "glance", "gleam_stdlib"], source = "git", repo = "git@github.com:bchase/glance_printer.git", commit = "c8b362ba7e962064e3d7689fe1fc1fc428876b6f" },
@@ -36,8 +36,8 @@ packages = [
 ]
 
 [requirements]
-api = { path = "../api" }
 deriv = { git = "https://github.com/bchase/deriv", ref = "dev" }
+fpo_api = { path = "../../../../deps/fpo_api" }
 gleam_json = { version = ">= 3.1.0 and < 4.0.0" }
 gleam_stdlib = { version = ">= 0.44.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }

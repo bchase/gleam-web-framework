@@ -1,11 +1,11 @@
-import api/server
-import api/types.{type Paginated, type Record, type ListReq, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type Action, SocketReq, Updated, Deleted, Created, type Sub, type SocketResp,}
-import api/types/id.{Id}
+import fpo/api/ws/server
+import fpo/api/ws/types.{type Paginated, type Record, type ListReq, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type Action, SocketReq, Updated, Deleted, Created, type Sub, type SocketResp,}
+import fpo/api/ws/types/id.{Id}
 import app/types.{type PubSub} as app
 import app/user
 import bravo
 import bravo/uset
-import fpo/api/erl/server.{type Server, Server, type Msg} as _
+import fpo/api/erl/ws/server.{type Server, Server, type Msg} as _
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 import fpo/types as fpo
 import fpo/types/err.{type Err}

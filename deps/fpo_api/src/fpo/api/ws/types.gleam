@@ -1,4 +1,4 @@
-import api/types/id
+import fpo/api/ws/types/id
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/function

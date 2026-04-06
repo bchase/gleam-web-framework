@@ -1,6 +1,6 @@
-import api/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
-import api/types.{type Id, type Record, type Action, Created, Updated, Deleted, type Paginated}
-import fpo/api/js/client.{type Client}
+import fpo/api/ws/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
+import fpo/api/ws/types.{type Id, type Record, type Action, Created, Updated, Deleted, type Paginated}
+import fpo/api/js/ws/client.{type Client}
 import gleam/dict.{type Dict}
 import gleam/io
 import gleam/list

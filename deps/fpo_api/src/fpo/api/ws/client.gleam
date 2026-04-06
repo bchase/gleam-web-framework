@@ -1,7 +1,7 @@
 import gleam/float
 import gleam/int
-import api/client/req.{type RecvErr, type Req, type Reqs, NoConn, clear_req_and_log_err}
-import api/types
+import fpo/api/ws/client/req.{type RecvErr, type Req, type Reqs, NoConn, clear_req_and_log_err}
+import fpo/api/ws/types
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/io

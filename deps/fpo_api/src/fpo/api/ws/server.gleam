@@ -1,4 +1,4 @@
-import api/types.{type Err, List, Create, Read, Update, Delete, type Paginated, encode_paginated, encode_record, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketResp, SocketResp, type Func, Created, Updated, Deleted, type Sub, type Record}
+import fpo/api/ws/types.{type Err, List, Create, Read, Update, Delete, type Paginated, encode_paginated, encode_record, type ListReq, type Crud, type CreateReq, type UpdateReq, type ReadReq, type DeleteReq, type SocketResp, SocketResp, type Func, Created, Updated, Deleted, type Sub, type Record}
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import gleam/result

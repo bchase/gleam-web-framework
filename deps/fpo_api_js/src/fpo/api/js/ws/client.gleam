@@ -1,7 +1,7 @@
 import lustre/effect.{type Effect}
 import gleam/option.{type Option}
 import gleam/json.{type Json}
-import api/client
+import fpo/api/ws/client
 import lustre_websocket as ws
 import plinth/javascript/global
 

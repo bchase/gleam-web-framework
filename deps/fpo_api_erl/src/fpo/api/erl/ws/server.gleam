@@ -1,4 +1,4 @@
-import api/types.{type SocketResp}
+import fpo/api/ws/types.{type SocketResp}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/http/request.{type Request}

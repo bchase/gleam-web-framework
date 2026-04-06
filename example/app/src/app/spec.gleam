@@ -14,7 +14,7 @@ import app/types.{type Config, type PubSub, type Err} as _
 //
 import app/web/components/counter_app
 import app/api/server
-import fpo/api/erl/server as erl_server
+import fpo/api/erl/ws/server as erl_server
 
 pub fn spec() -> Spec(Config, PubSub, User, Err) {
   // panic as "`register_server_components` needs to be fixed"

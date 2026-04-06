@@ -1,4 +1,4 @@
-import api/types.{type Id, type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
+import fpo/api/ws/types.{type Id, type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
