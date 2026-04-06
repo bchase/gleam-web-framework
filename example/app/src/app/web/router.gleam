@@ -11,7 +11,7 @@ import fpo/web/authe
 import fpo/generic/wisp as fpo_wisp
 import fpo/generic/guard
 import gleam/dict
-import gleam/http.{Post, Delete}
+import gleam/http.{Get, Post, Delete}
 import gleam/http/request.{type Request}
 import gleam/list
 import gleam/string
@@ -28,6 +28,11 @@ pub fn handler(
   case req.method, req |> wisp.path_segments {
     _, [] ->
       Ok(home(ctx:))
+
+    //
+
+    Get, ["dev"] ->
+      Ok(dev(ctx:))
 
     //
 
@@ -73,6 +78,31 @@ pub fn handler(
     _, _ ->
       Error(Nil)
   }
+}
+
+fn dev(
+  ctx ctx: Context(Config, pubsub, User),
+) -> Handler(Config, pubsub, User, Err) {
+  spec.AppLustre(handle: fn(_req) {
+    pure(spec.LustreResponse(
+      status: 200,
+      headers: dict.new(),
+      element: html.html([], [
+        html.head([], [
+          html.script([
+            attr.type_("module"),
+            attr.src("/static/js/frontend.js"),
+          ], ""),
+
+          // html.div([], [
+          //   element.element("fpo-example-client-component", [], []),
+          // ]),
+        ]),
+        html.body([], [
+        ]),
+      ]),
+    ))
+  })
 }
 
 fn home(

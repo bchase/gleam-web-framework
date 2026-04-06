@@ -1,4 +1,4 @@
-name = "app"
+ name = "app"
 version = "1.0.0"
 
 target = "erlang"
@@ -30,6 +30,12 @@ gleam_json = ">= 3.1.0 and < 4.0.0"
 parrot = ">= 2.2.1 and < 3.0.0"
 gleam_crypto = ">= 1.5.1 and < 2.0.0"
 formal = ">= 3.0.0 and < 4.0.0"
+fpo_api = { path = "../../deps/fpo_api" }
+gleam_time = ">= 1.8.0 and < 2.0.0"
+bravo = { git = "https://github.com/bchase/bravo", ref = "upgrade-gleam-erlang" }
+shared = { path = "deps/shared" }
+youid = ">= 1.6.0 and < 2.0.0"
+fpo_api_erl = { path = "../../deps/fpo_api_erl" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

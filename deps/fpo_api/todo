@@ -1,0 +1,15 @@
+
+clean up
+  - handle `todo`s in server err paths (and use errs instead of `Result(t, Nil)`)
+  - clean up
+    * dead code, comments
+    * evaluate err types, simplify if possible
+  - consolidate/colocate `SocketReq` & `SocketResp` en/decode, if possible?
+
+next
+  - send msg to client to notify un/successful subscription
+  - impl unsubscribe
+
+maybe
+  - conv `FuncReq` to plain `fn(param) -> Result(return, Err)`
+  - configurable timeout callbacks for hung reqs
