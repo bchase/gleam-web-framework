@@ -377,6 +377,7 @@ fn to_wisp_err_resp(
     err.SecretKeyBaseLookupFailed |
     err.HttpReqErr(..) |
     err.DbErr(..) |
+    err.PgErr(..) |
     err.Err(..) |
     err.AppErr(..) ->
       wisp_html_resp(
@@ -424,6 +425,7 @@ pub fn to_err_resp(
     err.SecretKeyBaseLookupFailed |
     err.HttpReqErr(..) |
     err.DbErr(..) |
+    err.PgErr(..) |
     err.Err(..) |
     err.AppErr(..) ->
       mist_html_resp(

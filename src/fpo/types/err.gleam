@@ -1,10 +1,15 @@
 import gleam/option.{type Option}
 import gleam/dynamic.{type Dynamic}
 import fpo/http/err as fhttp
+import pog
 
 pub type Err(err) {
   DbErr(
     err: Dynamic,
+  )
+
+  PgErr(
+    err: PgErr,
   )
 
   NotFound(
@@ -32,6 +37,11 @@ pub type Err(err) {
   Unauthorized(detail: Option(String))
 
   AppErr(err: err)
+}
+
+pub type PgErr {
+  PgQueryErr(err: pog.QueryError)
+  PgTxErr(err: pog.TransactionError(Dynamic))
 }
 
 pub type Redirect {
