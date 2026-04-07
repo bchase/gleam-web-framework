@@ -3,12 +3,15 @@ import gleam/crypto
 import gleam/erlang/process
 import gleam/list
 import gleam/option.{type Option, Some, None}
-import fpo/types.{type Context}
+import fpo/types
 import fpo/context
 import fpo/types/err.{type Err}
 import fpo/pubsub
 import fpo/generic/crypto as fpo_crypto
 import fpo/generic/json.{type Transcoders} as _
+
+pub type Context(config, pubsub, user) =
+  types.Context(config, pubsub, user)
 
 pub opaque type AppWithParam(t, param, config, pubsub, user, err) {
   AppWithParam(run: fn(Context(config, pubsub, user), param) -> Result(t, Err(err)))
