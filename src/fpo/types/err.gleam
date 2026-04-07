@@ -41,7 +41,7 @@ pub type Err(err) {
 
 pub type PgErr {
   PgQueryErr(err: pog.QueryError)
-  PgTxErr(err: pog.TransactionError(Dynamic))
+  PgTxErr(err: pog.TransactionError(String))
 }
 
 pub type Redirect {
@@ -52,4 +52,10 @@ pub fn pg_err(
   err err: pog.QueryError,
 ) -> Err(err) {
   PgErr(PgQueryErr(err))
+}
+
+pub fn pg_tx_err(
+  err err: pog.TransactionError(String),
+) -> Err(err) {
+  PgErr(PgTxErr(err))
 }
