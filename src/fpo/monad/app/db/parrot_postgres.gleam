@@ -65,58 +65,53 @@ pub fn db_transaction(
 
 pub fn many(
   parrot parrot: Parrot(t),
-  conn conn: fn(config) -> pog.Connection,
 ) -> AppPg(List(t), config, pubsub, user, err)  {
-  use ctx <- do(app.ctx())
+  use conn <- do(app.param())
 
   parrot
-  |> parrot.many(conn: conn(ctx.cfg), db: pg(to_err:))
+  |> parrot.many(conn:, db: pg(to_err:))
   |> app.from_result
 }
 
 pub fn one(
   parrot parrot: Parrot(t),
-  conn conn: fn(config) -> pog.Connection,
 ) -> AppPg(Result(t, Nil), config, pubsub, user, err)  {
-  use ctx <- do(app.ctx())
+  use conn <- do(app.param())
 
   parrot
-  |> parrot.one(conn: conn(ctx.cfg), db: pg(to_err:))
+  |> parrot.one(conn:, db: pg(to_err:))
   |> app.from_result
 }
 
 pub fn one_not_many(
   parrot parrot: Parrot(t),
-  conn conn: fn(config) -> pog.Connection,
 ) -> AppPg(Result(t, Option(List(t))), config, pubsub, user, err)  {
-  use ctx <- do(app.ctx())
+  use conn <- do(app.param())
 
   parrot
-  |> parrot.one_not_many(conn: conn(ctx.cfg), db: pg(to_err:))
+  |> parrot.one_not_many(conn:, db: pg(to_err:))
   |> app.from_result
 }
 
 pub fn one_or(
   parrot parrot: Parrot(t),
   err err: err.Err(err),
-  conn conn: fn(config) -> pog.Connection,
 ) -> AppPg(t, config, pubsub, user, err)  {
-  use ctx <- do(app.ctx())
+  use conn <- do(app.param())
 
   parrot
-  |> parrot.one_or(err:, conn: conn(ctx.cfg), db: pg(to_err:))
+  |> parrot.one_or(err:, conn:, db: pg(to_err:))
   |> app.from_result
 }
 
 pub fn one_not_many_or(
   parrot parrot: Parrot(t),
   err err: fn(Option(List(t))) -> err.Err(err),
-  conn conn: fn(config) -> pog.Connection,
 ) -> AppPg(t, config, pubsub, user, err)  {
-  use ctx <- do(app.ctx())
+  use conn <- do(app.param())
 
   parrot
-  |> parrot.one_not_many_or(err:, conn: conn(ctx.cfg), db: pg(to_err:))
+  |> parrot.one_not_many_or(err:, conn:, db: pg(to_err:))
   |> app.from_result
 }
 

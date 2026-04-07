@@ -1,8 +1,7 @@
-import app/db/postgres as db
 import app/sql
 import app/types.{type Config}
-import fpo/monad/app.{type App}
-import fpo/monad/app/db/parrot_postgres.{type AppPg} as _
+import fpo/monad/app
+import fpo/monad/app/db/parrot_postgres.{type AppPg} as db
 import app/types/err.{type Err} as _
 import gleam/list
 
