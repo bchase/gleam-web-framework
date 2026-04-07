@@ -47,3 +47,9 @@ pub type PgErr {
 pub type Redirect {
   Redirect302
 }
+
+pub fn pg_err(
+  err err: pog.QueryError,
+) -> Err(err) {
+  PgErr(PgQueryErr(err))
+}
