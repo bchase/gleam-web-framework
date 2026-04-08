@@ -443,7 +443,7 @@ fn mist_html_resp(
 ) -> resp.Response(mist.ResponseData) {
   let body =
     element
-    |> element.to_string_tree
+    |> element.to_document_string_tree
     |> bytes_tree.from_string_tree
     |> mist.Bytes
 
@@ -464,7 +464,7 @@ fn wisp_html_resp(
   headers headers: Dict(String, String),
 ) -> resp.Response(wisp.Body) {
   element
-  |> element.to_string_tree
+  |> element.to_document_string_tree
   |> string_tree.to_string
   |> wisp.html_response(status)
   |> list.fold(headers |> dict.to_list, _, fn(resp, t) {
