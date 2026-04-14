@@ -4,8 +4,8 @@ import app/types.{type Config} as _
 import app/types/err.{type Err} as _
 import app/user.{type User}
 import app/web/components/server_component_elements as lscs
-import fpo/monad/app.{type App, do, pure}
-import fpo/types.{type Context}
+import fpo/monad/app.{type App, pure}
+import fpo/types.{type Context, type Session}
 import fpo/types/spec.{type Handler}
 import fpo/web/authe
 import fpo/generic/wisp as fpo_wisp
@@ -37,10 +37,11 @@ pub fn handler(
     //
 
     Post, ["auth", "session"] ->
-      authe.sign_in(
-        redirect_to: "/",
-        get_user:,
+      req
+      |> get_user
+      |> authe.sign_in(
         persist_user_token: user.insert_user_token,
+        redirect_to: "/",
       )
 
     Delete, ["auth", "session"] ->
@@ -206,7 +207,7 @@ const good_email = "user@example.com"
 const good_password = "good_password"
 
 fn get_user(
-  req req: Request(wisp.Connection)
+  req req: Request(wisp.Connection),
 ) -> App(User, Config, pubsub, User, Err) {
   let form = fpo_wisp.read_form(req:, form: form_login())
   use login <- guard.ok_(form, fn(_err) { app.redirect(to: "/") })

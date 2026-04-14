@@ -14,16 +14,16 @@ import fpo/generic/crypto.{hash_sha256_base64} as _
 import fpo/generic/wisp.{redirect} as _
 
 pub fn sign_in(
-  redirect_to location: String,
-  get_user get_user: fn(Request(wisp.Connection)) -> App(user, config, pubsub, user, err),
+  user user: App(user, config, pubsub, user, err),
   persist_user_token persist_user_token: fn(user, String) -> App(Result(a, Nil), config, pubsub, user, err),
+  redirect_to location: String,
 ) -> Result(Handler(config, pubsub, user, err), Nil) {
   Ok(spec.AppWispSessionCookie(handle: fn(req, session, session_cookie_name) {
     use <- bool.lazy_guard(session.signed_in(session:), fn() { pure(redirect(to: location)) })
 
-    use user <- do(get_user(req))
-
     let session = session |> result.lazy_unwrap(fn() { types.zero_session() })
+
+    use user <- do(user)
 
     use result <- do(set_token(user:, session:, persist_user_token:))
 
