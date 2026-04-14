@@ -4,7 +4,7 @@
 packages = [
   { name = "argv", version = "1.0.2", build_tools = ["gleam"], requirements = [], otp_app = "argv", source = "hex", outer_checksum = "BA1FF0929525DEBA1CE67256E5ADF77A7CDDFE729E3E3F57A5BDCAA031DED09D" },
   { name = "backoff", version = "1.1.6", build_tools = ["rebar3"], requirements = [], otp_app = "backoff", source = "hex", outer_checksum = "CF0CFFF8995FB20562F822E5CC47D8CCF664C5ECDC26A684CBE85C225F9D7C39" },
-  { name = "birl", version = "1.8.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "ranger"], source = "git", repo = "https://github.com/bchase/birl", commit = "4da4dc9e5cf484671069f4db2b5b19efd998a1c0" },
+  { name = "birl", version = "1.9.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "gleam_time", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "9924A2C3EECD33A5C94CD6859570261F2620435C54DAC5F2B00E5E6C806EEC6F" },
   { name = "certifi", version = "2.15.0", build_tools = ["rebar3"], requirements = [], otp_app = "certifi", source = "hex", outer_checksum = "B147ED22CE71D72EAFDAD94F055165C1C182F61A2FF49DF28BCC71D1D5B94A60" },
   { name = "cloak", version = "1.1.4", build_tools = ["mix"], requirements = ["jason"], otp_app = "cloak", source = "hex", outer_checksum = "92B20527B9ABA3D939FAB0DD32CE592FF86361547CFDC87D74EDCE6F980EB3D7" },
   { name = "cloak_wrapper", version = "2.0.0", build_tools = ["gleam"], requirements = ["cloak", "gleam_crypto", "gleam_erlang", "gleam_otp", "gleam_stdlib"], source = "git", repo = "https://github.com/bchase/cloak_wrapper", commit = "ff0abaea75abe2bfc19aa53c119ff2d1471f02af" },
@@ -83,7 +83,7 @@ packages = [
 ]
 
 [requirements]
-birl = { git = "https://github.com/bchase/birl", ref = "bchase" }
+birl = { version = ">= 1.8.0 and < 2.0.0" }
 cloak_wrapper = { git = "https://github.com/bchase/cloak_wrapper", ref = "gen-key" }
 deriv = { git = "https://github.com/bchase/deriv", ref = "dev" }
 dot_env = { version = ">= 1.2.0 and < 2.0.0" }
