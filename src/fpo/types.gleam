@@ -1,12 +1,14 @@
 import cloak_wrapper/aes/gcm as aes_gcm
 import deriv/util as deriv
 import fpo/cloak.{type Cloak}
+import fpo/pubsub
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/process
+import gleam/http/request.{type Request}
 import gleam/json.{type Json}
 import gleam/option.{type Option, None}
-import fpo/pubsub
+import mist
 import pog
 
 pub type Context(config, pubsub, user) {
@@ -36,6 +38,7 @@ pub type Fpo {
 pub type SetUserClientInfo {
   SetUserClientInfo(
     path_prefix: String, // TODO rm now that in `Fpo`
+    no_session: Option(fn(Request(mist.Connection)) -> Bool),
     browser_js_path: String,
   )
 }

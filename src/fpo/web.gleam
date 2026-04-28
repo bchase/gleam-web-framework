@@ -1,3 +1,4 @@
+import fpo/generic/prelude
 import gleam/string
 import gleam/io
 import gleam/bit_array
@@ -568,10 +569,13 @@ fn read_or_init_session(
         Ok(session)
 
       Error(Nil), _ -> {
-        use types.SetUserClientInfo(path_prefix, browser_js_path) <-
+        use types.SetUserClientInfo(path_prefix:, browser_js_path:, no_session:) <-
           guard.some_(features.set_user_client_info, fn() {
             Error(Nil)
           })
+
+        let check = no_session |> option.unwrap(prelude.always(False))
+        use <- bool.guard(check(req), Error(Nil))
 
         case req.path == browser_js_path, req |> request.path_segments {
           True, _ ->
