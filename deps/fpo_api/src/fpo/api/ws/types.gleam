@@ -1,5 +1,5 @@
-import fpo/api/ws/types/id
 import deriv/util as deriv
+import fpo/api/ws/types/id
 import gleam/dynamic/decode.{type Decoder}
 import gleam/function
 import gleam/json.{type Json}
@@ -10,6 +10,7 @@ import youid/uuid.{type Uuid}
 // id
 
 pub type Id(resource) = id.Id(resource)
+pub fn id(id id: String) -> Id(resource) { id.Id(id) }
 
 // generic req
 
@@ -220,8 +221,24 @@ pub type Record(resource) {
     id: Id(resource),
     created_at: Timestamp,
     updated_at: Timestamp,
+    archived: Archived,
     resource: resource,
   )
+}
+
+pub type Archived {
+  //$ derive json encode decode
+  Archived(is_archived: Bool)
+  ArchivedAt(time: Timestamp)
+}
+
+pub fn is_archived(
+  record record: Record(t),
+) -> Bool {
+  case record.archived {
+    Archived(is_archived:) -> is_archived
+    ArchivedAt(..) -> True
+  }
 }
 
 pub type Action {
@@ -302,13 +319,13 @@ pub fn decoder_result_err(
 
 // TODO detect phantom types in deriv
 
-fn decoder_id(
+pub fn decoder_id(
   _decoder_resource: Decoder(resource),
 ) -> Decoder(Id(resource)) {
   id.decoder_id()
 }
 
-fn encode_id(
+pub fn encode_id(
   id: Id(resource),
   _encode_resource: fn(resoure) -> Json,
 ) -> Json {
@@ -911,6 +928,7 @@ pub fn encode_record(
   case value {
     Record(..) as value ->
       json.object([
+        #("archived", encode_archived(value.archived)),
         #("created_at", encode_timestamp(value.created_at)),
         #("id", encode_id(value.id, encode_resource)),
         #("resource", encode_resource(value.resource)),
@@ -932,7 +950,8 @@ pub fn decoder_record_record(
   use created_at <- decode.field("created_at", decoder_timestamp())
   use updated_at <- decode.field("updated_at", decoder_timestamp())
   use resource <- decode.field("resource", decoder_resource)
-  decode.success(Record(id:, created_at:, updated_at:, resource:))
+  use archived <- decode.field("archived", decoder_archived())
+  decode.success(Record(id:, created_at:, updated_at:, resource:, archived:))
 }
 
 pub fn encode_action(value: Action) -> Json {
@@ -986,4 +1005,37 @@ pub fn decoder_subscription_msg_s(
 ) -> Decoder(SubscriptionMsg(msg)) {
   use s <- decode.field("s", decoder_msg)
   decode.success(S(s:))
+}
+
+
+
+pub fn encode_archived(value: Archived) -> Json {
+  case value {
+    Archived(..) as value ->
+      json.object([
+        #("_var", json.string("Archived")),
+        #("is_archived", json.bool(value.is_archived)),
+      ])
+    ArchivedAt(..) as value ->
+      json.object([
+        #("_var", json.string("ArchivedAt")),
+        #("time", encode_timestamp(value.time)),
+      ])
+  }
+}
+
+pub fn decoder_archived() -> Decoder(Archived) {
+  decode.one_of(decoder_archived_archived(), [decoder_archived_archived_at()])
+}
+
+pub fn decoder_archived_archived() -> Decoder(Archived) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Archived"))
+  use is_archived <- decode.field("is_archived", decode.bool)
+  decode.success(Archived(is_archived:))
+}
+
+pub fn decoder_archived_archived_at() -> Decoder(Archived) {
+  use _deriv_var_constr <- decode.field("_var", deriv.is("ArchivedAt"))
+  use time <- decode.field("time", decoder_timestamp())
+  decode.success(ArchivedAt(time:))
 }

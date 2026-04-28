@@ -87,6 +87,9 @@ pub type ApiData(t) {
   Success(data: t)
 }
 
+pub type ApiRecord(t) = ApiData(types.Record(t))
+
+
 pub fn success_or(
   data data: ApiData(a),
   default default: a,
@@ -122,14 +125,17 @@ pub fn is_connected(
 
 pub fn init(
   model model: model,
+  //
   ws_url ws_url: String,
   //
   get_client get_client: fn(model) -> Client(req, ws, ws_event, close_reason, model, msg),
   set_client set_client: fn(model, Client(req, ws, ws_event, close_reason, model, msg)) -> model,
+  //
+  encode encode: fn(req) -> Json,
+  //
   wrap wrap: fn(Msg(ws, close_reason)) -> msg,
   notify notify: fn(ConnectionEvent) -> Option(msg),
   on_no_conn on_no_conn: fn(model) -> Option(msg), // TODO maybe rm and use `notify` instead?
-  encode encode: fn(req) -> Json,
   //
   impl impl: WebSocketImpl(ws, ws_event, close_reason, msg),
 ) -> #(model, Effect(msg)) {
@@ -339,13 +345,13 @@ pub fn update(
   msg msg: Msg(ws, close_reason),
   client client: Client(api, ws, ws_event, close_reason, model, parent_msg),
 ) -> #(model, Effect(parent_msg)) {
-  let map_parent = fn(t: #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(Msg(ws, close_reason)))) {
-    model
-    |> client.set_client(t.0)
-    |> pair.new(effect.batch([
-      t.1 |> effect.map(client.wrap),
-    ]))
-  }
+  // let map_parent = fn(t: #(Client(api, ws, ws_event, close_reason, model, parent_msg), Effect(Msg(ws, close_reason)))) {
+  //   model
+  //   |> client.set_client(t.0)
+  //   |> pair.new(effect.batch([
+  //     t.1 |> effect.map(client.wrap),
+  //   ]))
+  // }
 
   // let client = get_client(model)
 
@@ -353,11 +359,20 @@ pub fn update(
     NoOp ->
       pure(model)
 
+    GotReconnectWebSocket(with_delay:) ->
+      client
+      |> attempt_reconnect_to_websocket(with_delay:)
+      |> pair.map_first(client.set_client(model, _))
+
+    //
+
     RecvWebSocketBinaryMessage(msg: ba) ->
       ignore_binary_msg(model:, ba:)
 
     RecvWebSocketTextMessage(msg:) ->
       client.recv(model, msg)
+
+    //
 
     RecvWebSocketInvalidUrlErr ->
       notify_invalid_url(model:, client:)
@@ -367,11 +382,6 @@ pub fn update(
 
     RecvWebSocketClose(reason:) ->
       reconnect_to_websocket_on_close(model:, client:, reason:)
-
-    GotReconnectWebSocket(with_delay:) ->
-      client
-      |> attempt_reconnect_to_websocket(with_delay:)
-      |> pair.map_first(client.set_client(model, _))
   }
 }
 

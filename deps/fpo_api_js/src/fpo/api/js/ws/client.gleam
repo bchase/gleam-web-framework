@@ -9,6 +9,10 @@ pub type Client(req, model, msg) = client.Client(req, ws.WebSocket, ws.WebSocket
 
 pub type Msg = client.Msg(ws.WebSocket, ws.WebSocketCloseReason)
 
+pub type Msgg {
+
+}
+
 pub fn update(
   model model: model,
   msg msg: Msg,
@@ -19,12 +23,15 @@ pub fn update(
 
 pub fn init(
   model model: model,
+  //
   ws_url ws_url: String,
   //
   get_client get_client: fn(model) -> Client(req, model, msg),
   set_client set_client: fn(model, Client(req, model, msg)) -> model,
-  wrap wrap: fn(Msg) -> msg,
+  //
   encode encode: fn(req) -> Json,
+  //
+  wrap wrap: fn(Msg) -> msg,
   notify notify: fn(client.ConnectionEvent) -> Option(msg),
   on_no_conn on_no_conn: fn(model) -> Option(msg),
 ) -> #(model, Effect(msg)) {
