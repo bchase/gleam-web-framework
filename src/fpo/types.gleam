@@ -38,8 +38,8 @@ pub type Fpo {
 pub type SetUserClientInfo {
   SetUserClientInfo(
     path_prefix: String, // TODO rm now that in `Fpo`
-    no_session: Option(fn(Request(mist.Connection)) -> Bool),
     browser_js_path: String,
+    skip_redirect: Option(fn(Request(mist.Connection)) -> Bool),
   )
 }
 

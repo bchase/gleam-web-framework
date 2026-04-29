@@ -563,34 +563,35 @@ fn read_or_init_session(
 ) -> Result(Session, Nil) {
   req
   |> session.read_mist(name: session_cookie_name, secret_key_base:)
-  |> fn(result) {
-    case result, req |> request.path_segments {
-      Ok(session), _ ->
-        Ok(session)
-
-      Error(Nil), _ -> {
-        use types.SetUserClientInfo(path_prefix:, browser_js_path:, no_session:) <-
-          guard.some_(features.set_user_client_info, fn() {
-            Error(Nil)
-          })
-
-        let check = no_session |> option.unwrap(prelude.always(False))
-        use <- bool.guard(check(req), Error(Nil))
-
-        case req.path == browser_js_path, req |> request.path_segments {
-          True, _ ->
-            // allow `deps/browser` `.js` to load w/o session
-            Ok(types.zero_session())
-
-          False, [prefix, "user_client_info"] if prefix == path_prefix ->
-            // allow `GET /$PREFIX/user_client_info` to load to perform PUT then redirect
-            Ok(types.zero_session())
-
-          False, _ ->
-            Error(Nil)
-        }
-      }
+  |> result.try_recover(fn(_: Nil) {
+    case redirect_to_set_user_client_info(req:, features:) {
+      True -> Error(Nil)
+      False -> Ok(types.zero_session())
     }
+  })
+}
+
+fn redirect_to_set_user_client_info(
+  req req: Request(mist.Connection),
+  features features: types.Features,
+) -> Bool {
+  use types.SetUserClientInfo(path_prefix:, browser_js_path:, skip_redirect:) <-
+    guard.some(features.set_user_client_info, False)
+
+  case req.path == browser_js_path, req |> request.path_segments, skip_redirect {
+    True, _, _ ->
+      // allow `deps/browser` `.js` to load w/o session
+      False
+
+    False, [prefix, "user_client_info"], _ if prefix == path_prefix ->
+      // allow `GET /$PREFIX/user_client_info` to load to perform PUT then redirect
+      False
+
+    False, _, Some(skip_redirect) ->
+      !skip_redirect(req)
+
+    False, _, _ ->
+      True
   }
 }
 
