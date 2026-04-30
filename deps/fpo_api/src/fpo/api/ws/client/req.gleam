@@ -162,14 +162,15 @@ pub fn func(
 }
 
 pub fn sub(
-  sub sub: Sub(sub_msg),
-  req req: fn(Sub(sub_msg)) -> req,
-  decoder decoder: Decoder(sub_msg),
-  msg msg: fn(Result(sub_msg, Err)) -> msg,
+  sub sub: Sub(t),
+  req req: fn(Sub(t)) -> req,
+  decoder decoder: Decoder(t),
+  msg msg: fn(t) -> msg,
+  noop noop: msg,
 ) -> Req(req, msg) {
   let req = req(sub)
-  let err = fn(err) { msg(Error(RecvErr(err))) }
-  build_req(req:, decoder:, msg:, err:)
+  let err = fn(_err) { noop } // TODO
+  build_sub(req:, decoder:, msg:, err:)
 }
 
 pub fn list(
@@ -244,6 +245,22 @@ pub fn build_req(
     dyn
     |> decode.run(types.decoder_result(decoder, types.decoder_err()))
     |> result.map(result.map_error(_, ApiErr))
+    |> result.map(msg)
+    |> result.map_error(DecodeErrs(ref:, errs: _))
+    |> HandlerResult(result: _, err:)
+  })
+}
+
+pub fn build_sub(
+  req req: req,
+  decoder decoder: Decoder(t),
+  msg msg: fn(t) -> msg,
+  err err: fn(RecvErr) -> msg
+) -> Req(req, msg) {
+  let ref = uuid.v7()
+  Req(ref:, req:, resp: fn(dyn) {
+    dyn
+    |> decode.run(decoder)
     |> result.map(msg)
     |> result.map_error(DecodeErrs(ref:, errs: _))
     |> HandlerResult(result: _, err:)
