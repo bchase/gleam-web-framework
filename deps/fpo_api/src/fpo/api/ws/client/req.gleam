@@ -176,11 +176,12 @@ pub fn sub(
 pub fn list(
   req req: fn(Crud(t, create, update, key)) -> req,
   params params: Option(Params(key)),
-  decoder decoder: Decoder(Paginated(t)),
+  decoder decoder: Decoder(t),
   msg msg: fn(Result(Paginated(t), Err)) -> msg,
 ) -> Req(req, msg) {
   let req = req(List(ListReq(params:)))
   let err = fn(err) { msg(Error(RecvErr(err))) }
+  let decoder = types.decoder_paginated(decoder)
   build_req(req:, decoder:, msg:, err:)
 }
 
