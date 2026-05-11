@@ -225,7 +225,7 @@ fn web_req_handler(
   )
   |> mist.new()
   |> mist.bind("0.0.0.0")
-  |> mist.port(port())
+  |> mist.port(port(override: spec.port))
   // |> mist.with_ipv6
   |> mist.start
 }
@@ -668,8 +668,13 @@ fn is_empty(
   }
 }
 
-fn port() -> Int {
-  env.get_string("PORT")
+fn port(
+  override override: Option(Int),
+) -> Int {
+  override
+  |> option.map(int.to_string)
+  |> option.to_result("`fpo/web` override issue")
+  |> result.or(env.get_string("PORT"))
   |> result.replace_error(Nil)
   |> result.try(int.parse)
   |> result.unwrap(5000)

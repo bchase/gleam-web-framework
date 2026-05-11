@@ -17,6 +17,7 @@ pub type Spec(config, pubsub, user, err) {
     session_cookie_name: String,
     dot_env_relative_path: String,
     secret_key_base_env_var_name: String,
+    port: Option(Int),
     //
     config: Config(config),
     authenticate: fn(Session, config) -> Option(user),
