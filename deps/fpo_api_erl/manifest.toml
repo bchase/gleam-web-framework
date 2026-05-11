@@ -4,7 +4,7 @@
 packages = [
   { name = "argv", version = "1.0.2", build_tools = ["gleam"], requirements = [], otp_app = "argv", source = "hex", outer_checksum = "BA1FF0929525DEBA1CE67256E5ADF77A7CDDFE729E3E3F57A5BDCAA031DED09D" },
   { name = "birl", version = "1.9.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "gleam_time", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "9924A2C3EECD33A5C94CD6859570261F2620435C54DAC5F2B00E5E6C806EEC6F" },
-  { name = "bravo", version = "0.0.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], source = "git", repo = "https://github.com/bchase/bravo", commit = "8ea5f1ae2620f9ea1b77aa5d506b56f110436596" },
+  { name = "bravo", version = "0.0.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], source = "git", repo = "https://github.com/bchase/bravo", commit = "6c5f2c1c50caee5e313ff31c6939e1e8306a7519" },
   { name = "deriv", version = "2.0.0", build_tools = ["gleam"], requirements = ["argv", "birl", "formal", "glance", "glance_printer", "gleam_json", "gleam_regexp", "gleam_stdlib", "gleam_time", "glint", "lustre", "shellout", "simplifile", "tom", "youid"], source = "git", repo = "https://github.com/bchase/deriv", commit = "b5afc21dc12d5223f9b07a811a547bacc184f217" },
   { name = "exception", version = "2.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "exception", source = "hex", outer_checksum = "329D269D5C2A314F7364BD2711372B6F2C58FA6F39981572E5CA68624D291F8C" },
   { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
@@ -44,7 +44,7 @@ packages = [
 ]
 
 [requirements]
-bravo = { git = "https://github.com/bchase/bravo", ref = "upgrade-gleam-erlang" }
+bravo = { git = "https://github.com/bchase/bravo", ref = "upgrade-gleam-stdlib" }
 fpo_api = { path = "../fpo_api" }
 gleam_erlang = { version = ">= 1.3.0 and < 2.0.0" }
 gleam_http = { version = ">= 4.3.0 and < 5.0.0" }
