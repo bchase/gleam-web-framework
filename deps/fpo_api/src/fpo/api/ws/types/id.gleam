@@ -16,3 +16,17 @@ pub fn encode_id(
 ) -> Json {
   json.string(value.id)
 }
+
+pub fn decoder_id_phantom(
+  _
+) -> Decoder(Id(resource)) {
+  decode.string
+  |> decode.map(Id)
+}
+
+pub fn encode_id_phantom(
+  value value: Id(resource),
+  phantom _,
+) -> Json {
+  json.string(value.id)
+}
