@@ -276,3 +276,19 @@ pub fn action(
 ) -> fn(Result(Record(t), Err)) -> msg {
   fn(result) { msg(#(action, result)) }
 }
+
+pub fn map(
+  req req: Req(req, msg1),
+  apply f: fn(msg1) -> msg2,
+) -> Req(req, msg2) {
+  Req(..req, resp: fn(dyn) {
+    dyn
+    |> req.resp
+    |> fn(hr) {
+      HandlerResult(
+        result: hr.result |> result.map(f),
+        err: fn(err) { err |> hr.err |> f }
+      )
+    }
+  })
+}
