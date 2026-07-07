@@ -86,13 +86,21 @@ pub fn func_handler_app(
   )
 }
 
+pub type Return(listener) {
+  Return(
+    resp: SocketResp,
+    subs: Set(String),
+    listener: Option(listener),
+  )
+}
+
 pub fn process_sub(
   sub sub: Sub(sub_msg),
   ref ref: Uuid,
   ctx ctx: context,
   subs subs: Set(String),
   handler handler: SubHandler(sub_msg, context, listener, msg),
-) -> #(Set(String), SocketResp, Option(listener)) {
+) -> Return(listener) {
   let action = None
 
   let sub_str = sub |> string.inspect
@@ -100,12 +108,12 @@ pub fn process_sub(
   case set.contains(subs, sub_str)  {
     True -> {
       let resp = SocketResp(ref:, action:, result: Error(types.Server(types.ServerErr("already subscribed: " <> sub_str))))
-      #(subs, resp, None)
+      Return(resp:, subs:, listener: None)
     }
 
     False ->
       case handler.run(sub, ref, ctx, handler.send) {
-        Ok(listner) -> {
+        Ok(listener) -> {
           let ack =
             types.S(Ok(Nil))
             |> types.encode_subscription_msg(
@@ -113,12 +121,12 @@ pub fn process_sub(
             )
 
           let resp = SocketResp(ref:, action:, result: Ok(ack))
-          #(subs, resp, Some(listner))
+          Return(resp:, subs:, listener: Some(listener))
         }
 
         Error(err) -> {
           let resp = SocketResp(ref:, action:, result: Error(err))
-          #(subs, resp, None)
+          Return(resp:, subs:, listener: None)
         }
       }
   }
@@ -128,25 +136,30 @@ pub fn process_func(
   func func: Func(param, return),
   ref ref: Uuid,
   ctx ctx: context,
+  subs subs: Set(String),
   handler handler: FuncHandler(param, return, context),
-) -> SocketResp {
+) -> Return(listener) {
   let action = None
 
-  case handler.run(func.req.param, ctx) {
-    Ok(x) ->
-      SocketResp(ref:, action:, result: Ok(handler.encode(x)))
+  let resp =
+    case handler.run(func.req.param, ctx) {
+      Ok(x) ->
+        SocketResp(ref:, action:, result: Ok(handler.encode(x)))
 
-    Error(err) ->
-      SocketResp(ref:, action:, result: Error(err))
-  }
+      Error(err) ->
+        SocketResp(ref:, action:, result: Error(err))
+    }
+
+  Return(resp:, subs:, listener: None)
 }
 
 pub fn process_crud(
   crud crud: Crud(resource, create, update, key),
   ref ref: Uuid,
   ctx ctx: context,
+  subs subs: Set(String),
   handler handler: CrudHandler(resource, create, update, key, context),
-) -> SocketResp {
+) -> Return(listener) {
   let #(result, action) =
     case crud {
       List(req:) -> #(handler.list(req, ctx) |> result.map(encode_paginated(_, handler.encode)), None)
@@ -156,11 +169,14 @@ pub fn process_crud(
       Delete(req:) -> #(handler.delete(req, ctx) |> result.map(encode_record(_, handler.encode)), Some(Deleted))
     }
 
-  case result {
-    Ok(x) ->
-      SocketResp(ref:, action:, result: Ok(x))
+  let resp =
+    case result {
+      Ok(x) ->
+        SocketResp(ref:, action:, result: Ok(x))
 
-    Error(err) ->
-      SocketResp(ref:, action:, result: Error(err))
-  }
+      Error(err) ->
+        SocketResp(ref:, action:, result: Error(err))
+    }
+
+  Return(resp:, subs:, listener: None)
 }

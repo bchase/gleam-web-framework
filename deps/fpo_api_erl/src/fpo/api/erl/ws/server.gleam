@@ -9,10 +9,13 @@ import gleam/option.{type Option, Some, None}
 import gleam/set.{type Set}
 import gleam/string
 import mist
+import fpo/api/ws/server.{type Return, Return}
+
+pub type SubHandler(t, ctx, msg) = server.SubHandler(t, ctx, Selector(msg), msg)
 
 pub type Server(req, context) {
   Server(
-    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> Msg) -> #(Set(String), SocketResp, Option(Selector(Msg))),
+    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> Msg) -> Return(Selector(Msg)),
     decoder: Decoder(req),
   )
 }
@@ -116,7 +119,7 @@ fn respond_using(
 ) -> mist.Next(Socket(context), Msg) {
   case json.parse(msg, types.decoder_socket_req(server.decoder)) {
     Ok(req) -> {
-      let #(subs, resp, selector) = server.call(req, ctx, socket.subs, Broadcast)
+      let Return(subs:, resp:, listener: selector) = server.call(req, ctx, socket.subs, Broadcast)
 
       let selector =
         {

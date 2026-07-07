@@ -5,6 +5,12 @@ pub type Id(resource) {
   Id(id: String)
 }
 
+pub fn to_string(
+  id id: Id(resource),
+) -> String {
+  id.id
+}
+
 pub fn decoder_id(
 ) -> Decoder(Id(resource)) {
   decode.string
