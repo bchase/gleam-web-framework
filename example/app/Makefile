@@ -1,11 +1,11 @@
 typecheck:
-	find src/ test/ deps/ -name '*.gleam' | entr -s 'clear; gleam check'
+	find src/ test/ deps/ ../../src ../../deps/**/src/ -name '*.gleam' | entr -s 'clear; gleam check'
 
 server:
-	find src/ test/ deps/ -name '*.gleam' | entr -r -s 'clear; gleam run'
+	find src/ test/ deps/ ../../src ../../deps/**/src/ -name '*.gleam' | entr -r -s 'clear; gleam run'
 
 watch-tests:
-	find src/ test/ deps/ -name '*.gleam' | entr -s 'clear; gleam test'
+	find src/ test/ deps/ ../../src ../../deps/**/src/ -name '*.gleam' | entr -s 'clear; gleam test'
 
 parrot:
 	DATABASE_URL='sqlite://./app-sqlite3.db' gleam run -m parrot

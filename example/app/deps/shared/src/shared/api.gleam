@@ -34,9 +34,9 @@ pub type ItemAttr {
 // codegen helpers
 
 pub fn req_subscribe_to_items(
-  msg msg: fn(Result(ItemsSubMsg, Err)) -> msg,
+  msg msg: fn(ItemsSubMsg) -> msg,
 ) -> Req(Api, msg) {
-  req.sub(Sub, SubscribeToItems, decoder_items_sub_msg(),  msg)
+  req.sub(SubscribeToItems, decoder_items_sub_msg(), msg:)
 }
 
 pub fn req_int_to_string(
@@ -50,7 +50,7 @@ pub fn req_list_items(
   params params: Option(Params(ItemAttr)),
   msg msg: fn(Result(Paginated(Item), Err)) -> msg,
 ) -> Req(Api, msg) {
-  list(Items, params, req.paginated(decoder_item()), msg)
+  list(Items, params, decoder_item(), msg)
 }
 
 pub fn req_read_items(
@@ -156,8 +156,13 @@ pub fn decoder_items_sub_msg() -> Decoder(ItemsSubMsg) {
 }
 
 pub fn decoder_items_sub_msg_items_sub_msg() -> Decoder(ItemsSubMsg) {
+  use dyn <- decode.subfield([], decode.dynamic)
+  echo "DYN"
+  echo dyn
   use action <- decode.field("action", decoder_action())
+  echo action
   use item <- decode.field("item", decoder_record(decoder_item()))
+  echo item
   decode.success(ItemsSubMsg(action:, item:))
 }
 
@@ -193,6 +198,8 @@ pub fn decoder_item_attr_item_name() -> Decoder(ItemAttr) {
 
 pub fn decoder_api_subscribe_to_items() -> Decoder(Api) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("SubscribeToItems"))
+  echo "SUCCESS"
   use sub <- decode.field("sub", decoder_sub(decoder_items_sub_msg()))
+  echo sub
   decode.success(SubscribeToItems(sub:))
 }

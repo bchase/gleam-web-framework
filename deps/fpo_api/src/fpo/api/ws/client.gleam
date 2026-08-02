@@ -1,6 +1,8 @@
+import gleam/list
+import gleam/dict
 import gleam/float
 import gleam/int
-import fpo/api/ws/client/req.{type RecvErr, type Req, type Reqs, NoConn, clear_req_and_log_err}
+import fpo/api/ws/client/req.{type RecvErr, type Req, type Reqs, NoConn, log_err_and}
 import fpo/api/ws/types
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
@@ -216,7 +218,7 @@ fn send_model(
 
 // RECEIVE (INIT)
 
-type PayloadType {
+pub type PayloadType {
   Response
   Subscription
 }
@@ -254,7 +256,7 @@ fn recv_model(
       model
       |> set_client(Client(..client, reqs: {
         client.reqs
-        |> clear_req_and_log_err(err:)
+        |> log_err_and(err:, clear_req: False)
       }))
       |> pair.new(effect.none())
   }
@@ -268,6 +270,19 @@ fn recv_reqs(
 
   let #(typ, dyn) = payload_type(dyn)
 
+  echo ref
+  echo ref |> uuid.to_string
+  echo reqs
+  echo typ
+  echo dyn
+
+  // echo ref
+  // echo uuid.to_string(ref)
+  // dict.keys(reqs.dict) |> list.each(fn(ref) {
+  //   echo uuid.to_string(ref)
+  // })
+  // echo dict.get(reqs.dict, ref)
+
   let get_handler =
     case typ {
       Subscription -> req.get_req
@@ -278,6 +293,8 @@ fn recv_reqs(
     get_handler(reqs, ref)
     |> result.replace_error(req.ReqNotFound(ref:, json:))
   )
+
+  echo reqs
 
   dyn
   |> handle_resp

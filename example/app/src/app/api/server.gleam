@@ -5,7 +5,7 @@ import app/types.{type PubSub} as app
 import app/user
 import bravo
 import bravo/uset
-import fpo/api/erl/ws/server.{type Server, Server, type Msg} as _
+import fpo/api/erl/ws/server.{type Server, Server, type Msg, wrap} as _
 import fpo/monad/app.{subscribe, broadcast, run, pure} as _
 import fpo/types as fpo
 import fpo/types/err.{type Err}
@@ -37,36 +37,27 @@ fn call_api_server(
   ctx ctx: Context,
   subs subs: Set(String),
   send send: fn(SocketResp) -> Msg
-) -> #(Set(String), SocketResp, Option(Selector(Msg))) {
+) -> server.Return(Selector(Msg)) {
   let SocketReq(ref:, req:) = req
 
   case req {
-    api.Items(crud:) -> {
+    api.Items(crud:) ->
       crud_items()
-      |> server.process_crud(crud:, ref:, ctx:)
-      |> fn(resp) {
-        #(subs, resp, None)
-      }
-    }
+      |> server.process_crud(crud:, ref:, subs:, ctx:)
 
-    api.IntToString(func:) -> {
+    api.IntToString(func:) ->
       func_int_to_string()
-      |> server.process_func(func:, ref:, ctx:)
-      |> fn(resp) {
-        #(subs, resp, None)
-      }
-    }
+      |> server.process_func(func:, ref:, subs:, ctx:)
 
-    api.SubscribeToItems(sub:) -> {
-      sub_subscribe_to_items(sub:, send:)
-      |> server.process_sub(sub:, ref:, ctx:, subs:)
-    }
+    api.SubscribeToItems(sub:) ->
+      sub_subscribe_to_items(sub:)
+      |> server.process_sub(sub:, ref:, subs:, ctx:, wrap:)
   }
 }
 
 // domain server impl
 
-pub fn func_int_to_string() -> server.FuncHandler(Int, String, Context) {
+pub fn func_int_to_string() -> server.FuncHandler(Int, String, Nil, Nil, Context) {
   server.FuncHandler(
     run: int_to_string,
     //
@@ -114,7 +105,7 @@ fn create_items(
 ) -> Result(Record(Item), types.Err) {
   let id = Id(uuid.v7_string())
   let ts = timestamp.system_time()
-  let item = types.Record(id:, created_at: ts, updated_at: ts, resource: req.data)
+  let item = types.Record(id:, created_at: ts, updated_at: ts, resource: req.data, archived: types.Archived(False))
   let assert Ok(_inserted) = ctx.cfg.items |> uset.insert(item.id, item)
   let _broadcasted = broadcast_item(item:, action: Created, ctx:)
   Ok(item)
@@ -171,41 +162,25 @@ fn delete_items(
 
 fn sub_subscribe_to_items(
   sub sub: Sub(api.ItemsSubMsg),
-  send send: fn(SocketResp) -> Msg,
 ) -> server.SubHandler(api.ItemsSubMsg, Context, Selector(Msg), Msg) {
   server.SubHandler(
     run: subscribe_to_items,
     encode: api.encode_items_sub_msg,
     sub:,
-    send:,
   )
-}
-
-fn sub_socket_resp(
-  value value: t,
-  ref ref: Uuid,
-  encode encode: fn(t) -> Json,
-) -> types.SocketResp {
-  types.S(Ok(value))
-  |> types.encode_subscription_msg(
-    types.encode_result(_, encode, fn(_) { json.null() })
-  )
-  |> Ok
-  |> types.SocketResp(ref:, action: None)
 }
 
 fn subscribe_to_items(
-  _sub: Sub(msg),
-  ref ref: Uuid,
+  _sub: Sub(api.ItemsSubMsg),
   ctx ctx: Context,
-  send send: fn(SocketResp) -> Msg, // TODO rename ... `wrap`?
+  send send: fn(fn(Uuid) -> SocketResp) -> Msg,
 ) -> Result(Selector(Msg), types.Err) {
   let _ = subscribe(
     to: "items",
     in: fn(rs: PubSub) { rs.items },
     wrap: fn(t) {
       api.ItemsSubMsg(item: t.0, action: t.1)
-      |> sub_socket_resp(ref:, encode: api.encode_items_sub_msg)
+      |> server.sub_socket_resp(encode: api.encode_items_sub_msg)
       |> send
     }
   )

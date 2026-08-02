@@ -4,6 +4,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/io
 import gleam/json.{type Json}
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -18,7 +19,7 @@ pub opaque type Req(req, msg) {
   )
 }
 
-pub opaque type Reqs(msg) {
+pub type Reqs(msg) {
   Reqs(
     dict: Dict(Uuid, HandlerFunc(msg)),
   )
@@ -97,20 +98,22 @@ pub fn insert_req(
   Reqs(dict: reqs.dict |> dict.insert(req.ref, req.resp))
 }
 
-pub fn clear_req_and_log_err(
+pub fn log_err_and(
   reqs reqs: Reqs(msg),
   err err: RecvErr,
+  clear_req clear_req: Bool,
 ) -> Reqs(msg) {
   io.println_error("`RecvErr`:\n" <> err |> string.inspect)
 
-  case err {
-    NoRef(..) |
-    RefParseFailure(..) ->
+  case clear_req, err {
+    False, _ |
+    _, NoRef(..) |
+    _, RefParseFailure(..) ->
       reqs
 
-    ReqNotFound(ref:, ..) |
-    ResultNotFound(ref:, ..) |
-    DecodeErrs(ref:, ..) ->
+    True, ReqNotFound(ref:, ..) |
+    True, ResultNotFound(ref:, ..) |
+    True, DecodeErrs(ref:, ..) ->
     // JsonDecodeErr(ref:, ..) ->
       case pop_req(reqs, ref) {
         Error(Nil) ->
@@ -171,7 +174,7 @@ pub fn sub(
   let ref = uuid.v7()
   Req(ref:, req:, resp: fn(dyn) {
     dyn
-    |> decode.run(decoder)
+    |> decode.run(decode.at(["result", "ok", "s"], decoder))
     |> result.map_error(DecodeErrs(ref:, errs: _))
     |> result.map(msg)
     // |> todo

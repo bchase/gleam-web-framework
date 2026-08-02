@@ -76,11 +76,7 @@ pub type FuncHandler(param, return, listener, msg, context) {
 // TODO if eventually in an erlang package, `listener` is actually `process.Selector(msg)`
 pub type SubHandler(sub_msg, context, listener, msg) {
   SubHandler(
-    run: fn(
-      Sub(sub_msg),
-      context,
-      fn(fn(Uuid) -> SocketResp) -> msg,
-    ) -> Result(listener, Err),
+    run: fn(Sub(sub_msg), context, fn(fn(Uuid) -> SocketResp) -> msg) -> Result(listener, Err),
     //
     encode: fn(sub_msg) -> Json,
     sub: Sub(sub_msg),
@@ -123,52 +119,13 @@ pub type Return(listener) {
   )
 }
 
-pub fn process(
-  sub sub: Sub(sub_msg),
-  ref ref: Uuid,
-  ctx ctx: context,
-  subs subs: Set(String),
-  handler handler: SubHandler(sub_msg, context, listener, msg),
-  send send: fn(SocketResp) -> msg,
-) -> Return(listener) {
-  let action = None
-
-  let sub_str = sub |> string.inspect
-
-  case set.contains(subs, sub_str)  {
-    True -> {
-      let resp = SocketResp(ref:, action:, result: Error(types.Server(types.ServerErr("already subscribed: " <> sub_str))))
-      Return(resp:, subs:, listener: None)
-    }
-
-    False ->
-      case handler.run(sub, ctx, fn(msg) { send(msg(ref)) }) {
-        Ok(listener) -> {
-          let ack =
-            types.S(Ok(Nil))
-            |> types.encode_subscription_msg(
-              types.encode_result(_, types.encode_nil, fn(_) { json.null() })
-            )
-
-          let resp = SocketResp(ref:, action:, result: Ok(ack))
-          Return(resp:, subs:, listener: Some(listener))
-        }
-
-        Error(err) -> {
-          let resp = SocketResp(ref:, action:, result: Error(err))
-          Return(resp:, subs:, listener: None)
-        }
-      }
-  }
-}
-
 pub fn process_sub(
   sub sub: Sub(sub_msg),
   ref ref: Uuid,
   ctx ctx: context,
   subs subs: Set(String),
   handler handler: SubHandler(sub_msg, context, listener, msg),
-  send send: fn(SocketResp) -> msg,
+  wrap wrap: fn(SocketResp) -> msg,
 ) -> Return(listener) {
   let action = None
 
@@ -181,7 +138,7 @@ pub fn process_sub(
     }
 
     False ->
-      case handler.run(sub, ctx, fn(msg) { send(msg(ref)) }) {
+      case handler.run(sub, ctx, fn(to_resp) { ref |> to_resp |> wrap }) {
         Ok(listener) -> {
           let ack =
             types.S(Ok(Nil))

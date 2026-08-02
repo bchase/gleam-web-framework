@@ -95,7 +95,7 @@ fn update(
       pure(model)
 
     RecvWebSocketConnEvent(event:) -> {
-      case event {
+      case event |> echo {
         WebSocketUrlInvalid ->
           panic as "invalid websocket url"
 
@@ -104,12 +104,20 @@ fn update(
 
         Connected(reconnect: _) -> {
           let #(model, list_items_eff) = model |> model.client.send(api.req_list_items(None, RecvItems))
-          let #(model, sub_items_eff) = model |> model.client.send(api.req_subscribe_to_items(fn(result) {
-            case result {
-              Ok(api.ItemsSubMsg(action:, item:)) -> RecvItem(action:, result: Ok(item))
-              Error(_) -> NoOp
-            }
+          let #(model, sub_items_eff) = model |> model.client.send(api.req_subscribe_to_items(fn(msg) {
+            RecvItem(action: msg.action, result: Ok(msg.item))
           }))
+          // let #(model, sub_items_eff) = model |> model.client.send(api.req_subscribe_to_items(fn(result) {
+          //   case result {
+          //     Ok(api.ItemsSubMsg(action:, item:)) ->
+          //       RecvItem(action:, result: Ok(item))
+
+          //     Error(err) -> {
+          //       io.println_error("Failed handle items sub msg: " <> string.inspect(err))
+          //       NoOp
+          //     }
+          //   }
+          // }))
 
           model
           |> pair.new(effect.batch([

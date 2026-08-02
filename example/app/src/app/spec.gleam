@@ -1,7 +1,7 @@
 import gleam/http/response.{type Response}
 import gleam/http/request.{type Request}
 import mist
-import gleam/option.{Some}
+import gleam/option.{Some, None}
 import app/config.{add_pubsub_workers}
 import app/user.{type User, authenticate}
 import fpo/types.{type Context, type EnvVar, Features}
@@ -27,6 +27,9 @@ pub fn spec() -> Spec(Config, PubSub, User, Err) {
     session_cookie_name: "app",
     dot_env_relative_path: ".env",
     secret_key_base_env_var_name: "SECRET_KEY_BASE",
+    port: None,
+    mist_handler: None,
+    mist_builder: None,
     //
     config: spec.Config(
       features: Features(
@@ -36,6 +39,7 @@ pub fn spec() -> Spec(Config, PubSub, User, Err) {
         set_user_client_info: Some(types.SetUserClientInfo(
           path_prefix: "_fpo",
           browser_js_path: "/static/js/fpo-gleam-browser.js",
+          skip_redirect: None,
         )),
       ),
       init: config.init,

@@ -39,6 +39,12 @@ pub opaque type Msg {
   Broadcast(msg: SocketResp)
 }
 
+pub fn wrap(
+  resp resp: SocketResp,
+) -> Msg {
+  Broadcast(resp)
+}
+
 pub fn start(
   req req: Request(mist.Connection),
   ctx ctx: context,
