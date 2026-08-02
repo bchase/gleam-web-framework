@@ -1,6 +1,6 @@
 import gleam/otp/static_supervisor
 import gleam/dict.{type Dict}
-import gleam/http/response as resp
+import gleam/http/response.{type Response} as resp
 import gleam/http/request.{type Request}
 import gleam/option.{type Option}
 import lustre/element.{type Element}
@@ -18,6 +18,14 @@ pub type Spec(config, pubsub, user, err) {
     dot_env_relative_path: String,
     secret_key_base_env_var_name: String,
     port: Option(Int),
+    mist_builder: Option(
+      fn(mist.Builder(mist.Connection, mist.ResponseData)) ->
+        mist.Builder(mist.Connection, mist.ResponseData)
+    ),
+    mist_handler: Option(
+      fn(fn(Request(mist.Connection)) -> Response(mist.ResponseData)) ->
+        fn(Request(mist.Connection)) -> Response(mist.ResponseData)
+    ),
     //
     config: Config(config),
     authenticate: fn(Session, config) -> Option(user),

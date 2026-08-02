@@ -1,3 +1,4 @@
+import gleam/function
 import fpo/generic/prelude
 import gleam/string
 import gleam/io
@@ -223,9 +224,11 @@ fn web_req_handler(
     handle_server_components_websockets:,
     session_cookie_name:,
   )
+  |> option.unwrap(spec.mist_handler, function.identity)()
   |> mist.new()
   |> mist.bind("0.0.0.0")
   |> mist.port(port(override: spec.port))
+  |> option.unwrap(spec.mist_builder, function.identity)()
   // |> mist.with_ipv6
   |> mist.start
 }
