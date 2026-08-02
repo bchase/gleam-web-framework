@@ -55,7 +55,7 @@ pub fn crud_handler_app(
   )
 }
 
-pub type FuncHandler(param, return, context) {
+pub type FuncHandler(param, return, listener, msg, context) {
   FuncHandler(
     run: fn(param, context) -> Result(return, Err),
     //
@@ -63,14 +63,27 @@ pub type FuncHandler(param, return, context) {
   )
 }
 
+// pub type SubHandler1(sub_msg, listener, msg, context) {
+//   SubHandler1(
+//     run: fn(Sub(sub_msg), Uuid, context, fn(fn(Uuid) -> SocketResp) -> msg) -> Result(listener, Err),
+//     //
+//     encode: fn(sub_msg) -> Json,
+//     sub: Sub(sub_msg),
+//     send: fn(SocketResp) -> msg,
+//   )
+// }
+
 // TODO if eventually in an erlang package, `listener` is actually `process.Selector(msg)`
 pub type SubHandler(sub_msg, context, listener, msg) {
   SubHandler(
-    run: fn(Sub(sub_msg), Uuid, context, fn(SocketResp) -> msg) -> Result(listener, Err),
+    run: fn(
+      Sub(sub_msg),
+      context,
+      fn(fn(Uuid) -> SocketResp) -> msg,
+    ) -> Result(listener, Err),
     //
     encode: fn(sub_msg) -> Json,
     sub: Sub(sub_msg),
-    send: fn(SocketResp) -> msg,
   )
 }
 
@@ -78,12 +91,28 @@ pub fn func_handler_app(
   app app: fn(param) -> App(return, err, context),
   encode encode: fn(return) -> Json,
   err err: fn(err) -> Err,
-) -> FuncHandler(param, return, context) {
+) -> FuncHandler(param, return, Nil, Nil, context) {
   FuncHandler(
     run: app_to_func(app:, err:),
     //
     encode:,
   )
+}
+
+pub fn sub_socket_resp(
+  value value: t,
+  encode encode: fn(t) -> Json,
+) -> fn(Uuid) -> types.SocketResp {
+  fn(ref) {
+    types.S(value)
+    |> types.encode_subscription_msg(encode)
+    // types.S(Ok(value))
+    // |> types.encode_subscription_msg(
+    //   types.encode_result(_, encode, fn(_) { json.null() })
+    // )
+    |> Ok
+    |> types.SocketResp(ref:, action: None)
+  }
 }
 
 pub type Return(listener) {
@@ -94,12 +123,13 @@ pub type Return(listener) {
   )
 }
 
-pub fn process_sub(
+pub fn process(
   sub sub: Sub(sub_msg),
   ref ref: Uuid,
   ctx ctx: context,
   subs subs: Set(String),
   handler handler: SubHandler(sub_msg, context, listener, msg),
+  send send: fn(SocketResp) -> msg,
 ) -> Return(listener) {
   let action = None
 
@@ -112,7 +142,46 @@ pub fn process_sub(
     }
 
     False ->
-      case handler.run(sub, ref, ctx, handler.send) {
+      case handler.run(sub, ctx, fn(msg) { send(msg(ref)) }) {
+        Ok(listener) -> {
+          let ack =
+            types.S(Ok(Nil))
+            |> types.encode_subscription_msg(
+              types.encode_result(_, types.encode_nil, fn(_) { json.null() })
+            )
+
+          let resp = SocketResp(ref:, action:, result: Ok(ack))
+          Return(resp:, subs:, listener: Some(listener))
+        }
+
+        Error(err) -> {
+          let resp = SocketResp(ref:, action:, result: Error(err))
+          Return(resp:, subs:, listener: None)
+        }
+      }
+  }
+}
+
+pub fn process_sub(
+  sub sub: Sub(sub_msg),
+  ref ref: Uuid,
+  ctx ctx: context,
+  subs subs: Set(String),
+  handler handler: SubHandler(sub_msg, context, listener, msg),
+  send send: fn(SocketResp) -> msg,
+) -> Return(listener) {
+  let action = None
+
+  let sub_str = sub |> string.inspect
+
+  case set.contains(subs, sub_str)  {
+    True -> {
+      let resp = SocketResp(ref:, action:, result: Error(types.Server(types.ServerErr("already subscribed: " <> sub_str))))
+      Return(resp:, subs:, listener: None)
+    }
+
+    False ->
+      case handler.run(sub, ctx, fn(msg) { send(msg(ref)) }) {
         Ok(listener) -> {
           let ack =
             types.S(Ok(Nil))
@@ -137,7 +206,7 @@ pub fn process_func(
   ref ref: Uuid,
   ctx ctx: context,
   subs subs: Set(String),
-  handler handler: FuncHandler(param, return, context),
+  handler handler: FuncHandler(param, return, Nil, Nil, context),
 ) -> Return(listener) {
   let action = None
 

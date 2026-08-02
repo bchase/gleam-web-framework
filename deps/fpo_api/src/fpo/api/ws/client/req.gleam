@@ -1,4 +1,4 @@
-import fpo/api/ws/types.{type Id, type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
+import fpo/api/ws/types.{type Id, type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Sub, Create, CreateReq, Delete, DeleteReq, Func, FuncReq, List, ListReq, Read, ReadReq, SocketReq, Update, UpdateReq, decoder_record}
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
@@ -30,12 +30,13 @@ pub fn empty_reqs() -> Reqs(msg) {
 
 pub type HandlerFunc(msg) = fn(Dynamic) -> HandlerResult(msg)
 
-pub type HandlerResult(msg) {
-  HandlerResult(
-    result: Result(msg, RecvErr),
-    err: fn(RecvErr) -> msg,
-  )
-}
+pub type HandlerResult(msg) = Result(msg, RecvErr)
+// pub type HandlerResult(msg) {
+//   HandlerResult(
+//     result: Result(msg, RecvErr),
+//     err: fn(RecvErr) -> msg,
+//   )
+// }
 
 pub type Err {
   ApiErr(err: types.Err)
@@ -162,15 +163,21 @@ pub fn func(
 }
 
 pub fn sub(
-  sub sub: Sub(t),
   req req: fn(Sub(t)) -> req,
   decoder decoder: Decoder(t),
   msg msg: fn(t) -> msg,
-  noop noop: msg,
 ) -> Req(req, msg) {
-  let req = req(sub)
-  let err = fn(_err) { noop } // TODO
-  build_sub(req:, decoder:, msg:, err:)
+  let req = req(Sub)
+  let ref = uuid.v7()
+  Req(ref:, req:, resp: fn(dyn) {
+    dyn
+    |> decode.run(decoder)
+    |> result.map_error(DecodeErrs(ref:, errs: _))
+    |> result.map(msg)
+    // |> todo
+    // |> HandlerResult(result: _, err: fn(err) { msg(RecvErr(err)) })
+    // |> HandlerResult(result: _, err: todo as "tk")
+  })
 }
 
 pub fn list(
@@ -248,23 +255,6 @@ pub fn build_req(
     |> result.map(result.map_error(_, ApiErr))
     |> result.map(msg)
     |> result.map_error(DecodeErrs(ref:, errs: _))
-    |> HandlerResult(result: _, err:)
-  })
-}
-
-pub fn build_sub(
-  req req: req,
-  decoder decoder: Decoder(t),
-  msg msg: fn(t) -> msg,
-  err err: fn(RecvErr) -> msg
-) -> Req(req, msg) {
-  let ref = uuid.v7()
-  Req(ref:, req:, resp: fn(dyn) {
-    dyn
-    |> decode.run(decoder)
-    |> result.map(msg)
-    |> result.map_error(DecodeErrs(ref:, errs: _))
-    |> HandlerResult(result: _, err:)
   })
 }
 
@@ -284,11 +274,6 @@ pub fn map(
   Req(..req, resp: fn(dyn) {
     dyn
     |> req.resp
-    |> fn(hr) {
-      HandlerResult(
-        result: hr.result |> result.map(f),
-        err: fn(err) { err |> hr.err |> f }
-      )
-    }
+    |> result.map(f)
   })
 }

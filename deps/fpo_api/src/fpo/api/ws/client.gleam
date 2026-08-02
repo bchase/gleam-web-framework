@@ -279,16 +279,9 @@ fn recv_reqs(
     |> result.replace_error(req.ReqNotFound(ref:, json:))
   )
 
-  let req.HandlerResult(result:, err: to_err_msg) =
-    handle_resp(dyn)
-
-  let msg =
-    case result {
-      Ok(msg) -> msg
-      Error(err) -> err |> to_err_msg
-    }
-
-  Ok(#(reqs, msg))
+  dyn
+  |> handle_resp
+  |> result.map(pair.new(reqs, _))
 }
 
 fn recv_ref_and_dyn(

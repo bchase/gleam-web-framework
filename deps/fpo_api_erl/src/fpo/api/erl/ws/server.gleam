@@ -15,7 +15,12 @@ pub type SubHandler(t, ctx, msg) = server.SubHandler(t, ctx, Selector(msg), msg)
 
 pub type Server(req, context) {
   Server(
-    call: fn(types.SocketReq(req), context, Set(String), fn(SocketResp) -> Msg) -> Return(Selector(Msg)),
+    call: fn(
+      types.SocketReq(req),
+      context,
+      Set(String),
+      fn(SocketResp) -> Msg,
+    ) -> Return(Selector(Msg)),
     decoder: Decoder(req),
   )
 }
