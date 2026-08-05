@@ -1,3 +1,6 @@
+import gleam/result
+import gleam/dict
+import app/sse
 import gleam/http/response.{type Response}
 import gleam/http/request.{type Request}
 import mist
@@ -15,6 +18,8 @@ import app/types.{type Config, type PubSub, type Err} as _
 import app/web/components/counter_app
 import app/api/server
 import fpo/api/erl/ws/server as erl_server
+import shared/sse.{Greeting, example as sse_example} as _
+import app/pubsub/helpers as pubsub
 
 pub fn spec() -> Spec(Config, PubSub, User, Err) {
   // panic as "`register_server_components` needs to be fixed"
@@ -71,10 +76,18 @@ fn other_websockets_router(
   req req: Request(mist.Connection),
   ctx ctx: Context(Config, PubSub, User),
 ) -> Result(Response(mist.ResponseData), Nil) {
-  case req |> request.path_segments {
-    ["ws", "api"] -> Ok(api_websocket(req:, ctx:))
-    _ -> Error(Nil)
-  }
+  dict.from_list([
+    #(["ws", "api"], api_websocket),
+
+    sse_example()
+    |> sse.subscribe(
+      to: "msgs",
+      in: pubsub.text,
+      wrap: fn(msg) { Greeting(msg: msg.text) },
+    ),
+  ])
+  |> dict.get(request.path_segments(req))
+  |> result.map(fn(handle) { handle(req, ctx) })
 }
 
 fn api_websocket(

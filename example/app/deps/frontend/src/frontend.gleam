@@ -1,3 +1,12 @@
+import bchase/function
+import bchase/web/sse.{type SSE}
+import gleam/json
+import bchase/json.{type Transcoder, Transcoder} as _
+import bchase/unsafe
+import gleam/javascript/array.{type Array}
+import bchase/dynamic.{type Dynamic}
+import gleam/dynamic/decode.{type Decoder}
+import plinth/browser/eventsource.{type EventSource}
 import fpo/api/ws/client.{type ApiData, type Err as ApiErr, type ConnectionEvent, NotAsked, Loading, Failure, Success, Connected, Disconnected, WebSocketUrlInvalid, zero_api_client, map_success, success_or} as _
 import fpo/api/ws/types.{type Id, type Record, type Action, Created, Updated, Deleted, type Paginated}
 import fpo/api/js/ws/client.{type Client}
@@ -20,6 +29,9 @@ import plinth/browser/element as dom_element
 import plinth/javascript/global
 import shared/api.{type Api}
 import youid/uuid.{type Uuid}
+import bchase/lustre.{pure, do, effs} as _
+import bchase/js/event_source
+import shared/sse.{type Greeting, example as sse_example} as _
 
 const lustre_app_target_selector = "body"
 
@@ -40,10 +52,14 @@ type Model {
     client: Client(Api, Model, Msg),
     //
     str: Option(Result(String, ApiErr)),
+    //
+    event_source: Option(EventSource),
   )
 }
 
 type Msg {
+  GotSSE(msg: Greeting)
+  ConnectedSSE(event_source: EventSource)
   NoOp
   // websockets
   ClientMsg(msg: client.Msg)
@@ -62,40 +78,85 @@ type Msg {
 fn init(_) -> #(Model, Effect(Msg)) {
   let ws_url = "/ws/api"
 
-  Model(
-    uuid: uuid.v7(),
-    //
-    client: zero_api_client(zero: NoOp),
-    //
-    str: None,
-    items: NotAsked,
-    item: None,
+  use model <- do(
+    Model(
+      uuid: uuid.v7(),
+      //
+      client: zero_api_client(zero: NoOp),
+      //
+      str: None,
+      items: NotAsked,
+      item: None,
+      //
+      event_source: None,
+    )
+    |> client.init(
+      ws_url:,
+      get_client: fn(model: Model) { model.client },
+      set_client: fn(model: Model, client) { Model(..model, client:) },
+      wrap: ClientMsg,
+      encode: api.encode_api,
+      on_no_conn: fn(_) {
+        echo "NO CONN MSG SEND"
+        None
+      },
+      notify: fn(event) { Some(RecvWebSocketConnEvent(event:)) },
+    )
   )
-  |> client.init(
-    ws_url:,
-    get_client: fn(model: Model) { model.client },
-    set_client: fn(model: Model, client) { Model(..model, client:) },
-    wrap: ClientMsg,
-    encode: api.encode_api,
-    on_no_conn: fn(_) {
-      echo "NO CONN MSG SEND"
-      None
-    },
-    notify: fn(event) { Some(RecvWebSocketConnEvent(event:)) },
-  )
+
+  model |> effs([
+    sse_connect(
+      sse: sse_example(),
+      msg: GotSSE,
+      connected: Some(ConnectedSSE),
+    ),
+  ])
+}
+
+fn sse_connect(
+  sse sse: SSE(broadcast),
+  msg wrap: fn(broadcast) -> msg,
+  connected connected: Option(fn(eventsource.EventSource) -> msg)
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    event_source.connect(
+      endpoint: sse,
+      on_message: fn(msg) { dispatch(wrap(msg)) },
+      overrides: event_source.log_open_close_err(),
+    )
+    |> result.map(fn(event_source) {
+      case connected {
+        Some(connected) -> dispatch(connected(event_source))
+        None -> Nil
+      }
+    })
+    |> result.map_error(fn(_) {
+      io.println_error(
+        "SSE failed to connect: " <> sse.path(sse)
+      )
+    })
+    |> result.unwrap(Nil)
+  })
 }
 
 fn update(
   model model: Model,
   msg msg: Msg,
 ) -> #(Model, Effect(Msg)) {
-  // echo msg
   case msg {
+    GotSSE(msg:) -> {
+      echo { "GOT SSE: " <> string.inspect(msg) }
+      pure(model)
+    }
+
+    ConnectedSSE(event_source:) ->
+      pure(Model(..model, event_source: Some(event_source)))
+
     NoOp ->
       pure(model)
 
     RecvWebSocketConnEvent(event:) -> {
-      case event |> echo {
+      case event {
         WebSocketUrlInvalid ->
           panic as "invalid websocket url"
 
@@ -158,7 +219,7 @@ fn update(
         model.items
         |> map_success(dict.delete(_, item.id))
       })
-      |> eff([
+      |> effs([
         set_focus("item-name"),
       ])
     }
@@ -170,7 +231,7 @@ fn update(
         |> success_or(default: dict.new())
         |> map_success(dict.insert(_, item.id, item))
       })
-      |> eff([
+      |> effs([
         set_focus("item-name"),
       ])
     }
@@ -348,21 +409,6 @@ fn view_items(
         })
     }
   })
-}
-
-// lustre helpers
-
-fn pure(
-  model model: Model,
-) -> #(Model, Effect(Msg)) {
-  model |> pair.new(effect.none())
-}
-
-fn eff(
-  model model: Model,
-  effs effs: List(Effect(Msg))
-) -> #(Model, Effect(Msg)) {
-  model |> pair.new(effect.batch(effs))
 }
 
 // dom helpers

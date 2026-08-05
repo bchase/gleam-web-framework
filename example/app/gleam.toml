@@ -1,4 +1,4 @@
- name = "app"
+name = "app"
 version = "1.0.0"
 
 target = "erlang"
@@ -36,6 +36,8 @@ bravo = ">= 0.0.0 and < 1.0.0"
 shared = { path = "deps/shared" }
 youid = ">= 1.6.0 and < 2.0.0"
 fpo_api_erl = { path = "../../deps/fpo_api_erl" }
+bchase = { git = "https://github.com/bchase/gleam-bchase", ref = "master" }
+bchase_erl = { git = "https://github.com/bchase/gleam-bchase", ref = "master", path = "erl" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

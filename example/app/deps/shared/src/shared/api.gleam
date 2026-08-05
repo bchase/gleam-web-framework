@@ -1,6 +1,6 @@
-import fpo/api/ws/client/req.{type Req, create, delete, func, list, read, update}
-import fpo/api/ws/types.{type Id, type Action, type ConfirmDelete, type Crud, type Func, type Paginated, type Params, type Record, type Sub, Created, Deleted, Sub, Updated, decoder_action, decoder_crud, decoder_func, decoder_record, decoder_sub, encode_action, encode_crud, encode_func, encode_record, encode_sub}
 import deriv/util as deriv
+import fpo/api/ws/client/req.{type Req, create, delete, func, list, read, update}
+import fpo/api/ws/types.{type Action, type ConfirmDelete, type Crud, type Func, type Id, type Paginated, type Params, type Record, type Sub, Created, Deleted, Sub, Updated, decoder_action, decoder_crud, decoder_func, decoder_record, decoder_sub, encode_action, encode_crud, encode_func, encode_record, encode_sub}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{type Option}
@@ -156,13 +156,8 @@ pub fn decoder_items_sub_msg() -> Decoder(ItemsSubMsg) {
 }
 
 pub fn decoder_items_sub_msg_items_sub_msg() -> Decoder(ItemsSubMsg) {
-  use dyn <- decode.subfield([], decode.dynamic)
-  echo "DYN"
-  echo dyn
   use action <- decode.field("action", decoder_action())
-  echo action
   use item <- decode.field("item", decoder_record(decoder_item()))
-  echo item
   decode.success(ItemsSubMsg(action:, item:))
 }
 
@@ -198,8 +193,6 @@ pub fn decoder_item_attr_item_name() -> Decoder(ItemAttr) {
 
 pub fn decoder_api_subscribe_to_items() -> Decoder(Api) {
   use _deriv_var_constr <- decode.field("_var", deriv.is("SubscribeToItems"))
-  echo "SUCCESS"
   use sub <- decode.field("sub", decoder_sub(decoder_items_sub_msg()))
-  echo sub
   decode.success(SubscribeToItems(sub:))
 }
