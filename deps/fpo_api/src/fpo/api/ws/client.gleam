@@ -2,7 +2,7 @@ import gleam/list
 import gleam/dict
 import gleam/float
 import gleam/int
-import fpo/api/ws/client/req.{type RecvErr, type Req, type Reqs, NoConn, log_err_and}
+import fpo/api/ws/client/req.{type RecvErr, type Req, type Reqs, NoConn}
 import fpo/api/ws/types
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
@@ -255,8 +255,11 @@ fn recv_model(
     Error(err) ->
       model
       |> set_client(Client(..client, reqs: {
+        // // TODO fix
+        // client.reqs
+        // |> log_err_and(err:, clear_req: False)
+        io.println_error(string.inspect(err))
         client.reqs
-        |> log_err_and(err:, clear_req: False)
       }))
       |> pair.new(effect.none())
   }
