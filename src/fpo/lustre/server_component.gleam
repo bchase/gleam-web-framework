@@ -5,6 +5,7 @@ import gleam/result
 import gleam/option.{type Option, Some, None}
 import lustre
 import lustre/attribute as attr
+import lustre/component
 import lustre/server_component
 import lustre/effect.{type Effect}
 import fpo/types.{type Context, type UserClientInfo, type Fpo}
@@ -141,6 +142,24 @@ pub fn build_lustre_app(
     init: wrap_init(init:, module:),
     update: wrap_update(update:, selectors:, post_init:, module:, ctx:),
     view: wrap_view(view:, ctx:),
+  )
+}
+
+pub fn build_lustre_component(
+  init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user, err),
+  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
+  selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
+  update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user, err),
+  view view: fn(model, Option(user), Option(UserClientInfo)) -> Element(msg),
+  options options: List(component.Option(Wrapped(msg))),
+  module module: String,
+  ctx ctx: Context(config, pubsub, user),
+) -> lustre.App(Context(config, pubsub, user), model, Wrapped(msg)) {
+  lustre.component(
+    init: wrap_init(init:, module:),
+    update: wrap_update(update:, selectors:, post_init:, module:, ctx:),
+    view: wrap_view(view:, ctx:),
+    options:,
   )
 }
 
