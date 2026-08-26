@@ -131,7 +131,7 @@ pub fn register(
 
 pub fn build_lustre_app(
   init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user, err),
-  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
+  post_init post_init: Option(fn(model, fn(msg, Int) -> Nil) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
   selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
   update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user, err),
   view view: fn(model, Option(user), Option(UserClientInfo)) -> Element(msg),
@@ -147,7 +147,7 @@ pub fn build_lustre_app(
 
 pub fn build_lustre_component(
   init init: fn() -> App(#(model, Effect(msg)), config, pubsub, user, err),
-  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
+  post_init post_init: Option(fn(model, fn(msg, Int) -> Nil) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
   selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
   update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user, err),
   view view: fn(model, Option(user), Option(UserClientInfo)) -> Element(msg),
@@ -165,7 +165,7 @@ pub fn build_lustre_component(
 
 pub type Wrapped(msg) {
   InnerMsg(msg: msg)
-  PostInit
+  PostInit(delayed_dispatch: fn(msg, Int) -> Nil)
 }
 
 fn select(
@@ -236,7 +236,18 @@ fn wrap_init(
       let #(model, eff) = t
       #(model, effect.batch([
         eff,
-        effect.from(fn(dispatch) { dispatch(PostInit) }),
+        effect.from(fn(wrapped_dispatch: fn(Wrapped(msg)) -> Nil) {
+          let delayed_dispatch = fn(msg, ms) {
+            process.spawn_unlinked(fn() {
+              process.sleep(ms)
+              wrapped_dispatch(InnerMsg(msg))
+            })
+            Nil
+          }
+
+          wrapped_dispatch(PostInit(delayed_dispatch:))
+          Nil
+        }),
       ]))
     })
     |> log_err(module:, func: "wrap_init")
@@ -256,16 +267,16 @@ fn wrap_effect(
 fn wrap_update(
   update update: fn(model, msg) -> App(#(model, Effect(msg)), config, pubsub, user, err),
   selectors selectors: fn(model) -> List(App(Selector(msg), config, pubsub, user, err)),
-  post_init post_init: Option(fn(model) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
+  post_init post_init: Option(fn(model, fn(msg, Int) -> Nil) -> App(#(model, Effect(msg)), config, pubsub, user, err)),
   module module: String,
   ctx ctx: Context(config, pubsub, user),
 ) -> fn(model, Wrapped(msg)) -> #(model, Effect(Wrapped(msg))) {
   fn(model, wrapped_msg) {
     case wrapped_msg {
-      PostInit -> {
+      PostInit(delayed_dispatch:) -> {
         case post_init {
           None -> pure(#(model, effect.none()))
-          Some(post_init) -> post_init(model)
+          Some(post_init) -> post_init(model, delayed_dispatch)
         }
         |> select(selectors:)
       }
